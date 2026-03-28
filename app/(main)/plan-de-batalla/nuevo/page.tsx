@@ -1,0 +1,199 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
+import { Button } from '@/components/ui/Button'
+import { Input, Textarea, Select } from '@/components/ui/Input'
+import type { Objetivo, Usuario } from '@/lib/types'
+
+export default function NuevoPBPage() {
+  const router = useRouter()
+  const { data: session } = useSession()
+  const userId = (session?.user as any)?.id
+
+  const [loading, setLoading] = useState(false)
+  const [objetivos, setObjetivos] = useState<Objetivo[]>([])
+  const [usuarios, setUsuarios] = useState<Usuario[]>([])
+  const [selectedObjetivos, setSelectedObjetivos] = useState<string[]>([])
+  const [form, setForm] = useState({
+    titulo: '',
+    periodo: 'Día' as 'Día' | 'Semana',
+    fecha: new Date().toISOString().split('T')[0],
+    estado: 'Borrador' as 'Borrador' | 'Activo' | 'Completado',
+    responsableId: userId ?? '',
+    notas: '',
+  })
+
+  useEffect(() => {
+    if (userId) setForm(f => ({ ...f, responsableId: userId }))
+  }, [userId])
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/airtable/tbl9ljCeFDMeCsbAT').then(r => r.json()),
+      fetch('/api/airtable/tblXhgSBuh0f1BNPV').then(r => r.json()),
+    ]).then(([od, ud]) => {
+      setObjetivos((od.records ?? []).map((r: any): Objetivo => ({
+        id: r.id,
+        nombre: r.fields['fldoAaiHZ0wE8skdB'] ?? '',
+        tipo: r.fields['fld3P1VeDX9ierG8i'] ?? 'Operativo',
+        programaIds: r.fields['fldVwyD7NNocHhORP'] ?? [],
+        responsableIds: r.fields['fldcG10p89bDRUU0X'] ?? [],
+        estado: r.fields['flddQzgB28scsTuLu'] ?? 'Pendiente',
+        esRepetible: r.fields['fld0BCz0UMO7K5wCn'] ?? false,
+        pbIds: [],
+        cumplimientoIds: [],
+      })).filter((o: Objetivo) => o.estado !== 'Cumplido'))
+
+      setUsuarios((ud.records ?? []).map((r: any): Usuario => ({
+        id: r.id,
+        nombre: r.fields['fldFbWbFkhxmr7hRf'] ?? '',
+        email: r.fields['fld0IIhsqQw2yny1Z'] ?? '',
+        rol: r.fields['fldbVYb9q3OTbmlYR'] ?? 'Staff',
+        activo: r.fields['fldtHzaYrxVt1e8q3'] ?? false,
+      })).filter((u: Usuario) => u.activo))
+    }).catch(() => {})
+  }, [])
+
+  function toggleObjetivo(id: string) {
+    setSelectedObjetivos(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+
+    const fields: Record<string, any> = {
+      'fldUdkIDSJ5bpkWQ1': form.titulo,
+      'fldhCdfSUagl3qWvg': form.periodo,
+      'fldyxNXiYbvSM1Ngb': form.estado,
+    }
+    if (form.fecha) fields['flduXU9YPEnp04XvA'] = form.fecha
+    if (form.responsableId) fields['fldyGJqVjj9gGYCY4'] = [form.responsableId]
+    if (selectedObjetivos.length) fields['fldi9AIteXA9P4gp4'] = selectedObjetivos
+    if (form.notas) fields['fldtZNjSntLLyPYlf'] = form.notas
+
+    const res = await fetch('/api/airtable/tbliUTM4zaoyztD6O', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+    })
+
+    setLoading(false)
+    if (res.ok) {
+      const data = await res.json()
+      router.push(`/plan-de-batalla/${data.id}`)
+    }
+  }
+
+  const tipoColor: Record<string, string> = {
+    'Primario': 'text-blue-400',
+    'Condicional': 'text-yellow-400',
+    'Operativo': 'text-orange-400',
+    'Producción': 'text-green-400',
+    'Mayor': 'text-purple-400',
+  }
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-white">Nuevo Plan de Batalla</h1>
+        <p className="text-gray-400 text-sm mt-1">Objetivos del día/semana que implementan el plan estratégico</p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 space-y-5">
+          <Input
+            label="Título *"
+            value={form.titulo}
+            onChange={e => setForm(f => ({ ...f, titulo: e.target.value }))}
+            placeholder="Ej: PB Semana 13 — Expansión"
+            required
+          />
+
+          <div className="grid grid-cols-3 gap-4">
+            <Select
+              label="Período"
+              value={form.periodo}
+              onChange={e => setForm(f => ({ ...f, periodo: e.target.value as any }))}
+            >
+              <option>Día</option>
+              <option>Semana</option>
+            </Select>
+            <Input
+              label="Fecha"
+              type="date"
+              value={form.fecha}
+              onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
+            />
+            <Select
+              label="Estado"
+              value={form.estado}
+              onChange={e => setForm(f => ({ ...f, estado: e.target.value as any }))}
+            >
+              <option>Borrador</option>
+              <option>Activo</option>
+            </Select>
+          </div>
+
+          <Select
+            label="Responsable"
+            value={form.responsableId}
+            onChange={e => setForm(f => ({ ...f, responsableId: e.target.value }))}
+          >
+            <option value="">Sin asignar</option>
+            {usuarios.map(u => (
+              <option key={u.id} value={u.id}>{u.nombre}</option>
+            ))}
+          </Select>
+
+          <Textarea
+            label="Notas"
+            value={form.notas}
+            onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
+            placeholder="Instrucciones, contexto..."
+          />
+        </div>
+
+        {/* Selector de objetivos */}
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">
+          <h2 className="font-medium text-gray-200 mb-3">
+            Objetivos a incluir ({selectedObjetivos.length} seleccionados)
+          </h2>
+          {objetivos.length === 0 ? (
+            <p className="text-gray-500 text-sm">No hay objetivos disponibles.</p>
+          ) : (
+            <div className="space-y-1 max-h-80 overflow-y-auto">
+              {objetivos.map(o => (
+                <label
+                  key={o.id}
+                  className={`flex items-center gap-3 p-2.5 rounded-md cursor-pointer transition-colors ${
+                    selectedObjetivos.includes(o.id) ? 'bg-blue-900/30 border border-blue-800' : 'hover:bg-gray-700 border border-transparent'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedObjetivos.includes(o.id)}
+                    onChange={() => toggleObjetivo(o.id)}
+                    className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600"
+                  />
+                  <span className={`text-xs font-medium ${tipoColor[o.tipo] ?? 'text-gray-400'}`}>{o.tipo}</span>
+                  <span className="text-sm text-gray-200 flex-1">{o.nombre}</span>
+                  <span className="text-xs text-gray-500">{o.estado}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-3">
+          <Button type="submit" loading={loading}>Crear Plan de Batalla</Button>
+          <Button type="button" variant="secondary" onClick={() => router.back()}>Cancelar</Button>
+        </div>
+      </form>
+    </div>
+  )
+}
