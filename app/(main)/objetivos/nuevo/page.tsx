@@ -34,17 +34,17 @@ export default function NuevoObjetivoPage() {
     ]).then(([ud, pd]) => {
       setUsuarios((ud.records ?? []).map((r: any) => ({
         id: r.id,
-        nombre: r.fields['fldFbWbFkhxmr7hRf'] ?? '',
-        email: r.fields['fld0IIhsqQw2yny1Z'] ?? '',
-        rol: r.fields['fldbVYb9q3OTbmlYR'] ?? 'Staff',
-        activo: r.fields['fldtHzaYrxVt1e8q3'] ?? false,
+        nombre: r.fields['Nombre'] ?? '',
+        email: r.fields['Email'] ?? '',
+        rol: r.fields['Rol']?.name ?? r.fields['Rol'] ?? 'Staff',
+        activo: r.fields['Activo'] ?? false,
       })).filter((u: Usuario) => u.activo))
       setProgramas((pd.records ?? []).map((r: any) => ({
         id: r.id,
-        nombre: r.fields['fldrTj1ggeu12uVKu'] ?? '',
-        estado: r.fields['fldCNL2ZzxXfmM1KH'] ?? 'Borrador',
-        responsableIds: r.fields['fldHbc6OhAkKF1iMC'] ?? [],
-        objetivoIds: r.fields['fldXxfiyv5DbvwTsZ'] ?? [],
+        nombre: r.fields['Nombre'] ?? '',
+        estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'Borrador',
+        responsableIds: r.fields['Responsable'] ?? [],
+        objetivoIds: r.fields['Objetivos'] ?? [],
       })))
     }).catch(() => {})
   }, [])
@@ -54,17 +54,17 @@ export default function NuevoObjetivoPage() {
     setLoading(true)
 
     const fields: Record<string, any> = {
-      'fldoAaiHZ0wE8skdB': form.nombre,
-      'fld3P1VeDX9ierG8i': form.tipo,
-      'flddQzgB28scsTuLu': form.estado,
-      'fld0BCz0UMO7K5wCn': form.esRepetible,
+      'Nombre': form.nombre,
+      'Tipo': form.tipo,
+      'Estado': form.estado,
+      'Es Repetible': form.esRepetible,
     }
-    if (form.programaId) fields['fldVwyD7NNocHhORP'] = [form.programaId]
-    if (form.responsableId) fields['fldcG10p89bDRUU0X'] = [form.responsableId]
-    if (form.fechaLimite) fields['fldU1Lo1GbvDrFDuF'] = form.fechaLimite
-    if (form.descripcionDoingness) fields['fldPhw8QNJneQlJDV'] = form.descripcionDoingness
-    if (form.orden) fields['fldxX3JXMRguaJD2Y'] = parseInt(form.orden)
-    if (form.notas) fields['fldhlEJR4FBhXqC6D'] = form.notas
+    if (form.programaId) fields['Programa'] = [form.programaId]
+    if (form.responsableId) fields['Responsable'] = [form.responsableId]
+    if (form.fechaLimite) fields['Fecha Limite'] = form.fechaLimite
+    if (form.descripcionDoingness) fields['Descripcion Doingness'] = form.descripcionDoingness
+    if (form.orden) fields['Orden'] = parseInt(form.orden)
+    if (form.notas) fields['Notas'] = form.notas
 
     const res = await fetch('/api/airtable/tbl9ljCeFDMeCsbAT', {
       method: 'POST',

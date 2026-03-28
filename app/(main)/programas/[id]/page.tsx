@@ -9,19 +9,20 @@ import type { TipoObjetivo, Usuario } from '@/lib/types'
 
 const TIPO_GRUPOS: TipoObjetivo[] = ['Primario', 'Condicional', 'Operativo', 'Producción', 'Mayor']
 
-export default async function ProgramaDetailPage({ params }: { params: { id: string } }) {
+export default async function ProgramaDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getServerSession(authOptions)
   const isEjecutivo = (session?.user as any)?.role === 'Ejecutivo'
 
   let programa: Awaited<ReturnType<typeof getPrograma>>
   try {
-    programa = await getPrograma(params.id)
+    programa = await getPrograma(id)
   } catch {
     notFound()
   }
 
   const [objetivos, usuarios] = await Promise.all([
-    getObjetivos(params.id),
+    getObjetivos(id),
     getUsuarios(),
   ])
 
@@ -50,7 +51,7 @@ export default async function ProgramaDetailPage({ params }: { params: { id: str
         {isEjecutivo && (
           <div className="flex gap-2 flex-shrink-0">
             <Link
-              href={`/objetivos/nuevo?programaId=${params.id}`}
+              href={`/objetivos/nuevo?programaId=${id}`}
               className="px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-600 rounded-md transition-colors"
             >
               + Objetivo
@@ -127,7 +128,7 @@ export default async function ProgramaDetailPage({ params }: { params: { id: str
         <div className="text-center py-12 text-gray-500">
           <p>Este programa no tiene objetivos aún.</p>
           {isEjecutivo && (
-            <Link href={`/objetivos/nuevo?programaId=${params.id}`} className="mt-2 inline-block text-blue-400 hover:text-blue-300 text-sm">
+            <Link href={`/objetivos/nuevo?programaId=${id}`} className="mt-2 inline-block text-blue-400 hover:text-blue-300 text-sm">
               Agregar primer objetivo →
             </Link>
           )}

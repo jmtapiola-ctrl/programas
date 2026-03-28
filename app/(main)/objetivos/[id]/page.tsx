@@ -12,18 +12,18 @@ import type { Objetivo, Cumplimiento, Usuario } from '@/lib/types'
 function mapObjetivo(r: any): Objetivo {
   return {
     id: r.id,
-    nombre: r.fields['fldoAaiHZ0wE8skdB'] ?? '',
-    tipo: r.fields['fld3P1VeDX9ierG8i'] ?? 'Operativo',
-    programaIds: r.fields['fldVwyD7NNocHhORP'] ?? [],
-    responsableIds: r.fields['fldcG10p89bDRUU0X'] ?? [],
-    estado: r.fields['flddQzgB28scsTuLu'] ?? 'Pendiente',
-    fechaLimite: r.fields['fldU1Lo1GbvDrFDuF'],
-    descripcionDoingness: r.fields['fldPhw8QNJneQlJDV'],
-    esRepetible: r.fields['fld0BCz0UMO7K5wCn'] ?? false,
-    orden: r.fields['fldxX3JXMRguaJD2Y'],
-    notas: r.fields['fldhlEJR4FBhXqC6D'],
-    pbIds: r.fields['fldYvTmZeYdS8HO0H'] ?? [],
-    cumplimientoIds: r.fields['fldrVW9e5WdhMpERq'] ?? [],
+    nombre: r.fields['Nombre'] ?? '',
+    tipo: r.fields['Tipo']?.name ?? r.fields['Tipo'] ?? 'Operativo',
+    programaIds: r.fields['Programa'] ?? [],
+    responsableIds: r.fields['Responsable'] ?? [],
+    estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'Pendiente',
+    fechaLimite: r.fields['Fecha Limite'],
+    descripcionDoingness: r.fields['Descripcion Doingness'],
+    esRepetible: r.fields['Es Repetible'] ?? false,
+    orden: r.fields['Orden'],
+    notas: r.fields['Notas'],
+    pbIds: r.fields['PB'] ?? [],
+    cumplimientoIds: r.fields['Cumplimientos'] ?? [],
   }
 }
 
@@ -45,7 +45,7 @@ export default function ObjetivoDetailPage({ params }: { params: { id: string } 
     try {
       const [objRes, cumRes] = await Promise.all([
         fetch(`/api/airtable/tbl9ljCeFDMeCsbAT/${params.id}`),
-        fetch(`/api/airtable/tblTbB0eYz3xsdyNk?filterByFormula=${encodeURIComponent(`FIND("${params.id}", ARRAYJOIN({fldXcu6A5QKwABMtf}))`)}`)
+        fetch(`/api/airtable/tblTbB0eYz3xsdyNk?filterByFormula=${encodeURIComponent(`FIND("${params.id}", ARRAYJOIN({Objetivo}))`)}`)
       ])
       const objData = await objRes.json()
       const cumData = await cumRes.json()
@@ -55,12 +55,12 @@ export default function ObjetivoDetailPage({ params }: { params: { id: string } 
 
       setCumplimientos((cumData.records ?? []).map((r: any): Cumplimiento => ({
         id: r.id,
-        cumplimiento: r.fields['fldI9lmK5k3nRNeA5'],
-        objetivoIds: r.fields['fldXcu6A5QKwABMtf'] ?? [],
-        reportadoPorIds: r.fields['fldb3G45AIdA6YdZ7'] ?? [],
-        fecha: r.fields['fld8GA6aFyu09Ofp5'],
-        descripcionCumplimiento: r.fields['fld1NMRnk5IEm0UGc'],
-        aprobado: r.fields['fldGEkCdV9t2kxsky'] ?? false,
+        cumplimiento: r.fields['Cumplimiento'],
+        objetivoIds: r.fields['Objetivo'] ?? [],
+        reportadoPorIds: r.fields['Reportado Por'] ?? [],
+        fecha: r.fields['Fecha'],
+        descripcionCumplimiento: r.fields['Descripcion del Cumplimiento'],
+        aprobado: r.fields['Aprobado'] ?? false,
       })))
 
       if (obj.responsableIds.length > 0) {
@@ -68,10 +68,10 @@ export default function ObjetivoDetailPage({ params }: { params: { id: string } 
         const usersData = await usersRes.json()
         const allUsers: Usuario[] = (usersData.records ?? []).map((r: any) => ({
           id: r.id,
-          nombre: r.fields['fldFbWbFkhxmr7hRf'] ?? '',
-          email: r.fields['fld0IIhsqQw2yny1Z'] ?? '',
-          rol: r.fields['fldbVYb9q3OTbmlYR'] ?? 'Staff',
-          activo: r.fields['fldtHzaYrxVt1e8q3'] ?? false,
+          nombre: r.fields['Nombre'] ?? '',
+          email: r.fields['Email'] ?? '',
+          rol: r.fields['Rol']?.name ?? r.fields['Rol'] ?? 'Staff',
+          activo: r.fields['Activo'] ?? false,
         }))
         setResponsables(allUsers.filter(u => obj.responsableIds.includes(u.id)))
       }
@@ -86,10 +86,10 @@ export default function ObjetivoDetailPage({ params }: { params: { id: string } 
 
   async function handleCambiarEstado(nuevoEstado: Objetivo['estado']) {
     if (!objetivo) return
-    await fetch(`/api/airtable/tbl9ljCeFDMeCsbAT?id=${objetivo.id}`, {
+    await fetch(`/api/airtable/tbl9ljCeFDMeCsbAT/${objetivo.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: { 'flddQzgB28scsTuLu': nuevoEstado } }),
+      body: JSON.stringify({ fields: { 'Estado': nuevoEstado } }),
     })
     await load()
   }
@@ -104,20 +104,20 @@ export default function ObjetivoDetailPage({ params }: { params: { id: string } 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         fields: {
-          'fldXcu6A5QKwABMtf': [objetivo.id],
-          'fldb3G45AIdA6YdZ7': [userId],
-          'fld8GA6aFyu09Ofp5': new Date().toISOString().split('T')[0],
-          'fld1NMRnk5IEm0UGc': descripcionCumplimiento,
+          'Objetivo': [objetivo.id],
+          'Reportado Por': [userId],
+          'Fecha': new Date().toISOString().split('T')[0],
+          'Descripcion del Cumplimiento': descripcionCumplimiento,
         }
       }),
     })
 
-    // Cambiar estado
+    // Cambiar estado: si es repetible vuelve a Pendiente, sino pasa a Cumplido
     const nuevoEstado = objetivo.esRepetible ? 'Pendiente' : 'Cumplido'
-    await fetch(`/api/airtable/tbl9ljCeFDMeCsbAT?id=${objetivo.id}`, {
+    await fetch(`/api/airtable/tbl9ljCeFDMeCsbAT/${objetivo.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: { 'flddQzgB28scsTuLu': nuevoEstado } }),
+      body: JSON.stringify({ fields: { 'Estado': nuevoEstado } }),
     })
 
     setSavingCumplimiento(false)
@@ -127,10 +127,10 @@ export default function ObjetivoDetailPage({ params }: { params: { id: string } 
   }
 
   async function handleAprobarCumplimiento(cumId: string, aprobado: boolean) {
-    await fetch(`/api/airtable/tblTbB0eYz3xsdyNk?id=${cumId}`, {
+    await fetch(`/api/airtable/tblTbB0eYz3xsdyNk/${cumId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: { 'fldGEkCdV9t2kxsky': aprobado } }),
+      body: JSON.stringify({ fields: { 'Aprobado': aprobado } }),
     })
     await load()
   }

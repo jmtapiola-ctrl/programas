@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { PlanDeBatallaView } from '@/components/pb/PlanDeBatallaView'
 import type { PlanDeBatalla, Objetivo, Usuario } from '@/lib/types'
@@ -10,7 +9,6 @@ import type { PlanDeBatalla, Objetivo, Usuario } from '@/lib/types'
 export default function PBDetailPage({ params }: { params: { id: string } }) {
   const { data: session } = useSession()
   const userId = (session?.user as any)?.id
-  const router = useRouter()
 
   const [pb, setPb] = useState<PlanDeBatalla | null>(null)
   const [objetivos, setObjetivos] = useState<Objetivo[]>([])
@@ -25,13 +23,13 @@ export default function PBDetailPage({ params }: { params: { id: string } }) {
 
       const plan: PlanDeBatalla = {
         id: pbData.id,
-        titulo: pbData.fields['fldUdkIDSJ5bpkWQ1'] ?? '',
-        responsableIds: pbData.fields['fldyGJqVjj9gGYCY4'] ?? [],
-        periodo: pbData.fields['fldhCdfSUagl3qWvg'] ?? 'Día',
-        fecha: pbData.fields['flduXU9YPEnp04XvA'],
-        estado: pbData.fields['fldyxNXiYbvSM1Ngb'] ?? 'Borrador',
-        objetivosIncluidosIds: pbData.fields['fldi9AIteXA9P4gp4'] ?? [],
-        notas: pbData.fields['fldtZNjSntLLyPYlf'],
+        titulo: pbData.fields['Titulo'] ?? '',
+        responsableIds: pbData.fields['Responsable'] ?? [],
+        periodo: pbData.fields['Periodo']?.name ?? pbData.fields['Periodo'] ?? 'Día',
+        fecha: pbData.fields['Fecha'],
+        estado: pbData.fields['Estado']?.name ?? pbData.fields['Estado'] ?? 'Borrador',
+        objetivosIncluidosIds: pbData.fields['Objetivos Incluidos'] ?? [],
+        notas: pbData.fields['Notas'],
       }
       setPb(plan)
 
@@ -40,12 +38,12 @@ export default function PBDetailPage({ params }: { params: { id: string } }) {
         const objData = await objRes.json()
         const allObjs: Objetivo[] = (objData.records ?? []).map((r: any): Objetivo => ({
           id: r.id,
-          nombre: r.fields['fldoAaiHZ0wE8skdB'] ?? '',
-          tipo: r.fields['fld3P1VeDX9ierG8i'] ?? 'Operativo',
-          programaIds: r.fields['fldVwyD7NNocHhORP'] ?? [],
-          responsableIds: r.fields['fldcG10p89bDRUU0X'] ?? [],
-          estado: r.fields['flddQzgB28scsTuLu'] ?? 'Pendiente',
-          esRepetible: r.fields['fld0BCz0UMO7K5wCn'] ?? false,
+          nombre: r.fields['Nombre'] ?? '',
+          tipo: r.fields['Tipo']?.name ?? r.fields['Tipo'] ?? 'Operativo',
+          programaIds: r.fields['Programa'] ?? [],
+          responsableIds: r.fields['Responsable'] ?? [],
+          estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'Pendiente',
+          esRepetible: r.fields['Es Repetible'] ?? false,
           pbIds: [],
           cumplimientoIds: [],
         }))
@@ -57,10 +55,10 @@ export default function PBDetailPage({ params }: { params: { id: string } }) {
         const usersData = await usersRes.json()
         const allUsers: Usuario[] = (usersData.records ?? []).map((r: any) => ({
           id: r.id,
-          nombre: r.fields['fldFbWbFkhxmr7hRf'] ?? '',
-          email: r.fields['fld0IIhsqQw2yny1Z'] ?? '',
-          rol: r.fields['fldbVYb9q3OTbmlYR'] ?? 'Staff',
-          activo: r.fields['fldtHzaYrxVt1e8q3'] ?? false,
+          nombre: r.fields['Nombre'] ?? '',
+          email: r.fields['Email'] ?? '',
+          rol: r.fields['Rol']?.name ?? r.fields['Rol'] ?? 'Staff',
+          activo: r.fields['Activo'] ?? false,
         }))
         setResponsables(allUsers.filter(u => plan.responsableIds.includes(u.id)))
       }
@@ -81,9 +79,9 @@ export default function PBDetailPage({ params }: { params: { id: string } }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         fields: {
-          'fldXcu6A5QKwABMtf': [objetivoId],
-          'fldb3G45AIdA6YdZ7': [userId],
-          'fld8GA6aFyu09Ofp5': new Date().toISOString().split('T')[0],
+          'Objetivo': [objetivoId],
+          'Reportado Por': [userId],
+          'Fecha': new Date().toISOString().split('T')[0],
         }
       }),
     })
@@ -91,10 +89,10 @@ export default function PBDetailPage({ params }: { params: { id: string } }) {
     const obj = objetivos.find(o => o.id === objetivoId)
     const nuevoEstado = obj?.esRepetible ? 'Pendiente' : 'Cumplido'
 
-    await fetch(`/api/airtable/tbl9ljCeFDMeCsbAT?id=${objetivoId}`, {
+    await fetch(`/api/airtable/tbl9ljCeFDMeCsbAT/${objetivoId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: { 'flddQzgB28scsTuLu': nuevoEstado } }),
+      body: JSON.stringify({ fields: { 'Estado': nuevoEstado } }),
     })
 
     await load()
@@ -102,10 +100,10 @@ export default function PBDetailPage({ params }: { params: { id: string } }) {
 
   async function handleCambiarEstado(estado: PlanDeBatalla['estado']) {
     if (!pb) return
-    await fetch(`/api/airtable/tbliUTM4zaoyztD6O?id=${pb.id}`, {
+    await fetch(`/api/airtable/tbliUTM4zaoyztD6O/${pb.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: { 'fldyxNXiYbvSM1Ngb': estado } }),
+      body: JSON.stringify({ fields: { 'Estado': estado } }),
     })
     await load()
   }

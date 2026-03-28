@@ -1,6 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getObjetivos, getCumplimientos, getProgramas, getUsuarios } from '@/lib/airtable'
+import { getObjetivos, getCumplimientos, getUsuarios } from '@/lib/airtable'
 import type { Objetivo, Cumplimiento, Usuario } from '@/lib/types'
 
 export default async function InformesPage() {
@@ -10,7 +10,6 @@ export default async function InformesPage() {
   let objetivos: Objetivo[] = []
   let cumplimientos: Cumplimiento[] = []
   let usuarios: Usuario[] = []
-  let programaCount = 0
 
   try {
     ;[objetivos, cumplimientos, usuarios] = await Promise.all([
@@ -18,10 +17,6 @@ export default async function InformesPage() {
       getCumplimientos(),
       getUsuarios(),
     ])
-    if (isEjecutivo) {
-      const programas = await getProgramas()
-      programaCount = programas.length
-    }
   } catch {}
 
   const total = objetivos.length

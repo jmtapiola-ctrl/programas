@@ -2,7 +2,6 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { getUsuarios } from '@/lib/airtable'
-import Link from 'next/link'
 import type { Usuario } from '@/lib/types'
 
 export default async function AdminUsuariosPage() {

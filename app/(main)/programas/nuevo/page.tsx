@@ -27,10 +27,10 @@ export default function NuevoProgramaPage() {
       .then(d => {
         const users = (d.records ?? []).map((r: any) => ({
           id: r.id,
-          nombre: r.fields['fldFbWbFkhxmr7hRf'] ?? '',
-          email: r.fields['fld0IIhsqQw2yny1Z'] ?? '',
-          rol: r.fields['fldbVYb9q3OTbmlYR'] ?? 'Staff',
-          activo: r.fields['fldtHzaYrxVt1e8q3'] ?? false,
+          nombre: r.fields['Nombre'] ?? '',
+          email: r.fields['Email'] ?? '',
+          rol: r.fields['Rol']?.name ?? r.fields['Rol'] ?? 'Staff',
+          activo: r.fields['Activo'] ?? false,
         }))
         setUsuarios(users.filter((u: Usuario) => u.activo))
       })
@@ -42,15 +42,15 @@ export default function NuevoProgramaPage() {
     setLoading(true)
 
     const fields: Record<string, any> = {
-      'fldrTj1ggeu12uVKu': form.nombre,
-      'fldCNL2ZzxXfmM1KH': form.estado,
+      'Nombre': form.nombre,
+      'Estado': form.estado,
     }
-    if (form.descripcion) fields['fldlv4tR7tMoMMFZC'] = form.descripcion
-    if (form.objetivoMayor) fields['fldQuyth3IWcNzZ9g'] = form.objetivoMayor
-    if (form.responsableId) fields['fldHbc6OhAkKF1iMC'] = [form.responsableId]
-    if (form.fechaInicio) fields['fldxG2voOTeZGdXeM'] = form.fechaInicio
-    if (form.fechaObjetivo) fields['fld8fgmt8NGWj21oe'] = form.fechaObjetivo
-    if (form.notas) fields['fldjEen4uHIVABGPZ'] = form.notas
+    if (form.descripcion) fields['Descripcion'] = form.descripcion
+    if (form.objetivoMayor) fields['Objetivo Mayor'] = form.objetivoMayor
+    if (form.responsableId) fields['Responsable'] = [form.responsableId]
+    if (form.fechaInicio) fields['Fecha Inicio'] = form.fechaInicio
+    if (form.fechaObjetivo) fields['Fecha Objetivo'] = form.fechaObjetivo
+    if (form.notas) fields['Notas'] = form.notas
 
     const res = await fetch('/api/airtable/tbld952MAM0ApHqT0', {
       method: 'POST',

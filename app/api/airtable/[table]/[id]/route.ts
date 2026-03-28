@@ -6,12 +6,13 @@ const BASE_URL = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}`
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { table: string; id: string } }
+  { params }: { params: Promise<{ table: string; id: string }> }
 ) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const res = await fetch(`${BASE_URL}/${params.table}/${params.id}`, {
+  const { table, id } = await params
+  const res = await fetch(`${BASE_URL}/${table}/${id}`, {
     headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` },
     cache: 'no-store',
   })
@@ -22,13 +23,14 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { table: string; id: string } }
+  { params }: { params: Promise<{ table: string; id: string }> }
 ) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+  const { table, id } = await params
   const body = await req.json()
-  const res = await fetch(`${BASE_URL}/${params.table}/${params.id}`, {
+  const res = await fetch(`${BASE_URL}/${table}/${id}`, {
     method: 'PATCH',
     headers: {
       Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`,
@@ -43,12 +45,13 @@ export async function PATCH(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { table: string; id: string } }
+  { params }: { params: Promise<{ table: string; id: string }> }
 ) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const res = await fetch(`${BASE_URL}/${params.table}/${params.id}`, {
+  const { table, id } = await params
+  const res = await fetch(`${BASE_URL}/${table}/${id}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` },
   })

@@ -21,13 +21,12 @@ export default function NuevoPBPage() {
     periodo: 'Día' as 'Día' | 'Semana',
     fecha: new Date().toISOString().split('T')[0],
     estado: 'Borrador' as 'Borrador' | 'Activo' | 'Completado',
-    responsableId: userId ?? '',
+    responsableId: '',
     notas: '',
   })
 
-  useEffect(() => {
-    if (userId) setForm(f => ({ ...f, responsableId: userId }))
-  }, [userId])
+  // Derive responsableId from userId (session may arrive after first render)
+  const responsableId = form.responsableId || userId || ''
 
   useEffect(() => {
     Promise.all([
@@ -36,22 +35,22 @@ export default function NuevoPBPage() {
     ]).then(([od, ud]) => {
       setObjetivos((od.records ?? []).map((r: any): Objetivo => ({
         id: r.id,
-        nombre: r.fields['fldoAaiHZ0wE8skdB'] ?? '',
-        tipo: r.fields['fld3P1VeDX9ierG8i'] ?? 'Operativo',
-        programaIds: r.fields['fldVwyD7NNocHhORP'] ?? [],
-        responsableIds: r.fields['fldcG10p89bDRUU0X'] ?? [],
-        estado: r.fields['flddQzgB28scsTuLu'] ?? 'Pendiente',
-        esRepetible: r.fields['fld0BCz0UMO7K5wCn'] ?? false,
+        nombre: r.fields['Nombre'] ?? '',
+        tipo: r.fields['Tipo']?.name ?? r.fields['Tipo'] ?? 'Operativo',
+        programaIds: r.fields['Programa'] ?? [],
+        responsableIds: r.fields['Responsable'] ?? [],
+        estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'Pendiente',
+        esRepetible: r.fields['Es Repetible'] ?? false,
         pbIds: [],
         cumplimientoIds: [],
       })).filter((o: Objetivo) => o.estado !== 'Cumplido'))
 
       setUsuarios((ud.records ?? []).map((r: any): Usuario => ({
         id: r.id,
-        nombre: r.fields['fldFbWbFkhxmr7hRf'] ?? '',
-        email: r.fields['fld0IIhsqQw2yny1Z'] ?? '',
-        rol: r.fields['fldbVYb9q3OTbmlYR'] ?? 'Staff',
-        activo: r.fields['fldtHzaYrxVt1e8q3'] ?? false,
+        nombre: r.fields['Nombre'] ?? '',
+        email: r.fields['Email'] ?? '',
+        rol: r.fields['Rol']?.name ?? r.fields['Rol'] ?? 'Staff',
+        activo: r.fields['Activo'] ?? false,
       })).filter((u: Usuario) => u.activo))
     }).catch(() => {})
   }, [])
@@ -67,14 +66,14 @@ export default function NuevoPBPage() {
     setLoading(true)
 
     const fields: Record<string, any> = {
-      'fldUdkIDSJ5bpkWQ1': form.titulo,
-      'fldhCdfSUagl3qWvg': form.periodo,
-      'fldyxNXiYbvSM1Ngb': form.estado,
+      'Titulo': form.titulo,
+      'Periodo': form.periodo,
+      'Estado': form.estado,
     }
-    if (form.fecha) fields['flduXU9YPEnp04XvA'] = form.fecha
-    if (form.responsableId) fields['fldyGJqVjj9gGYCY4'] = [form.responsableId]
-    if (selectedObjetivos.length) fields['fldi9AIteXA9P4gp4'] = selectedObjetivos
-    if (form.notas) fields['fldtZNjSntLLyPYlf'] = form.notas
+    if (form.fecha) fields['Fecha'] = form.fecha
+    if (responsableId) fields['Responsable'] = [responsableId]
+    if (selectedObjetivos.length) fields['Objetivos Incluidos'] = selectedObjetivos
+    if (form.notas) fields['Notas'] = form.notas
 
     const res = await fetch('/api/airtable/tbliUTM4zaoyztD6O', {
       method: 'POST',
@@ -141,7 +140,7 @@ export default function NuevoPBPage() {
 
           <Select
             label="Responsable"
-            value={form.responsableId}
+            value={responsableId}
             onChange={e => setForm(f => ({ ...f, responsableId: e.target.value }))}
           >
             <option value="">Sin asignar</option>
