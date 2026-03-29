@@ -442,3 +442,14 @@ export async function updatePlanDB(id: string, data: Partial<PlanDeBatalla>): Pr
 export async function deletePlanDB(id: string): Promise<void> {
   await deleteRecord(TABLA_PB, id)
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+export async function getUsuariosByIds(ids: string[]): Promise<Record<string, Usuario>> {
+  if (!ids.length) return {}
+  const unique = [...new Set(ids.filter(Boolean))]
+  const usuarios = await Promise.all(unique.map(id => getUsuario(id).catch(() => null)))
+  const result: Record<string, Usuario> = {}
+  usuarios.forEach((u, i) => { if (u) result[unique[i]] = u })
+  return result
+}
