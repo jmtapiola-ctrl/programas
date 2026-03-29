@@ -13,6 +13,7 @@ export type EstadoPrograma = 'Borrador' | 'Activo' | 'Completado' | 'Archivado'
 export interface Programa {
   id: string
   nombre: string
+  proposito?: string
   descripcion?: string
   objetivoMayor?: string
   estado: EstadoPrograma
@@ -23,7 +24,7 @@ export interface Programa {
   objetivoIds: string[]
 }
 
-export type TipoObjetivo = 'Mayor' | 'Primario' | 'Condicional' | 'Operativo' | 'Producción'
+export type TipoObjetivo = 'Mayor' | 'Primario' | 'Vital' | 'Condicional' | 'Operativo' | 'Producción'
 export type EstadoObjetivo = 'Pendiente' | 'En curso' | 'Cumplido' | 'Incumplido'
 
 export interface Objetivo {
@@ -31,7 +32,7 @@ export interface Objetivo {
   nombre: string
   tipo: TipoObjetivo
   programaIds: string[]
-  responsableIds: string[]
+  responsableId: string
   estado: EstadoObjetivo
   fechaLimite?: string
   descripcionDoingness?: string
@@ -69,7 +70,7 @@ export interface PlanDeBatalla {
 // Con datos populados
 export interface ObjetivoConDatos extends Objetivo {
   programa?: Programa
-  responsables?: Usuario[]
+  responsable?: Usuario
   cumplimientos?: Cumplimiento[]
 }
 
@@ -81,4 +82,21 @@ export interface ProgramaConDatos extends Programa {
 export interface PBConDatos extends PlanDeBatalla {
   responsables?: Usuario[]
   objetivosIncluidos?: Objetivo[]
+}
+
+const TIPO_ORDEN: Record<string, number> = {
+  'Primario': 1,
+  'Vital': 2,
+  'Condicional': 3,
+  'Operativo': 4,
+  'Producción': 5,
+  'Mayor': 6,
+}
+
+export function sortObjetivos(objetivos: Objetivo[]): Objetivo[] {
+  return [...objetivos].sort((a, b) => {
+    const ordenTipo = (TIPO_ORDEN[a.tipo] ?? 99) - (TIPO_ORDEN[b.tipo] ?? 99)
+    if (ordenTipo !== 0) return ordenTipo
+    return (a.orden ?? 0) - (b.orden ?? 0)
+  })
 }

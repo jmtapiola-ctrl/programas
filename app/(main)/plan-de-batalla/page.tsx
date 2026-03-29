@@ -3,6 +3,7 @@ import { authOptions } from '@/lib/auth'
 import { getPlanesDB, getUsuarios } from '@/lib/airtable'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/Badge'
+import { Tooltip } from '@/components/ui/Tooltip'
 import type { Usuario } from '@/lib/types'
 
 export default async function PlanesDBPage() {
@@ -27,7 +28,10 @@ export default async function PlanesDBPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Planes de Batalla</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-white">Planes de Batalla</h1>
+            <Tooltip texto="Una lista de objetivos para el día o la semana siguiente, que ayudan al avance de la planificación estratégica, y se ocupan de las acciones inmediatas y de los puntos fuera que la estorban." />
+          </div>
           <p className="text-gray-400 text-sm mt-1">{planes.length} plan{planes.length !== 1 ? 'es' : ''}</p>
         </div>
         <Link

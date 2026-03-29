@@ -4,10 +4,20 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/Badge'
+import { Tooltip } from '@/components/ui/Tooltip'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Input'
 import type { Objetivo, Cumplimiento, Usuario } from '@/lib/types'
+
+const DEFINICIONES_TIPO: Record<string, string> = {
+  'Primario': 'Los objetivos del tipo de organización, de personal y de comunicaciones. Estos deben mantenerse.',
+  'Vital': 'Por definición, un objetivo VITAL es algo que debe hacerse para funcionar en medida alguna.',
+  'Condicional': 'Aquellos que se establecen como O BIEN… O, para averiguar información o si un proyecto puede hacerse, o dónde o a quién.',
+  'Operativo': 'Aquellos que establecen direcciones y acciones o un calendario de eventos e itinerario.',
+  'Producción': 'Aquellos que establecen cantidades como estadísticas.',
+  'Mayor': 'La aspiración general y amplia, que posiblemente abarca un período de tiempo largo y aproximado.',
+}
 
 function mapObjetivo(r: any): Objetivo {
   return {
@@ -15,7 +25,7 @@ function mapObjetivo(r: any): Objetivo {
     nombre: r.fields['Nombre'] ?? '',
     tipo: r.fields['Tipo']?.name ?? r.fields['Tipo'] ?? 'Operativo',
     programaIds: r.fields['Programa'] ?? [],
-    responsableIds: r.fields['Responsable'] ?? [],
+    responsableId: (r.fields['Responsable'] ?? [])[0] ?? '',
     estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'Pendiente',
     fechaLimite: r.fields['Fecha Limite'],
     descripcionDoingness: r.fields['Descripcion Doingness'],
@@ -34,7 +44,7 @@ export default function ObjetivoDetailPage({ params }: { params: { id: string } 
 
   const [objetivo, setObjetivo] = useState<Objetivo | null>(null)
   const [cumplimientos, setCumplimientos] = useState<Cumplimiento[]>([])
-  const [responsables, setResponsables] = useState<Usuario[]>([])
+  const [responsable, setResponsable] = useState<Usuario | null>(null)
   const [loading, setLoading] = useState(true)
   const [modalCumplir, setModalCumplir] = useState(false)
   const [descripcionCumplimiento, setDescripcionCumplimiento] = useState('')
@@ -63,7 +73,7 @@ export default function ObjetivoDetailPage({ params }: { params: { id: string } 
         aprobado: r.fields['Aprobado'] ?? false,
       })))
 
-      if (obj.responsableIds.length > 0) {
+      if (obj.responsableId) {
         const usersRes = await fetch('/api/airtable/tblXhgSBuh0f1BNPV')
         const usersData = await usersRes.json()
         const allUsers: Usuario[] = (usersData.records ?? []).map((r: any) => ({
@@ -73,7 +83,7 @@ export default function ObjetivoDetailPage({ params }: { params: { id: string } 
           rol: r.fields['Rol']?.name ?? r.fields['Rol'] ?? 'Staff',
           activo: r.fields['Activo'] ?? false,
         }))
-        setResponsables(allUsers.filter(u => obj.responsableIds.includes(u.id)))
+        setResponsable(allUsers.find(u => u.id === obj.responsableId) ?? null)
       }
     } catch (e) {
       console.error(e)
@@ -138,7 +148,7 @@ export default function ObjetivoDetailPage({ params }: { params: { id: string } 
   if (loading) return <div className="text-gray-400 py-8">Cargando...</div>
   if (!objetivo) return <div className="text-gray-400 py-8">Objetivo no encontrado.</div>
 
-  const isPrimarioIncumplido = objetivo.tipo === 'Primario' && objetivo.estado === 'Incumplido'
+  const isCriticoIncumplido = (objetivo.tipo === 'Primario' || objetivo.tipo === 'Vital') && objetivo.estado === 'Incumplido'
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -150,14 +160,17 @@ export default function ObjetivoDetailPage({ params }: { params: { id: string } 
           )}
           <div className="flex items-center gap-2 mb-2">
             <Badge tipo={objetivo.tipo} />
+            {DEFINICIONES_TIPO[objetivo.tipo] && (
+              <Tooltip texto={DEFINICIONES_TIPO[objetivo.tipo]} />
+            )}
             <Badge estadoObjetivo={objetivo.estado} />
             {objetivo.esRepetible && (
               <span className="text-xs text-gray-400 bg-gray-800 border border-gray-700 px-2 py-0.5 rounded">Repetible</span>
             )}
           </div>
           <h1 className="text-2xl font-bold text-white">{objetivo.nombre}</h1>
-          {responsables.length > 0 && (
-            <p className="text-gray-400 text-sm mt-1">Responsable: {responsables.map(r => r.nombre).join(', ')}</p>
+          {responsable && (
+            <p className="text-gray-400 text-sm mt-1">Responsable: {responsable.nombre}</p>
           )}
         </div>
 
@@ -180,9 +193,9 @@ export default function ObjetivoDetailPage({ params }: { params: { id: string } 
         </div>
       </div>
 
-      {isPrimarioIncumplido && (
+      {isCriticoIncumplido && (
         <div className="bg-red-950/40 border border-red-700 rounded-lg p-4 text-sm text-red-300">
-          ⚠ Objetivo Primario Incumplido — esto rompe la cadena del programa.
+          ⚠ Objetivo {objetivo.tipo} Incumplido — esto rompe la cadena del programa.
         </div>
       )}
 

@@ -89,6 +89,7 @@ function mapPrograma(r: any): Programa {
     id: r.id,
     nombre: r.fields['Nombre'] ?? '',
     descripcion: r.fields['Descripcion'],
+    proposito: r.fields['Proposito'],
     objetivoMayor: r.fields['Objetivo Mayor'],
     estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'Borrador',
     responsableIds: r.fields['Responsable'] ?? [],
@@ -105,7 +106,7 @@ function mapObjetivo(r: any): Objetivo {
     nombre: r.fields['Nombre'] ?? '',
     tipo: r.fields['Tipo']?.name ?? r.fields['Tipo'] ?? 'Operativo',
     programaIds: r.fields['Programa'] ?? [],
-    responsableIds: r.fields['Responsable'] ?? [],
+    responsableId: (r.fields['Responsable'] ?? [])[0] ?? '',
     estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'Pendiente',
     fechaLimite: r.fields['Fecha Limite'],
     descripcionDoingness: r.fields['Descripcion Doingness'],
@@ -201,6 +202,7 @@ export async function createPrograma(data: Partial<Programa>): Promise<Programa>
   const fields: Record<string, any> = {}
   if (data.nombre) fields['Nombre'] = data.nombre
   if (data.descripcion) fields['Descripcion'] = data.descripcion
+  if (data.proposito) fields['Proposito'] = data.proposito
   if (data.objetivoMayor) fields['Objetivo Mayor'] = data.objetivoMayor
   if (data.estado) fields['Estado'] = data.estado
   if (data.responsableIds?.length) fields['Responsable'] = data.responsableIds
@@ -215,6 +217,7 @@ export async function updatePrograma(id: string, data: Partial<Programa>): Promi
   const fields: Record<string, any> = {}
   if (data.nombre !== undefined) fields['Nombre'] = data.nombre
   if (data.descripcion !== undefined) fields['Descripcion'] = data.descripcion
+  if (data.proposito !== undefined) fields['Proposito'] = data.proposito
   if (data.objetivoMayor !== undefined) fields['Objetivo Mayor'] = data.objetivoMayor
   if (data.estado !== undefined) fields['Estado'] = data.estado
   if (data.responsableIds !== undefined) fields['Responsable'] = data.responsableIds
@@ -234,19 +237,15 @@ export async function deletePrograma(id: string): Promise<void> {
 export const TABLA_OBJETIVOS = 'tbl9ljCeFDMeCsbAT'
 
 export async function getObjetivos(programaId?: string): Promise<Objetivo[]> {
-  let params = 'sort[0][field]=Orden&sort[0][direction]=asc'
-  if (programaId) {
-    const formula = encodeURIComponent(`FIND("${programaId}", ARRAYJOIN({Programa}))`)
-    params += `&filterByFormula=${formula}`
-  }
-  const records = await fetchAll(TABLA_OBJETIVOS, params)
-  return records.map(mapObjetivo)
+  const records = await fetchAll(TABLA_OBJETIVOS, 'sort[0][field]=fldxX3JXMRguaJD2Y&sort[0][direction]=asc')
+  const all = records.map(mapObjetivo)
+  if (programaId) return all.filter(o => o.programaIds.includes(programaId))
+  return all
 }
 
 export async function getObjetivosByResponsable(usuarioId: string): Promise<Objetivo[]> {
-  const formula = encodeURIComponent(`FIND("${usuarioId}", ARRAYJOIN({Responsable}))`)
-  const records = await fetchAll(TABLA_OBJETIVOS, `filterByFormula=${formula}`)
-  return records.map(mapObjetivo)
+  const records = await fetchAll(TABLA_OBJETIVOS, 'sort[0][field]=fldxX3JXMRguaJD2Y&sort[0][direction]=asc')
+  return records.map(mapObjetivo).filter(o => o.responsableId === usuarioId)
 }
 
 export async function getObjetivo(id: string): Promise<Objetivo> {
@@ -259,7 +258,7 @@ export async function createObjetivo(data: Partial<Objetivo>): Promise<Objetivo>
   if (data.nombre) fields['Nombre'] = data.nombre
   if (data.tipo) fields['Tipo'] = data.tipo
   if (data.programaIds?.length) fields['Programa'] = data.programaIds
-  if (data.responsableIds?.length) fields['Responsable'] = data.responsableIds
+  if (data.responsableId) fields['Responsable'] = [data.responsableId]
   if (data.estado) fields['Estado'] = data.estado
   if (data.fechaLimite) fields['Fecha Limite'] = data.fechaLimite
   if (data.descripcionDoingness) fields['Descripcion Doingness'] = data.descripcionDoingness
@@ -275,7 +274,7 @@ export async function updateObjetivo(id: string, data: Partial<Objetivo>): Promi
   if (data.nombre !== undefined) fields['Nombre'] = data.nombre
   if (data.tipo !== undefined) fields['Tipo'] = data.tipo
   if (data.programaIds !== undefined) fields['Programa'] = data.programaIds
-  if (data.responsableIds !== undefined) fields['Responsable'] = data.responsableIds
+  if (data.responsableId !== undefined) fields['Responsable'] = data.responsableId ? [data.responsableId] : []
   if (data.estado !== undefined) fields['Estado'] = data.estado
   if (data.fechaLimite !== undefined) fields['Fecha Limite'] = data.fechaLimite
   if (data.descripcionDoingness !== undefined) fields['Descripcion Doingness'] = data.descripcionDoingness
@@ -295,13 +294,10 @@ export async function deleteObjetivo(id: string): Promise<void> {
 export const TABLA_CUMPLIMIENTOS = 'tblTbB0eYz3xsdyNk'
 
 export async function getCumplimientos(objetivoId?: string): Promise<Cumplimiento[]> {
-  let params = 'sort[0][field]=Fecha&sort[0][direction]=desc'
-  if (objetivoId) {
-    const formula = encodeURIComponent(`FIND("${objetivoId}", ARRAYJOIN({Objetivo}))`)
-    params += `&filterByFormula=${formula}`
-  }
-  const records = await fetchAll(TABLA_CUMPLIMIENTOS, params)
-  return records.map(mapCumplimiento)
+  const records = await fetchAll(TABLA_CUMPLIMIENTOS, 'sort[0][field]=fld8GA6aFyu09Ofp5&sort[0][direction]=desc')
+  const all = records.map(mapCumplimiento)
+  if (objetivoId) return all.filter(c => c.objetivoIds.includes(objetivoId))
+  return all
 }
 
 export async function createCumplimiento(data: Partial<Cumplimiento>): Promise<Cumplimiento> {
@@ -328,13 +324,10 @@ export async function updateCumplimiento(id: string, data: Partial<Cumplimiento>
 export const TABLA_PB = 'tbliUTM4zaoyztD6O'
 
 export async function getPlanesDB(responsableId?: string): Promise<PlanDeBatalla[]> {
-  let params = 'sort[0][field]=Fecha&sort[0][direction]=desc'
-  if (responsableId) {
-    const formula = encodeURIComponent(`FIND("${responsableId}", ARRAYJOIN({Responsable}))`)
-    params += `&filterByFormula=${formula}`
-  }
-  const records = await fetchAll(TABLA_PB, params)
-  return records.map(mapPB)
+  const records = await fetchAll(TABLA_PB, 'sort[0][field]=flduXU9YPEnp04XvA&sort[0][direction]=desc')
+  const all = records.map(mapPB)
+  if (responsableId) return all.filter(pb => pb.responsableIds.includes(responsableId))
+  return all
 }
 
 export async function getPlanDB(id: string): Promise<PlanDeBatalla> {

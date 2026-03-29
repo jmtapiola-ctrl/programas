@@ -133,7 +133,7 @@ export default async function InformesPage() {
           <h2 className="font-semibold text-gray-100 mb-4">Equipo ({usuarios.filter(u => u.activo).length} activos)</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {usuarios.filter(u => u.activo).map(u => {
-              const objsUsuario = objetivos.filter(o => o.responsableIds.includes(u.id))
+              const objsUsuario = objetivos.filter(o => o.responsableId === u.id)
               const cumplidosU = objsUsuario.filter(o => o.estado === 'Cumplido').length
               return (
                 <div key={u.id} className="bg-gray-700/50 rounded-lg p-3">

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/Button'
 import { Input, Textarea, Select } from '@/components/ui/Input'
+import { Tooltip } from '@/components/ui/Tooltip'
 import type { Objetivo, Usuario } from '@/lib/types'
 
 export default function NuevoPBPage() {
@@ -38,7 +39,7 @@ export default function NuevoPBPage() {
         nombre: r.fields['Nombre'] ?? '',
         tipo: r.fields['Tipo']?.name ?? r.fields['Tipo'] ?? 'Operativo',
         programaIds: r.fields['Programa'] ?? [],
-        responsableIds: r.fields['Responsable'] ?? [],
+        responsableId: (r.fields['Responsable'] ?? [])[0] ?? '',
         estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'Pendiente',
         esRepetible: r.fields['Es Repetible'] ?? false,
         pbIds: [],
@@ -90,6 +91,7 @@ export default function NuevoPBPage() {
 
   const tipoColor: Record<string, string> = {
     'Primario': 'text-blue-400',
+    'Vital': 'text-red-400',
     'Condicional': 'text-yellow-400',
     'Operativo': 'text-orange-400',
     'Producción': 'text-green-400',
@@ -99,7 +101,10 @@ export default function NuevoPBPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Nuevo Plan de Batalla</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-white">Nuevo Plan de Batalla</h1>
+          <Tooltip texto="Una lista de objetivos para el día o la semana siguiente, que ayudan al avance de la planificación estratégica, y se ocupan de las acciones inmediatas y de los puntos fuera que la estorban." />
+        </div>
         <p className="text-gray-400 text-sm mt-1">Objetivos del día/semana que implementan el plan estratégico</p>
       </div>
 

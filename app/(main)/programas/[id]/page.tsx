@@ -4,10 +4,12 @@ import { getPrograma, getObjetivos, getUsuarios } from '@/lib/airtable'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/Badge'
-import { ObjetivoCard, sortObjetivos } from '@/components/objetivos/ObjetivoCard'
+import { Tooltip } from '@/components/ui/Tooltip'
+import { ObjetivoCard } from '@/components/objetivos/ObjetivoCard'
+import { sortObjetivos } from '@/lib/types'
 import type { TipoObjetivo, Usuario } from '@/lib/types'
 
-const TIPO_GRUPOS: TipoObjetivo[] = ['Primario', 'Condicional', 'Operativo', 'Producción', 'Mayor']
+const TIPO_GRUPOS: TipoObjetivo[] = ['Primario', 'Vital', 'Condicional', 'Operativo', 'Producción', 'Mayor']
 
 export default async function ProgramaDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -30,7 +32,9 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
   const sortedObjetivos = sortObjetivos(objetivos)
   const responsables = programa.responsableIds.map(id => usuariosMap[id]).filter(Boolean)
 
-  const primariosCriticos = objetivos.filter(o => o.tipo === 'Primario' && o.estado === 'Incumplido')
+  const criticos = objetivos.filter(o =>
+    (o.tipo === 'Primario' || o.tipo === 'Vital') && o.estado === 'Incumplido'
+  )
 
   return (
     <div className="space-y-6">
@@ -62,9 +66,21 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
 
       {/* Info */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {programa.proposito && (
+          <div className="md:col-span-3 bg-blue-900/20 border border-blue-800/40 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <p className="text-xs text-blue-400 font-medium uppercase tracking-wider">Propósito</p>
+              <Tooltip texto="Los propósitos tienen que ejecutarse. Son algo que HACER." />
+            </div>
+            <p className="text-gray-200">{programa.proposito}</p>
+          </div>
+        )}
         {programa.objetivoMayor && (
           <div className="md:col-span-3 bg-purple-900/20 border border-purple-800/40 rounded-lg p-4">
-            <p className="text-xs text-purple-400 font-medium mb-1 uppercase tracking-wider">Objetivo Mayor</p>
+            <div className="flex items-center gap-2 mb-1">
+              <p className="text-xs text-purple-400 font-medium uppercase tracking-wider">Objetivo Mayor</p>
+              <Tooltip texto={'El propósito general deseable que se acomete. Esto es muy general, como "llegar a ser auditor".'} />
+            </div>
             <p className="text-gray-200">{programa.objetivoMayor}</p>
           </div>
         )}
@@ -94,10 +110,17 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
         </div>
       </div>
 
-      {/* Alerta primarios */}
-      {primariosCriticos.length > 0 && (
-        <div className="bg-red-950/40 border border-red-700 rounded-lg p-4 text-sm text-red-300">
-          ⚠ {primariosCriticos.length} objetivo{primariosCriticos.length > 1 ? 's' : ''} primario{primariosCriticos.length > 1 ? 's' : ''} incumplido{primariosCriticos.length > 1 ? 's' : ''} — la cadena está rota.
+      {/* Alerta criticos */}
+      {criticos.length > 0 && (
+        <div className="bg-red-900 border border-red-600 rounded-lg p-4 text-white">
+          <p className="font-semibold mb-2">⚠ Cadena de objetivos rota</p>
+          <ul className="space-y-1">
+            {criticos.map(o => (
+              <li key={o.id} className="text-sm">
+                Objetivo {o.tipo} Incumplido: <strong>{o.nombre}</strong> — Los demás objetivos de este programa no pueden avanzar hasta que se resuelva.
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -116,7 +139,8 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
                 <ObjetivoCard
                   key={obj.id}
                   objetivo={obj}
-                  responsables={obj.responsableIds.map(id => usuariosMap[id]).filter(Boolean)}
+                  responsable={usuariosMap[obj.responsableId]}
+                  cumplimientosRecientes={0}
                 />
               ))}
             </div>

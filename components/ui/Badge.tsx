@@ -1,11 +1,12 @@
 import type { TipoObjetivo, EstadoObjetivo, EstadoPrograma, EstadoPB } from '@/lib/types'
 
-type BadgeVariant = 'primario' | 'condicional' | 'operativo' | 'produccion' | 'mayor' |
+type BadgeVariant = 'primario' | 'vital' | 'condicional' | 'operativo' | 'produccion' | 'mayor' |
   'pendiente' | 'en-curso' | 'cumplido' | 'incumplido' |
   'borrador' | 'activo' | 'completado' | 'archivado' | 'default'
 
 const variantClasses: Record<BadgeVariant, string> = {
   primario:    'bg-blue-900 text-blue-200 border border-blue-700',
+  vital:       'bg-red-900/40 text-red-300 border border-red-700/40',
   condicional: 'bg-yellow-900 text-yellow-200 border border-yellow-700',
   operativo:   'bg-orange-900 text-orange-200 border border-orange-700',
   produccion:  'bg-green-900 text-green-200 border border-green-700',
@@ -24,6 +25,7 @@ const variantClasses: Record<BadgeVariant, string> = {
 function tipoToVariant(tipo: TipoObjetivo): BadgeVariant {
   const map: Record<TipoObjetivo, BadgeVariant> = {
     'Primario': 'primario',
+    'Vital': 'vital',
     'Condicional': 'condicional',
     'Operativo': 'operativo',
     'Producción': 'produccion',

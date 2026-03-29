@@ -41,7 +41,7 @@ export default function PBDetailPage({ params }: { params: { id: string } }) {
           nombre: r.fields['Nombre'] ?? '',
           tipo: r.fields['Tipo']?.name ?? r.fields['Tipo'] ?? 'Operativo',
           programaIds: r.fields['Programa'] ?? [],
-          responsableIds: r.fields['Responsable'] ?? [],
+          responsableId: (r.fields['Responsable'] ?? [])[0] ?? '',
           estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'Pendiente',
           esRepetible: r.fields['Es Repetible'] ?? false,
           pbIds: [],

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Input, Textarea, Select } from '@/components/ui/Input'
+import { Tooltip } from '@/components/ui/Tooltip'
 import type { Usuario } from '@/lib/types'
 
 export default function NuevoProgramaPage() {
@@ -12,6 +13,7 @@ export default function NuevoProgramaPage() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [form, setForm] = useState({
     nombre: '',
+    proposito: '',
     descripcion: '',
     objetivoMayor: '',
     estado: 'Borrador' as const,
@@ -45,6 +47,7 @@ export default function NuevoProgramaPage() {
       'Nombre': form.nombre,
       'Estado': form.estado,
     }
+    if (form.proposito) fields['Proposito'] = form.proposito
     if (form.descripcion) fields['Descripcion'] = form.descripcion
     if (form.objetivoMayor) fields['Objetivo Mayor'] = form.objetivoMayor
     if (form.responsableId) fields['Responsable'] = [form.responsableId]
@@ -81,18 +84,40 @@ export default function NuevoProgramaPage() {
           required
         />
 
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <label className="block text-sm font-medium text-gray-300">Propósito</label>
+            <Tooltip texto="Los propósitos tienen que ejecutarse. Son algo que HACER." />
+          </div>
+          <textarea
+            value={form.proposito}
+            onChange={e => setForm(f => ({ ...f, proposito: e.target.value }))}
+            rows={3}
+            placeholder="Los propósitos tienen que ejecutarse. Son algo que HACER."
+            className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          />
+          <p className="text-xs text-gray-500 mt-1">Los propósitos tienen que ejecutarse. Son algo que HACER.</p>
+        </div>
+
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <label className="block text-sm font-medium text-gray-300">Objetivo Mayor</label>
+            <Tooltip texto={'El propósito general deseable que se acomete. Esto es muy general, como "llegar a ser auditor".'} />
+          </div>
+          <textarea
+            value={form.objetivoMayor}
+            onChange={e => setForm(f => ({ ...f, objetivoMayor: e.target.value }))}
+            rows={3}
+            placeholder="El gran objetivo que este programa debe lograr..."
+            className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          />
+        </div>
+
         <Textarea
           label="Descripción"
           value={form.descripcion}
           onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
           placeholder="Descripción general del programa..."
-        />
-
-        <Textarea
-          label="Objetivo Mayor"
-          value={form.objetivoMayor}
-          onChange={e => setForm(f => ({ ...f, objetivoMayor: e.target.value }))}
-          placeholder="El gran objetivo que este programa debe lograr..."
         />
 
         <div className="grid grid-cols-2 gap-4">

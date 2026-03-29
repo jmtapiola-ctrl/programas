@@ -4,7 +4,17 @@ import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Input, Textarea, Select } from '@/components/ui/Input'
+import { Tooltip } from '@/components/ui/Tooltip'
 import type { Usuario, Programa } from '@/lib/types'
+
+const DEFINICIONES_TIPO: Record<string, string> = {
+  'Primario': 'Los objetivos del tipo de organización, de personal y de comunicaciones. Estos deben mantenerse.',
+  'Vital': 'Por definición, un objetivo VITAL es algo que debe hacerse para funcionar en medida alguna.',
+  'Condicional': 'Aquellos que se establecen como O BIEN… O, para averiguar información o si un proyecto puede hacerse, o dónde o a quién.',
+  'Operativo': 'Aquellos que establecen direcciones y acciones o un calendario de eventos e itinerario.',
+  'Producción': 'Aquellos que establecen cantidades como estadísticas.',
+  'Mayor': 'La aspiración general y amplia, que posiblemente abarca un período de tiempo largo y aproximado.',
+}
 
 export default function NuevoObjetivoPage() {
   const router = useRouter()
@@ -14,9 +24,10 @@ export default function NuevoObjetivoPage() {
   const [loading, setLoading] = useState(false)
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [programas, setProgramas] = useState<Programa[]>([])
+  const [doignessError, setDoignessError] = useState('')
   const [form, setForm] = useState({
     nombre: '',
-    tipo: 'Operativo' as const,
+    tipo: 'Operativo',
     programaId: programaIdParam,
     responsableId: '',
     estado: 'Pendiente' as const,
@@ -51,6 +62,12 @@ export default function NuevoObjetivoPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+
+    if (!form.descripcionDoingness.trim()) {
+      setDoignessError('Un objetivo sin doingness no es un objetivo. Describí la acción concreta que lo completa.')
+      return
+    }
+    setDoignessError('')
     setLoading(true)
 
     const fields: Record<string, any> = {
@@ -99,26 +116,44 @@ export default function NuevoObjetivoPage() {
           required
         />
 
-        <Textarea
-          label="Descripción de Doingness *"
-          value={form.descripcionDoingness}
-          onChange={e => setForm(f => ({ ...f, descripcionDoingness: e.target.value }))}
-          placeholder="¿Qué acciones concretas se deben realizar? Un objetivo sin doingness no es un objetivo."
-          rows={4}
-        />
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">Descripción de Doingness *</label>
+          <textarea
+            value={form.descripcionDoingness}
+            onChange={e => {
+              setForm(f => ({ ...f, descripcionDoingness: e.target.value }))
+              if (e.target.value.trim()) setDoignessError('')
+            }}
+            rows={4}
+            placeholder={"¿Cuándo está HECHO este objetivo?\nDescribí la acción concreta y terminable."}
+            className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          />
+          {doignessError && (
+            <p className="text-red-400 text-xs mt-1">{doignessError}</p>
+          )}
+        </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Select
-            label="Tipo"
-            value={form.tipo}
-            onChange={e => setForm(f => ({ ...f, tipo: e.target.value as any }))}
-          >
-            <option>Primario</option>
-            <option>Condicional</option>
-            <option>Operativo</option>
-            <option>Producción</option>
-            <option>Mayor</option>
-          </Select>
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <label className="block text-sm font-medium text-gray-300">Tipo</label>
+              {form.tipo && DEFINICIONES_TIPO[form.tipo] && (
+                <Tooltip texto={DEFINICIONES_TIPO[form.tipo]} />
+              )}
+            </div>
+            <select
+              value={form.tipo}
+              onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}
+              className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            >
+              <option>Primario</option>
+              <option>Vital</option>
+              <option>Condicional</option>
+              <option>Operativo</option>
+              <option>Producción</option>
+              <option>Mayor</option>
+            </select>
+          </div>
 
           <Select
             label="Estado"

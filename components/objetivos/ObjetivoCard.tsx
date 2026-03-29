@@ -6,34 +6,45 @@ import { Badge } from '@/components/ui/Badge'
 
 interface ObjetivoCardProps {
   objetivo: Objetivo
-  responsables?: Usuario[]
+  responsable?: Usuario
   onCumplir?: (id: string) => void
   showPrograma?: boolean
   compact?: boolean
+  cumplimientosRecientes?: number
 }
 
-const TIPO_ORDEN: Record<string, number> = {
-  'Primario': 1,
-  'Condicional': 2,
-  'Operativo': 3,
-  'Producción': 4,
-  'Mayor': 5,
-}
-
-export function ObjetivoCard({ objetivo, responsables, onCumplir, compact }: ObjetivoCardProps) {
+export function ObjetivoCard({ objetivo, responsable, onCumplir, compact, cumplimientosRecientes }: ObjetivoCardProps) {
   const isIncumplido = objetivo.estado === 'Incumplido'
-  const isPrimarioIncumplido = objetivo.tipo === 'Primario' && isIncumplido
+  const isCriticoIncumplido = (objetivo.tipo === 'Primario' || objetivo.tipo === 'Vital') && isIncumplido
+
+  // Calcular "sin movimiento"
+  let sinMovimiento = false
+  if (
+    (objetivo.estado === 'Pendiente' || objetivo.estado === 'En curso') &&
+    (cumplimientosRecientes ?? 1) === 0 &&
+    objetivo.fechaLimite != null
+  ) {
+    const hoy = new Date()
+    const limite = new Date(objetivo.fechaLimite + 'T00:00:00')
+    const diasRestantes = Math.ceil((limite.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24))
+    sinMovimiento = diasRestantes <= 7
+  }
 
   return (
     <div className={`
       bg-gray-800 border rounded-lg p-4 transition-all
-      ${isPrimarioIncumplido ? 'border-red-700 bg-red-950/20' : 'border-gray-700 hover:border-gray-600'}
+      ${isCriticoIncumplido ? 'border-red-700 bg-red-950/20' : 'border-gray-700 hover:border-gray-600'}
     `}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <Badge tipo={objetivo.tipo} />
             <Badge estadoObjetivo={objetivo.estado} />
+            {sinMovimiento && (
+              <span className="text-xs bg-orange-900/40 text-orange-300 border border-orange-700/40 rounded px-1.5 py-0.5">
+                Sin movimiento
+              </span>
+            )}
             {objetivo.esRepetible && (
               <span className="text-xs text-gray-400 flex items-center gap-1">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -58,8 +69,8 @@ export function ObjetivoCard({ objetivo, responsables, onCumplir, compact }: Obj
                 {objetivo.fechaLimite}
               </span>
             )}
-            {responsables && responsables.length > 0 && (
-              <span>{responsables.map(r => r.nombre).join(', ')}</span>
+            {responsable && (
+              <span>{responsable.nombre}</span>
             )}
           </div>
         </div>
@@ -72,22 +83,14 @@ export function ObjetivoCard({ objetivo, responsables, onCumplir, compact }: Obj
           </button>
         )}
       </div>
-      {isPrimarioIncumplido && (
+      {isCriticoIncumplido && (
         <div className="mt-2 text-xs text-red-400 flex items-center gap-1">
           <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
           </svg>
-          Objetivo Primario Incumplido — rompe la cadena
+          Objetivo {objetivo.tipo} Incumplido — rompe la cadena
         </div>
       )}
     </div>
   )
-}
-
-export function sortObjetivos(objetivos: Objetivo[]): Objetivo[] {
-  return [...objetivos].sort((a, b) => {
-    const ordenTipo = (TIPO_ORDEN[a.tipo] ?? 99) - (TIPO_ORDEN[b.tipo] ?? 99)
-    if (ordenTipo !== 0) return ordenTipo
-    return (a.orden ?? 0) - (b.orden ?? 0)
-  })
 }
