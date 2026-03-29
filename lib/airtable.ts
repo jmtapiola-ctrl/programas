@@ -93,6 +93,7 @@ function mapPrograma(r: any): Programa {
     objetivoMayor: r.fields['Objetivo Mayor'],
     estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'Borrador',
     responsableIds: r.fields['Responsable'] ?? [],
+    aprobadorId: r.fields['Aprobador']?.[0] ?? undefined,
     fechaInicio: r.fields['Fecha Inicio'],
     fechaObjetivo: r.fields['Fecha Objetivo'],
     notas: r.fields['Notas'],
@@ -107,6 +108,7 @@ function mapObjetivo(r: any): Objetivo {
     tipo: r.fields['Tipo']?.name ?? r.fields['Tipo'] ?? 'Operativo',
     programaIds: r.fields['Programa'] ?? [],
     responsableId: (r.fields['Responsable'] ?? [])[0] ?? '',
+    aprobadorId: r.fields['Aprobador']?.[0] ?? undefined,
     estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'Pendiente',
     fechaLimite: r.fields['Fecha Limite'],
     descripcionDoingness: r.fields['Descripcion Doingness'],
@@ -127,6 +129,9 @@ function mapCumplimiento(r: any): Cumplimiento {
     fecha: r.fields['Fecha'],
     descripcionCumplimiento: r.fields['Descripcion del Cumplimiento'],
     aprobado: r.fields['Aprobado'] ?? false,
+    aprobadoPorId: r.fields['Aprobado por']?.[0] ?? undefined,
+    rechazado: r.fields['Rechazado'] ?? false,
+    motivoRechazo: r.fields['Motivo rechazo'],
   }
 }
 
@@ -206,6 +211,7 @@ export async function createPrograma(data: Partial<Programa>): Promise<Programa>
   if (data.objetivoMayor) fields['Objetivo Mayor'] = data.objetivoMayor
   if (data.estado) fields['Estado'] = data.estado
   if (data.responsableIds?.length) fields['Responsable'] = data.responsableIds
+  if (data.aprobadorId !== undefined) fields['Aprobador'] = data.aprobadorId ? [data.aprobadorId] : []
   if (data.fechaInicio) fields['Fecha Inicio'] = data.fechaInicio
   if (data.fechaObjetivo) fields['Fecha Objetivo'] = data.fechaObjetivo
   if (data.notas) fields['Notas'] = data.notas
@@ -221,6 +227,7 @@ export async function updatePrograma(id: string, data: Partial<Programa>): Promi
   if (data.objetivoMayor !== undefined) fields['Objetivo Mayor'] = data.objetivoMayor
   if (data.estado !== undefined) fields['Estado'] = data.estado
   if (data.responsableIds !== undefined) fields['Responsable'] = data.responsableIds
+  if (data.aprobadorId !== undefined) fields['Aprobador'] = data.aprobadorId ? [data.aprobadorId] : []
   if (data.fechaInicio !== undefined) fields['Fecha Inicio'] = data.fechaInicio
   if (data.fechaObjetivo !== undefined) fields['Fecha Objetivo'] = data.fechaObjetivo
   if (data.notas !== undefined) fields['Notas'] = data.notas
@@ -259,6 +266,7 @@ export async function createObjetivo(data: Partial<Objetivo>): Promise<Objetivo>
   if (data.tipo) fields['Tipo'] = data.tipo
   if (data.programaIds?.length) fields['Programa'] = data.programaIds
   if (data.responsableId) fields['Responsable'] = [data.responsableId]
+  if (data.aprobadorId !== undefined) fields['Aprobador'] = data.aprobadorId ? [data.aprobadorId] : []
   if (data.estado) fields['Estado'] = data.estado
   if (data.fechaLimite) fields['Fecha Limite'] = data.fechaLimite
   if (data.descripcionDoingness) fields['Descripcion Doingness'] = data.descripcionDoingness
@@ -275,6 +283,7 @@ export async function updateObjetivo(id: string, data: Partial<Objetivo>): Promi
   if (data.tipo !== undefined) fields['Tipo'] = data.tipo
   if (data.programaIds !== undefined) fields['Programa'] = data.programaIds
   if (data.responsableId !== undefined) fields['Responsable'] = data.responsableId ? [data.responsableId] : []
+  if (data.aprobadorId !== undefined) fields['Aprobador'] = data.aprobadorId ? [data.aprobadorId] : []
   if (data.estado !== undefined) fields['Estado'] = data.estado
   if (data.fechaLimite !== undefined) fields['Fecha Limite'] = data.fechaLimite
   if (data.descripcionDoingness !== undefined) fields['Descripcion Doingness'] = data.descripcionDoingness
@@ -315,6 +324,9 @@ export async function updateCumplimiento(id: string, data: Partial<Cumplimiento>
   const fields: Record<string, any> = {}
   if (data.aprobado !== undefined) fields['Aprobado'] = data.aprobado
   if (data.descripcionCumplimiento !== undefined) fields['Descripcion del Cumplimiento'] = data.descripcionCumplimiento
+  if (data.aprobadoPorId !== undefined) fields['Aprobado por'] = data.aprobadoPorId ? [data.aprobadoPorId] : []
+  if (data.rechazado !== undefined) fields['Rechazado'] = data.rechazado
+  if (data.motivoRechazo !== undefined) fields['Motivo rechazo'] = data.motivoRechazo
   const r = await updateRecord(TABLA_CUMPLIMIENTOS, id, fields)
   return mapCumplimiento(r)
 }

@@ -30,6 +30,7 @@ export default function NuevoObjetivoPage() {
     tipo: 'Operativo',
     programaId: programaIdParam,
     responsableId: '',
+    aprobadorId: '',
     estado: 'Pendiente' as const,
     fechaLimite: '',
     descripcionDoingness: '',
@@ -78,6 +79,7 @@ export default function NuevoObjetivoPage() {
     }
     if (form.programaId) fields['Programa'] = [form.programaId]
     if (form.responsableId) fields['Responsable'] = [form.responsableId]
+    if (form.aprobadorId) fields['Aprobador'] = [form.aprobadorId]
     if (form.fechaLimite) fields['Fecha Limite'] = form.fechaLimite
     if (form.descripcionDoingness) fields['Descripcion Doingness'] = form.descripcionDoingness
     if (form.orden) fields['Orden'] = parseInt(form.orden)
@@ -190,6 +192,25 @@ export default function NuevoObjetivoPage() {
             ))}
           </Select>
         </div>
+
+        {usuarios.filter(u => u.rol === 'Ejecutivo').length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <label className="block text-sm font-medium text-gray-300">Aprobador (opcional)</label>
+            </div>
+            <select
+              value={form.aprobadorId}
+              onChange={e => setForm(f => ({ ...f, aprobadorId: e.target.value }))}
+              className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            >
+              <option value="">Sin asignar (usa el del programa)</option>
+              {usuarios.filter(u => u.rol === 'Ejecutivo').map(u => (
+                <option key={u.id} value={u.id}>{u.nombre}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">Si no se asigna, se usa el aprobador del programa.</p>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <Input

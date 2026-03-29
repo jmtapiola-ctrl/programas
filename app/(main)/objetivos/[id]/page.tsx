@@ -8,7 +8,7 @@ import { Tooltip } from '@/components/ui/Tooltip'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Input'
-import type { Objetivo, Cumplimiento, Usuario } from '@/lib/types'
+import type { Objetivo, Cumplimiento, Usuario, Programa } from '@/lib/types'
 
 const DEFINICIONES_TIPO: Record<string, string> = {
   'Primario': 'Los objetivos del tipo de organización, de personal y de comunicaciones. Estos deben mantenerse.',
@@ -26,6 +26,7 @@ function mapObjetivo(r: any): Objetivo {
     tipo: r.fields['Tipo']?.name ?? r.fields['Tipo'] ?? 'Operativo',
     programaIds: r.fields['Programa'] ?? [],
     responsableId: (r.fields['Responsable'] ?? [])[0] ?? '',
+    aprobadorId: r.fields['Aprobador']?.[0] ?? undefined,
     estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'Pendiente',
     fechaLimite: r.fields['Fecha Limite'],
     descripcionDoingness: r.fields['Descripcion Doingness'],
@@ -44,6 +45,7 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
   const userId = (session?.user as any)?.id
 
   const [objetivo, setObjetivo] = useState<Objetivo | null>(null)
+  const [programa, setPrograma] = useState<Programa | null>(null)
   const [cumplimientos, setCumplimientos] = useState<Cumplimiento[]>([])
   const [responsable, setResponsable] = useState<Usuario | null>(null)
   const [loading, setLoading] = useState(true)
@@ -53,6 +55,10 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
   const [editandoCumplimiento, setEditandoCumplimiento] = useState<Cumplimiento | null>(null)
   const [editTexto, setEditTexto] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
+  const [modalRechazar, setModalRechazar] = useState(false)
+  const [motivoRechazo, setMotivoRechazo] = useState('')
+  const [savingRechazo, setSavingRechazo] = useState(false)
+  const [cumplimientoARechazar, setCumplimientoARechazar] = useState<Cumplimiento | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -78,6 +84,30 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
       const obj = mapObjetivo(objData)
       setObjetivo(obj)
 
+      // Cargar programa si corresponde
+      if (obj.programaIds[0]) {
+        const progRes = await fetch(`/api/airtable/tbld952MAM0ApHqT0/${obj.programaIds[0]}`)
+        if (progRes.ok) {
+          const progData = await progRes.json()
+          if (progData?.id) {
+            setPrograma({
+              id: progData.id,
+              nombre: progData.fields['Nombre'] ?? '',
+              proposito: progData.fields['Proposito'],
+              descripcion: progData.fields['Descripcion'],
+              objetivoMayor: progData.fields['Objetivo Mayor'],
+              estado: progData.fields['Estado']?.name ?? progData.fields['Estado'] ?? 'Borrador',
+              responsableIds: progData.fields['Responsable'] ?? [],
+              aprobadorId: progData.fields['Aprobador']?.[0] ?? undefined,
+              fechaInicio: progData.fields['Fecha Inicio'],
+              fechaObjetivo: progData.fields['Fecha Objetivo'],
+              notas: progData.fields['Notas'],
+              objetivoIds: progData.fields['Objetivos'] ?? [],
+            })
+          }
+        }
+      }
+
       const todoCums: Cumplimiento[] = (cumData.records ?? []).map((r: any): Cumplimiento => ({
         id: r.id,
         cumplimiento: r.fields['Cumplimiento'],
@@ -86,6 +116,9 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
         fecha: r.fields['Fecha'],
         descripcionCumplimiento: r.fields['Descripcion del Cumplimiento'],
         aprobado: r.fields['Aprobado'] ?? false,
+        aprobadoPorId: r.fields['Aprobado por']?.[0] ?? undefined,
+        rechazado: r.fields['Rechazado'] ?? false,
+        motivoRechazo: r.fields['Motivo rechazo'],
       }))
       setCumplimientos(todoCums.filter(c => c.objetivoIds.includes(id)))
 
@@ -138,16 +171,17 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
       }),
     })
 
-    // Cambiar estado: si es repetible vuelve a Pendiente, sino pasa a Cumplido
-    const nuevoEstado = objetivo.esRepetible ? 'Pendiente' : 'Cumplido'
-    await fetch(`/api/airtable/tbl9ljCeFDMeCsbAT/${objetivo.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: { 'Estado': nuevoEstado } }),
-    })
-
-    // Actualización optimista del estado para que el botón desaparezca inmediatamente
-    setObjetivo(prev => prev ? { ...prev, estado: nuevoEstado as Objetivo['estado'] } : null)
+    // Si no hay aprobador efectivo, cambiar estado directamente
+    const aprobadorEfectivo = objetivo.aprobadorId ?? programa?.aprobadorId
+    if (!aprobadorEfectivo) {
+      const nuevoEstado = objetivo.esRepetible ? 'Pendiente' : 'Cumplido'
+      await fetch(`/api/airtable/tbl9ljCeFDMeCsbAT/${objetivo.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: { 'Estado': nuevoEstado } }),
+      })
+      setObjetivo(prev => prev ? { ...prev, estado: nuevoEstado as Objetivo['estado'] } : null)
+    }
 
     setSavingCumplimiento(false)
     setModalCumplir(false)
@@ -155,12 +189,48 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
     await load()
   }
 
-  async function handleAprobarCumplimiento(cumId: string, aprobado: boolean) {
+  async function handleAprobarCumplimiento(cumId: string) {
+    if (!objetivo || !userId) return
     await fetch(`/api/airtable/tblTbB0eYz3xsdyNk/${cumId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: { 'Aprobado': aprobado } }),
+      body: JSON.stringify({ fields: { 'Aprobado': true, 'Aprobado por': [userId] } }),
     })
+
+    // Cambiar estado del objetivo
+    const nuevoEstado = objetivo.esRepetible ? 'Pendiente' : 'Cumplido'
+    await fetch(`/api/airtable/tbl9ljCeFDMeCsbAT/${objetivo.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { 'Estado': nuevoEstado } }),
+    })
+
+    await load()
+  }
+
+  async function handleRechazar() {
+    if (!cumplimientoARechazar || !motivoRechazo.trim() || !objetivo) return
+    setSavingRechazo(true)
+
+    // Marcar cumplimiento como rechazado
+    await fetch(`/api/airtable/tblTbB0eYz3xsdyNk/${cumplimientoARechazar.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { 'Rechazado': true, 'Motivo rechazo': motivoRechazo } })
+    })
+
+    // Volver objetivo a "En curso"
+    await fetch(`/api/airtable/tbl9ljCeFDMeCsbAT/${objetivo.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { 'Estado': 'En curso' } })
+    })
+
+    setSavingRechazo(false)
+    setModalRechazar(false)
+    setMotivoRechazo('')
+    setCumplimientoARechazar(null)
+    setObjetivo(prev => prev ? { ...prev, estado: 'En curso' } : null)
     await load()
   }
 
@@ -187,6 +257,8 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
   if (!objetivo) return <div className="text-gray-400 py-8">Objetivo no encontrado.</div>
 
   const isCriticoIncumplido = (objetivo.tipo === 'Primario' || objetivo.tipo === 'Vital') && objetivo.estado === 'Incumplido'
+  const aprobadorEfectivo = objetivo.aprobadorId ?? programa?.aprobadorId
+  const puedeAprobar = isEjecutivo && aprobadorEfectivo === userId && objetivo.responsableId !== userId
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -279,12 +351,14 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
         ) : (
           <div className="space-y-2">
             {cumplimientos.map(c => (
-              <div key={c.id} className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+              <div key={c.id} className={`bg-gray-800 border rounded-lg p-4 ${c.rechazado ? 'border-red-800/60' : 'border-gray-700'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs text-gray-500">{c.fecha ?? '—'}</span>
-                      {c.aprobado ? (
+                      {c.rechazado ? (
+                        <span className="text-xs text-red-400 bg-red-900/30 border border-red-800 px-1.5 py-0.5 rounded">Rechazado</span>
+                      ) : c.aprobado ? (
                         <span className="text-xs text-green-400 bg-green-900/30 border border-green-800 px-1.5 py-0.5 rounded">Aprobado</span>
                       ) : (
                         <span className="text-xs text-yellow-400 bg-yellow-900/30 border border-yellow-800 px-1.5 py-0.5 rounded">Pendiente aprobación</span>
@@ -293,15 +367,28 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
                     {c.descripcionCumplimiento && (
                       <p className="text-gray-300 text-sm">{c.descripcionCumplimiento}</p>
                     )}
+                    {c.rechazado && c.motivoRechazo && (
+                      <p className="text-red-400 text-xs mt-1 italic">Motivo rechazo: {c.motivoRechazo}</p>
+                    )}
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
                     <Button size="sm" variant="ghost" onClick={() => abrirEditarCumplimiento(c)}>
                       Editar
                     </Button>
-                    {isEjecutivo && !c.aprobado && (
-                      <Button size="sm" variant="ghost" onClick={() => handleAprobarCumplimiento(c.id, true)}>
-                        Aprobar
-                      </Button>
+                    {puedeAprobar && !c.aprobado && !c.rechazado && (
+                      <>
+                        <Button size="sm" variant="ghost" onClick={() => handleAprobarCumplimiento(c.id)}>
+                          Aprobar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => { setCumplimientoARechazar(c); setModalRechazar(true) }}
+                          className="text-red-400 hover:text-red-300"
+                        >
+                          Rechazar
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -342,6 +429,31 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
           <div className="flex gap-3">
             <Button loading={savingCumplimiento} onClick={handleCumplir}>Confirmar Cumplimiento</Button>
             <Button variant="secondary" onClick={() => setModalCumplir(false)}>Cancelar</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal rechazar cumplimiento */}
+      <Modal open={modalRechazar} onClose={() => setModalRechazar(false)} title="Rechazar Cumplimiento">
+        <div className="space-y-4">
+          <p className="text-gray-400 text-sm">Indicá el motivo del rechazo. El objetivo volverá a "En curso".</p>
+          <Textarea
+            label="Motivo de rechazo"
+            value={motivoRechazo}
+            onChange={e => setMotivoRechazo(e.target.value)}
+            placeholder="Explicá qué falta o qué está mal..."
+            rows={3}
+          />
+          <div className="flex gap-3">
+            <Button
+              loading={savingRechazo}
+              onClick={handleRechazar}
+              disabled={!motivoRechazo.trim()}
+              className="bg-red-800 hover:bg-red-700 text-white border-red-700"
+            >
+              Confirmar Rechazo
+            </Button>
+            <Button variant="secondary" onClick={() => setModalRechazar(false)}>Cancelar</Button>
           </div>
         </div>
       </Modal>

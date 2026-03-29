@@ -1,23 +1,41 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getObjetivos, getCumplimientos, getUsuarios } from '@/lib/airtable'
+import { getObjetivos, getCumplimientos, getUsuarios, getProgramas } from '@/lib/airtable'
+import { AprobacionesPendientes } from '@/components/informes/AprobacionesPendientes'
 import type { Objetivo, Cumplimiento, Usuario } from '@/lib/types'
 
 export default async function InformesPage() {
   const session = await getServerSession(authOptions)
   const isEjecutivo = (session?.user as any)?.role === 'Ejecutivo'
 
+  const userId = (session?.user as any)?.id
+
   let objetivos: Objetivo[] = []
   let cumplimientos: Cumplimiento[] = []
   let usuarios: Usuario[] = []
+  let programas: Awaited<ReturnType<typeof getProgramas>> = []
 
   try {
-    ;[objetivos, cumplimientos, usuarios] = await Promise.all([
+    ;[objetivos, cumplimientos, usuarios, programas] = await Promise.all([
       getObjetivos(),
       getCumplimientos(),
       getUsuarios(),
+      getProgramas(),
     ])
   } catch {}
+
+  // Cumplimientos donde el aprobador efectivo es el userId actual
+  const misCumplimientosPendientes = isEjecutivo ? cumplimientos.filter(c => {
+    if (c.aprobado || c.rechazado) return false
+    const obj = objetivos.find(o => c.objetivoIds.includes(o.id))
+    if (!obj) return false
+    const prog = programas.find(p => obj.programaIds.includes(p.id))
+    const aprobadorEfectivo = obj.aprobadorId ?? prog?.aprobadorId
+    return aprobadorEfectivo === userId
+  }) : []
+
+  const objetivosMap: Record<string, Objetivo> = {}
+  for (const o of objetivos) { objetivosMap[o.id] = o }
 
   const total = objetivos.length
   const cumplidos = objetivos.filter(o => o.estado === 'Cumplido').length
@@ -33,7 +51,6 @@ export default async function InformesPage() {
     incumplidos: objetivos.filter(o => o.tipo === tipo && o.estado === 'Incumplido').length,
   }))
 
-  const cumplimientosPendientesAprobacion = cumplimientos.filter(c => !c.aprobado)
 
   return (
     <div className="space-y-6">
@@ -105,26 +122,13 @@ export default async function InformesPage() {
         </div>
       </div>
 
-      {/* Cumplimientos pendientes aprobación */}
-      {isEjecutivo && cumplimientosPendientesAprobacion.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">
-          <h2 className="font-semibold text-gray-100 mb-4">
-            Cumplimientos Pendientes de Aprobación ({cumplimientosPendientesAprobacion.length})
-          </h2>
-          <div className="space-y-2">
-            {cumplimientosPendientesAprobacion.slice(0, 10).map(c => (
-              <div key={c.id} className="flex items-start justify-between bg-gray-700/50 rounded p-3 text-sm">
-                <div>
-                  <p className="text-gray-400 text-xs">{c.fecha ?? '—'}</p>
-                  {c.descripcionCumplimiento && (
-                    <p className="text-gray-200 mt-0.5 line-clamp-2">{c.descripcionCumplimiento}</p>
-                  )}
-                </div>
-                <span className="text-yellow-400 text-xs flex-shrink-0 ml-3">Pendiente</span>
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* Cumplimientos pendientes de mi aprobación */}
+      {isEjecutivo && misCumplimientosPendientes.length > 0 && (
+        <AprobacionesPendientes
+          cumplimientos={misCumplimientosPendientes}
+          objetivosMap={objetivosMap}
+          userId={userId}
+        />
       )}
 
       {/* Usuarios */}

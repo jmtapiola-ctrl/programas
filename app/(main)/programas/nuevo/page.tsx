@@ -18,6 +18,7 @@ export default function NuevoProgramaPage() {
     objetivoMayor: '',
     estado: 'Borrador' as const,
     responsableId: '',
+    aprobadorId: '',
     fechaInicio: '',
     fechaObjetivo: '',
     notas: '',
@@ -51,6 +52,7 @@ export default function NuevoProgramaPage() {
     if (form.descripcion) fields['Descripcion'] = form.descripcion
     if (form.objetivoMayor) fields['Objetivo Mayor'] = form.objetivoMayor
     if (form.responsableId) fields['Responsable'] = [form.responsableId]
+    if (form.aprobadorId) fields['Aprobador'] = [form.aprobadorId]
     if (form.fechaInicio) fields['Fecha Inicio'] = form.fechaInicio
     if (form.fechaObjetivo) fields['Fecha Objetivo'] = form.fechaObjetivo
     if (form.notas) fields['Notas'] = form.notas
@@ -142,6 +144,24 @@ export default function NuevoProgramaPage() {
               <option key={u.id} value={u.id}>{u.nombre}</option>
             ))}
           </Select>
+        </div>
+
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <label className="block text-sm font-medium text-gray-300">Aprobador</label>
+            <Tooltip texto="Usuario que aprueba los cumplimientos de los objetivos de este programa." />
+          </div>
+          <select
+            value={form.aprobadorId}
+            onChange={e => setForm(f => ({ ...f, aprobadorId: e.target.value }))}
+            className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          >
+            <option value="">Sin asignar</option>
+            {usuarios.filter(u => u.rol === 'Ejecutivo').map(u => (
+              <option key={u.id} value={u.id}>{u.nombre}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">Usuario que aprueba los cumplimientos de los objetivos de este programa.</p>
         </div>
 
         <div className="grid grid-cols-2 gap-4">

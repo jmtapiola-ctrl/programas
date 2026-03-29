@@ -18,6 +18,7 @@ export interface Programa {
   objetivoMayor?: string
   estado: EstadoPrograma
   responsableIds: string[]
+  aprobadorId?: string
   fechaInicio?: string
   fechaObjetivo?: string
   notas?: string
@@ -33,6 +34,7 @@ export interface Objetivo {
   tipo: TipoObjetivo
   programaIds: string[]
   responsableId: string
+  aprobadorId?: string
   estado: EstadoObjetivo
   fechaLimite?: string
   descripcionDoingness?: string
@@ -51,6 +53,9 @@ export interface Cumplimiento {
   fecha?: string
   descripcionCumplimiento?: string
   aprobado: boolean
+  aprobadoPorId?: string
+  rechazado: boolean
+  motivoRechazo?: string
 }
 
 export type PeriodoPB = 'Día' | 'Semana'
@@ -99,4 +104,8 @@ export function sortObjetivos(objetivos: Objetivo[]): Objetivo[] {
     if (ordenTipo !== 0) return ordenTipo
     return (a.orden ?? 0) - (b.orden ?? 0)
   })
+}
+
+export function getAprobadorEfectivo(objetivo: Objetivo, programa: Programa): string | undefined {
+  return objetivo.aprobadorId ?? programa.aprobadorId
 }

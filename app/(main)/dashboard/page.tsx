@@ -1,9 +1,10 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getProgramas, getObjetivos, getObjetivosByResponsable, getPlanesDB } from '@/lib/airtable'
+import { getProgramas, getObjetivos, getObjetivosByResponsable, getPlanesDB, getCumplimientos } from '@/lib/airtable'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/Badge'
-import type { Objetivo } from '@/lib/types'
+import { AprobacionesSection } from '@/components/dashboard/AprobacionesSection'
+import type { Objetivo, Cumplimiento } from '@/lib/types'
 
 function StatCard({ label, value, sub }: { label: string; value: number | string; sub?: string }) {
   return (
@@ -24,13 +25,29 @@ export default async function DashboardPage() {
   let objetivos: Objetivo[] = []
   let misObjetivos: Objetivo[] = []
   let misPlanesHoy: Awaited<ReturnType<typeof getPlanesDB>> = []
+  let cumplimientosPendientesAprobacion: Cumplimiento[] = []
 
   const hoy = new Date().toISOString().split('T')[0]
 
   try {
     if (isEjecutivo) {
-      programas = await getProgramas()
-      objetivos = await getObjetivos()
+      const [progs, objs, cums] = await Promise.all([
+        getProgramas(),
+        getObjetivos(),
+        getCumplimientos(),
+      ])
+      programas = progs
+      objetivos = objs
+
+      // Filtrar cumplimientos donde el aprobador efectivo es el userId actual
+      cumplimientosPendientesAprobacion = cums.filter(c => {
+        if (c.aprobado || c.rechazado) return false
+        const obj = objs.find(o => c.objetivoIds.includes(o.id))
+        if (!obj) return false
+        const prog = progs.find(p => obj.programaIds.includes(p.id))
+        const aprobadorEfectivo = obj.aprobadorId ?? prog?.aprobadorId
+        return aprobadorEfectivo === userId
+      })
     } else {
       // Staff: load their objectives and today's plan
       misObjetivos = await getObjetivosByResponsable(userId)
@@ -42,6 +59,10 @@ export default async function DashboardPage() {
   } catch {
     // Muestra UI vacía si Airtable no está configurado
   }
+
+  // Mapa de objetivos para el componente de aprobaciones
+  const objetivosMap: Record<string, Objetivo> = {}
+  for (const o of objetivos) { objetivosMap[o.id] = o }
 
   const programasActivos = programas.filter(p => p.estado === 'Activo')
   const objetivosPendientes = objetivos.filter(o => o.estado === 'Pendiente' || o.estado === 'En curso')
@@ -237,6 +258,15 @@ export default async function DashboardPage() {
                 })}
               </div>
             </div>
+          )}
+
+          {/* Pendientes de aprobación */}
+          {cumplimientosPendientesAprobacion.length > 0 && (
+            <AprobacionesSection
+              cumplimientosPendientes={cumplimientosPendientesAprobacion}
+              objetivosMap={objetivosMap}
+              userId={userId}
+            />
           )}
         </>
       )}
