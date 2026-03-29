@@ -351,14 +351,14 @@ export async function deleteObjetivo(id: string): Promise<void> {
 export const TABLA_CUMPLIMIENTOS = 'tblTbB0eYz3xsdyNk'
 
 export async function getCumplimientos(objetivoId?: string): Promise<Cumplimiento[]> {
-  let params = 'sort[0][field]=fld8GA6aFyu09Ofp5&sort[0][direction]=desc'
-  if (objetivoId) {
-    params += `&filterByFormula=${encodeURIComponent(
-      `FIND("${objetivoId}",ARRAYJOIN({Objetivo}))`
-    )}`
-  }
+  // ARRAYJOIN on linked fields returns names, not IDs — filter in memory
+  const params = 'sort[0][field]=fld8GA6aFyu09Ofp5&sort[0][direction]=desc'
   const records = await fetchAll(TABLA_CUMPLIMIENTOS, params)
-  return records.map(mapCumplimiento)
+  const all = records.map(mapCumplimiento)
+  if (objetivoId) {
+    return all.filter(c => c.objetivoIds.includes(objetivoId))
+  }
+  return all
 }
 
 export async function createCumplimiento(data: Partial<Cumplimiento>): Promise<Cumplimiento> {
@@ -389,11 +389,10 @@ export async function updateCumplimiento(id: string, data: Partial<Cumplimiento>
 export const TABLA_LOG = 'tblX04cxihBvwPs8c'
 
 export async function getLogObjetivo(objetivoId: string): Promise<LogEvento[]> {
-  const params = `sort[0][field]=fld2MTbzWmFkLoohR&sort[0][direction]=asc&filterByFormula=${encodeURIComponent(
-    `FIND("${objetivoId}",ARRAYJOIN({Objetivo}))`
-  )}`
+  // ARRAYJOIN on linked fields returns names, not IDs — filter in memory
+  const params = 'sort[0][field]=fld2MTbzWmFkLoohR&sort[0][direction]=asc'
   const records = await fetchAll(TABLA_LOG, params)
-  return records.map(mapLogEvento)
+  return records.map(mapLogEvento).filter(e => e.objetivoIds.includes(objetivoId))
 }
 
 export async function crearLogEvento({

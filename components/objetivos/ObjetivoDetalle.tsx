@@ -23,7 +23,6 @@ interface Props {
   aprobadorEfectivo: string | undefined
 }
 
-// Colores para los tipos de evento del log
 const EVENTO_COLOR: Record<string, string> = {
   'Aceptado': 'bg-gray-700 text-gray-300 border-gray-600',
   'Iniciado': 'bg-blue-900 text-blue-200 border-blue-700',
@@ -41,6 +40,18 @@ const EVENTO_COLOR: Record<string, string> = {
   'Reasignado': 'bg-gray-800 text-gray-300 border-gray-600',
   'Cancelado': 'bg-red-950 text-red-300 border-red-800',
   'Desatoramiento': 'bg-yellow-950 text-yellow-200 border-yellow-800',
+}
+
+function parsearNotasModificacion(notas: string) {
+  const justIdx = notas.indexOf('Justificación:')
+  const propIdx = notas.indexOf('Propuesta:')
+  const justificacion = justIdx >= 0
+    ? notas.slice(justIdx + 'Justificación:'.length, propIdx >= 0 ? propIdx : undefined).trim()
+    : ''
+  const propuesta = propIdx >= 0
+    ? notas.slice(propIdx + 'Propuesta:'.length).trim()
+    : ''
+  return { justificacion, propuesta }
 }
 
 export function ObjetivoDetalle({
@@ -61,6 +72,10 @@ export function ObjetivoDetalle({
   const [cumplimientoSeleccionado, setCumplimientoSeleccionado] = useState<string | null>(null)
   const [causeDesatoramiento, setCauseDesatoramiento] = useState<string>(CAUSAS_DESATORAMIENTO[0])
   const [usuarioSeleccionado, setUsuarioSeleccionado] = useState('')
+  // Modification modal state
+  const [textoFinalMod, setTextoFinalMod] = useState('')
+  const [rechazandoMod, setRechazandoMod] = useState(false)
+  const [motivoRechazoMod, setMotivoRechazoMod] = useState('')
   const [, startTransition] = useTransition()
   const router = useRouter()
 
@@ -70,8 +85,10 @@ export function ObjetivoDetalle({
   const vencido = isVencido(objetivo)
   const isCriticoIncumplido = (objetivo.tipo === 'Primario' || objetivo.tipo === 'Vital') && objetivo.estado === 'Incumplido'
 
-  // Pending cumplimiento (the most recent one awaiting approval)
   const cumplimientoPendiente = cumplimientos.find(c => !c.aprobado && !c.rechazado)
+
+  // Last modification request from log
+  const ultimaModSolicitada = [...log].reverse().find(e => e.tipoEvento === 'Modificación Solicitada')
 
   async function ejecutarAccion(accion: string, datos?: Record<string, any>) {
     setPending(true)
@@ -87,9 +104,7 @@ export function ObjetivoDetalle({
         return
       }
       setError(null)
-      startTransition(() => {
-        router.refresh()
-      })
+      startTransition(() => { router.refresh() })
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -97,16 +112,31 @@ export function ObjetivoDetalle({
       setModalActivo(null)
       setTextoModal('')
       setTexto2Modal('')
+      setTextoFinalMod('')
+      setRechazandoMod(false)
+      setMotivoRechazoMod('')
     }
   }
 
   function abrirModal(nombre: string) {
     setTextoModal('')
     setTexto2Modal('')
+    setError(null)
     setModalActivo(nombre)
   }
 
-  // Historia: combinar log + cumplimientos, ordenados cronológicamente
+  function abrirModalVerModificacion() {
+    const propuesta = ultimaModSolicitada?.notas
+      ? parsearNotasModificacion(ultimaModSolicitada.notas).propuesta
+      : ''
+    setTextoFinalMod(propuesta)
+    setRechazandoMod(false)
+    setMotivoRechazoMod('')
+    setError(null)
+    setModalActivo('ver_modificacion')
+  }
+
+  // Historia: log + cumplimientos ordenados cronológicamente
   type HistoriaItem =
     | { tipo: 'log'; item: LogEvento; fecha: string }
     | { tipo: 'cumplimiento'; item: Cumplimiento; fecha: string }
@@ -121,6 +151,77 @@ export function ObjetivoDetalle({
   })
 
   const allUsuarios = Object.values(usuariosMap)
+
+  function renderNotasEvento(e: LogEvento) {
+    if (!e.notas) return null
+    const notas = e.notas
+
+    if (e.tipoEvento === 'Modificación Solicitada') {
+      const { justificacion, propuesta } = parsearNotasModificacion(notas)
+      return (
+        <div className="text-xs mt-2 space-y-2 opacity-90">
+          {justificacion && (
+            <p><span className="font-semibold text-purple-300">Justificación:</span> {justificacion}</p>
+          )}
+          {propuesta && (
+            <div>
+              <p className="font-semibold text-purple-300 mb-1">Propuesta:</p>
+              <div className="bg-purple-950/50 border border-purple-700/40 rounded p-2 text-purple-100 whitespace-pre-wrap">
+                {propuesta}
+              </div>
+            </div>
+          )}
+          {!justificacion && !propuesta && <p className="whitespace-pre-wrap">{notas}</p>}
+        </div>
+      )
+    }
+
+    if (e.tipoEvento === 'Modificación Aprobada') {
+      const textoFinal = notas.startsWith('Texto final:')
+        ? notas.slice('Texto final:'.length).trim()
+        : notas
+      return (
+        <div className="text-xs mt-2 opacity-90">
+          <p className="font-semibold text-purple-300 mb-1">Texto final aprobado:</p>
+          <div className="bg-green-950/50 border border-green-700/40 rounded p-2 text-green-100 whitespace-pre-wrap">
+            {textoFinal}
+          </div>
+        </div>
+      )
+    }
+
+    if (e.tipoEvento === 'Modificación Rechazada') {
+      const motivo = notas.startsWith('Motivo:')
+        ? notas.slice('Motivo:'.length).trim()
+        : notas
+      return (
+        <div className="text-xs mt-2 opacity-90">
+          <span className="font-semibold text-pink-300">Motivo:</span>{' '}
+          <span>{motivo}</span>
+        </div>
+      )
+    }
+
+    if (e.tipoEvento === 'Desatoramiento') {
+      const causaIdx = notas.indexOf('Causa:')
+      const accionIdx = notas.indexOf('Acción correctiva:')
+      const causa = causaIdx >= 0
+        ? notas.slice(causaIdx + 'Causa:'.length, accionIdx >= 0 ? accionIdx : undefined).trim()
+        : ''
+      const accion = accionIdx >= 0
+        ? notas.slice(accionIdx + 'Acción correctiva:'.length).trim()
+        : ''
+      return (
+        <div className="text-xs mt-2 space-y-1 opacity-80">
+          {causa && <p><span className="font-semibold">Causa:</span> {causa}</p>}
+          {accion && <p><span className="font-semibold">Acción correctiva:</span> {accion}</p>}
+          {!causa && !accion && <p className="whitespace-pre-wrap">{notas}</p>}
+        </div>
+      )
+    }
+
+    return <p className="text-xs mt-1 whitespace-pre-wrap opacity-80">{notas}</p>
+  }
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -193,7 +294,7 @@ export function ObjetivoDetalle({
             <p className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1">
               Descripción / Doingness
             </p>
-            <p className="text-gray-200">{objetivo.descripcionDoingness}</p>
+            <p className="text-gray-200 whitespace-pre-wrap">{objetivo.descripcionDoingness}</p>
           </div>
         )}
         <div className="grid grid-cols-3 gap-4 text-sm">
@@ -250,7 +351,7 @@ export function ObjetivoDetalle({
             </>
           )}
 
-          {/* Ejecutivo/Aprobador: responder clarificación (cuando hay log con clarificación solicitada) */}
+          {/* Ejecutivo/Aprobador: responder clarificación */}
           {(isEjecutivo || esAprobador) && log.some(e => e.tipoEvento === 'Clarificación Solicitada') && (
             <Button size="sm" variant="secondary" onClick={() => abrirModal('responder_clarificacion')}>
               Responder Clarificación
@@ -310,16 +411,11 @@ export function ObjetivoDetalle({
             </>
           )}
 
-          {/* Aprobador/Ejecutivo: Modificación solicitada */}
+          {/* Aprobador/Ejecutivo: Modificación solicitada — único botón unificado */}
           {objetivo.estado === 'Modificación solicitada' && (isEjecutivo || esAprobador) && (
-            <>
-              <Button size="sm" loading={pending} onClick={() => abrirModal('aprobar_modificacion')}>
-                Aprobar Modificación
-              </Button>
-              <Button size="sm" variant="danger" onClick={() => abrirModal('rechazar_modificacion')}>
-                Rechazar Modificación
-              </Button>
-            </>
+            <Button size="sm" variant="secondary" onClick={abrirModalVerModificacion}>
+              Ver modificación solicitada
+            </Button>
           )}
 
           {/* Ejecutivo/Aprobador: acciones globales */}
@@ -334,7 +430,7 @@ export function ObjetivoDetalle({
             </>
           )}
 
-          {/* Desatorar: siempre disponible para ejecutivo/aprobador si está en curso o vencido */}
+          {/* Desatorar */}
           {(isEjecutivo || esAprobador) &&
             !estadosTerminales.includes(objetivo.estado) &&
             (objetivo.estado === 'En curso' || vencido) && (
@@ -368,26 +464,7 @@ export function ObjetivoDetalle({
                         {usuario ? ` · ${usuario.nombre}` : ''}
                       </span>
                     </div>
-                    {e.notas && e.tipoEvento === 'Desatoramiento' ? (() => {
-                      const notas = e.notas!
-                      const causaIdx = notas.indexOf('Causa:')
-                      const accionIdx = notas.indexOf('Acción correctiva:')
-                      const causa = causaIdx >= 0
-                        ? notas.slice(causaIdx + 'Causa:'.length, accionIdx >= 0 ? accionIdx : undefined).trim()
-                        : ''
-                      const accion = accionIdx >= 0
-                        ? notas.slice(accionIdx + 'Acción correctiva:'.length).trim()
-                        : ''
-                      return (
-                        <div className="text-xs mt-2 space-y-1 opacity-80">
-                          {causa && <p><span className="font-semibold">Causa:</span> {causa}</p>}
-                          {accion && <p><span className="font-semibold">Acción correctiva:</span> {accion}</p>}
-                          {!causa && !accion && <p className="whitespace-pre-wrap">{notas}</p>}
-                        </div>
-                      )
-                    })() : e.notas ? (
-                      <p className="text-xs mt-1 whitespace-pre-wrap opacity-80">{e.notas}</p>
-                    ) : null}
+                    {renderNotasEvento(e)}
                   </div>
                 )
               } else {
@@ -444,13 +521,10 @@ export function ObjetivoDetalle({
             placeholder="¿Qué necesitás saber o clarificar?"
             rows={4}
           />
-          {error && modalActivo === 'pedir_clarificacion' && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3">
-            <Button
-              loading={pending}
-              disabled={!textoModal.trim()}
-              onClick={() => ejecutarAccion('pedir_clarificacion', { texto: textoModal })}
-            >
+            <Button loading={pending} disabled={!textoModal.trim()}
+              onClick={() => ejecutarAccion('pedir_clarificacion', { texto: textoModal })}>
               Enviar
             </Button>
             <Button variant="secondary" onClick={() => setModalActivo(null)}>Cancelar</Button>
@@ -469,13 +543,10 @@ export function ObjetivoDetalle({
             placeholder="Tu respuesta..."
             rows={4}
           />
-          {error && modalActivo === 'responder_clarificacion' && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3">
-            <Button
-              loading={pending}
-              disabled={!textoModal.trim()}
-              onClick={() => ejecutarAccion('responder_clarificacion', { texto: textoModal })}
-            >
+            <Button loading={pending} disabled={!textoModal.trim()}
+              onClick={() => ejecutarAccion('responder_clarificacion', { texto: textoModal })}>
               Responder
             </Button>
             <Button variant="secondary" onClick={() => setModalActivo(null)}>Cancelar</Button>
@@ -494,13 +565,10 @@ export function ObjetivoDetalle({
             placeholder="Describí las acciones realizadas..."
             rows={4}
           />
-          {error && modalActivo === 'reportar_cumplimiento' && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3">
-            <Button
-              loading={pending}
-              disabled={!textoModal.trim()}
-              onClick={() => ejecutarAccion('reportar_cumplimiento', { descripcion: textoModal })}
-            >
+            <Button loading={pending} disabled={!textoModal.trim()}
+              onClick={() => ejecutarAccion('reportar_cumplimiento', { descripcion: textoModal })}>
               Confirmar Cumplimiento
             </Button>
             <Button variant="secondary" onClick={() => setModalActivo(null)}>Cancelar</Button>
@@ -519,17 +587,14 @@ export function ObjetivoDetalle({
             placeholder="Explicá qué falta o qué está mal..."
             rows={3}
           />
-          {error && modalActivo === 'rechazar_cumplimiento' && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3">
-            <Button
-              loading={pending}
-              disabled={!textoModal.trim()}
+            <Button loading={pending} disabled={!textoModal.trim()}
               onClick={() => ejecutarAccion('rechazar_cumplimiento', {
                 cumplimientoId: cumplimientoSeleccionado,
                 motivo: textoModal,
               })}
-              className="bg-red-800 hover:bg-red-700 text-white border-red-700"
-            >
+              className="bg-red-800 hover:bg-red-700 text-white border-red-700">
               Confirmar Rechazo
             </Button>
             <Button variant="secondary" onClick={() => setModalActivo(null)}>Cancelar</Button>
@@ -548,14 +613,11 @@ export function ObjetivoDetalle({
             placeholder="Explicá el motivo del rechazo..."
             rows={3}
           />
-          {error && modalActivo === 'rechazar_objetivo' && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3">
-            <Button
-              loading={pending}
-              disabled={!textoModal.trim()}
+            <Button loading={pending} disabled={!textoModal.trim()}
               onClick={() => ejecutarAccion('rechazar_objetivo', { motivo: textoModal })}
-              className="bg-red-800 hover:bg-red-700 text-white border-red-700"
-            >
+              className="bg-red-800 hover:bg-red-700 text-white border-red-700">
               Rechazar Objetivo
             </Button>
             <Button variant="secondary" onClick={() => setModalActivo(null)}>Cancelar</Button>
@@ -581,16 +643,13 @@ export function ObjetivoDetalle({
             placeholder="¿Qué cambio proponés?"
             rows={3}
           />
-          {error && modalActivo === 'solicitar_modificacion' && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3">
-            <Button
-              loading={pending}
-              disabled={!textoModal.trim() || !texto2Modal.trim()}
+            <Button loading={pending} disabled={!textoModal.trim() || !texto2Modal.trim()}
               onClick={() => ejecutarAccion('solicitar_modificacion', {
                 justificacion: textoModal,
                 propuesta: texto2Modal,
-              })}
-            >
+              })}>
               Enviar Solicitud
             </Button>
             <Button variant="secondary" onClick={() => setModalActivo(null)}>Cancelar</Button>
@@ -598,48 +657,93 @@ export function ObjetivoDetalle({
         </div>
       </Modal>
 
-      {/* Aprobar Modificación */}
-      <Modal open={modalActivo === 'aprobar_modificacion'} onClose={() => setModalActivo(null)} title="Aprobar Modificación">
-        <div className="space-y-4">
-          <p className="text-gray-400 text-sm">¿Confirmás la aprobación de la modificación solicitada? El objetivo volverá al estado anterior.</p>
-          {error && modalActivo === 'aprobar_modificacion' && <p className="text-red-400 text-sm">{error}</p>}
-          <div className="flex gap-3">
-            <Button
-              loading={pending}
-              onClick={() => ejecutarAccion('aprobar_modificacion', { estadoAnterior: 'En curso' })}
-            >
-              Confirmar Aprobación
-            </Button>
-            <Button variant="secondary" onClick={() => setModalActivo(null)}>Cancelar</Button>
-          </div>
-        </div>
-      </Modal>
+      {/* Ver modificación solicitada (unifica Aprobar + Rechazar) */}
+      <Modal open={modalActivo === 'ver_modificacion'} onClose={() => setModalActivo(null)} title="Modificación solicitada">
+        <div className="space-y-5">
+          {/* Solicitud del responsable (solo lectura) */}
+          {ultimaModSolicitada?.notas ? (() => {
+            const { justificacion, propuesta } = parsearNotasModificacion(ultimaModSolicitada.notas)
+            return (
+              <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Solicitud del responsable</p>
+                {justificacion && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Justificación</p>
+                    <p className="text-sm text-gray-200">{justificacion}</p>
+                  </div>
+                )}
+                {propuesta && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Propuesta</p>
+                    <p className="text-sm text-gray-200 bg-purple-950/30 border border-purple-800/30 rounded p-2">{propuesta}</p>
+                  </div>
+                )}
+              </div>
+            )
+          })() : (
+            <p className="text-gray-400 text-sm">No se encontró la solicitud de modificación en el historial.</p>
+          )}
 
-      {/* Rechazar Modificación */}
-      <Modal open={modalActivo === 'rechazar_modificacion'} onClose={() => setModalActivo(null)} title="Rechazar Modificación">
-        <div className="space-y-4">
-          <p className="text-gray-400 text-sm">Indicá el motivo del rechazo. El objetivo volverá al estado anterior.</p>
+          {/* Textarea con texto final editable */}
           <Textarea
-            label="Motivo"
-            value={textoModal}
-            onChange={e => setTextoModal(e.target.value)}
-            placeholder="Motivo del rechazo..."
-            rows={3}
+            label="Texto final del objetivo"
+            value={textoFinalMod}
+            onChange={e => setTextoFinalMod(e.target.value)}
+            placeholder="Editá el texto final que quedará como doingness del objetivo..."
+            rows={4}
           />
-          {error && modalActivo === 'rechazar_modificacion' && <p className="text-red-400 text-sm">{error}</p>}
-          <div className="flex gap-3">
-            <Button
-              loading={pending}
-              disabled={!textoModal.trim()}
-              onClick={() => ejecutarAccion('rechazar_modificacion', {
-                motivo: textoModal,
-                estadoAnterior: 'En curso',
-              })}
-            >
-              Rechazar Modificación
-            </Button>
-            <Button variant="secondary" onClick={() => setModalActivo(null)}>Cancelar</Button>
-          </div>
+
+          {/* Sub-formulario de rechazo */}
+          {rechazandoMod && (
+            <div className="bg-red-950/20 border border-red-800/40 rounded-lg p-4 space-y-3">
+              <p className="text-sm text-red-300 font-medium">Rechazar modificación</p>
+              <Textarea
+                label="Motivo del rechazo"
+                value={motivoRechazoMod}
+                onChange={e => setMotivoRechazoMod(e.target.value)}
+                placeholder="Explicá por qué rechazás esta solicitud..."
+                rows={3}
+              />
+              <div className="flex gap-2">
+                <Button
+                  loading={pending}
+                  disabled={!motivoRechazoMod.trim()}
+                  onClick={() => ejecutarAccion('rechazar_modificacion', {
+                    motivo: motivoRechazoMod,
+                    estadoAnterior: 'En curso',
+                  })}
+                  className="bg-red-800 hover:bg-red-700 text-white border-red-700"
+                >
+                  Confirmar rechazo
+                </Button>
+                <Button variant="secondary" onClick={() => setRechazandoMod(false)}>Cancelar</Button>
+              </div>
+            </div>
+          )}
+
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+
+          {!rechazandoMod && (
+            <div className="flex gap-3">
+              <Button
+                loading={pending}
+                disabled={!textoFinalMod.trim()}
+                onClick={() => ejecutarAccion('aprobar_modificacion', {
+                  textoFinal: textoFinalMod,
+                  estadoAnterior: 'En curso',
+                })}
+              >
+                Aceptar modificación
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => setRechazandoMod(true)}
+              >
+                Rechazar modificación
+              </Button>
+              <Button variant="secondary" onClick={() => setModalActivo(null)}>Cancelar</Button>
+            </div>
+          )}
         </div>
       </Modal>
 
@@ -654,7 +758,7 @@ export function ObjetivoDetalle({
             placeholder="¿Por qué se declara incumplido?"
             rows={3}
           />
-          {error && modalActivo === 'declarar_incumplido' && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="text-red-400 text-sm">{error}</p>}
           {allUsuarios.length > 0 && (
             <Select
               label="Reasignar a (opcional)"
@@ -670,15 +774,12 @@ export function ObjetivoDetalle({
             </Select>
           )}
           <div className="flex gap-3">
-            <Button
-              loading={pending}
-              disabled={!textoModal.trim()}
+            <Button loading={pending} disabled={!textoModal.trim()}
               onClick={() => ejecutarAccion('declarar_incumplido', {
                 motivo: textoModal,
                 nuevoResponsableId: usuarioSeleccionado || undefined,
               })}
-              className="bg-red-800 hover:bg-red-700 text-white border-red-700"
-            >
+              className="bg-red-800 hover:bg-red-700 text-white border-red-700">
               Declarar Incumplido
             </Button>
             <Button variant="secondary" onClick={() => setModalActivo(null)}>Cancelar</Button>
@@ -697,14 +798,11 @@ export function ObjetivoDetalle({
             placeholder="Motivo de la cancelación..."
             rows={3}
           />
-          {error && modalActivo === 'cancelar' && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3">
-            <Button
-              loading={pending}
-              disabled={!textoModal.trim()}
+            <Button loading={pending} disabled={!textoModal.trim()}
               onClick={() => ejecutarAccion('cancelar', { motivo: textoModal })}
-              className="bg-red-800 hover:bg-red-700 text-white border-red-700"
-            >
+              className="bg-red-800 hover:bg-red-700 text-white border-red-700">
               Cancelar Objetivo
             </Button>
             <Button variant="secondary" onClick={() => setModalActivo(null)}>Volver</Button>
@@ -732,16 +830,13 @@ export function ObjetivoDetalle({
             placeholder="¿Qué acción vas a tomar para resolver el paro?"
             rows={3}
           />
-          {error && modalActivo === 'desatorar' && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3">
-            <Button
-              loading={pending}
-              disabled={!textoModal.trim()}
+            <Button loading={pending} disabled={!textoModal.trim()}
               onClick={() => ejecutarAccion('desatorar', {
                 causa: causeDesatoramiento,
                 accionCorrectiva: textoModal,
-              })}
-            >
+              })}>
               Registrar Desatoramiento
             </Button>
             <Button variant="secondary" onClick={() => setModalActivo(null)}>Cancelar</Button>

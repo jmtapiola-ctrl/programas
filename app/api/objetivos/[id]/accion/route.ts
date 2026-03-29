@@ -146,9 +146,22 @@ export async function POST(
       case 'aprobar_modificacion': {
         if (!isEjecutivo && !esAprobador) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
         if (objetivo.estado !== 'Modificación solicitada') return NextResponse.json({ error: 'Estado inválido' }, { status: 400 })
+        if (!datos?.textoFinal?.trim()) return NextResponse.json({ error: 'Se requiere texto final' }, { status: 400 })
         const estadoAnterior = datos?.estadoAnterior ?? 'En curso'
-        await updateObjetivo(id, { estado: estadoAnterior })
-        await crearLogEvento({ objetivoId: id, tipoEvento: 'Modificación Aprobada', usuarioId })
+        const fechaModificacion = new Date().toLocaleDateString('es-AR', {
+          day: '2-digit', month: '2-digit', year: 'numeric',
+        })
+        const descripcionActual = objetivo.descripcionDoingness ?? ''
+        const nuevaDescripcion = descripcionActual
+          ? `${descripcionActual}\n\n--- MODIFICADO ${fechaModificacion} ---\n\n${datos.textoFinal.trim()}`
+          : datos.textoFinal.trim()
+        await updateObjetivo(id, { estado: estadoAnterior, descripcionDoingness: nuevaDescripcion })
+        await crearLogEvento({
+          objetivoId: id,
+          tipoEvento: 'Modificación Aprobada',
+          usuarioId,
+          notas: `Texto final: ${datos.textoFinal.trim()}`,
+        })
         return NextResponse.json({ ok: true })
       }
 
@@ -158,7 +171,7 @@ export async function POST(
         if (!datos?.motivo?.trim()) return NextResponse.json({ error: 'Se requiere motivo' }, { status: 400 })
         const estadoAnterior = datos?.estadoAnterior ?? 'En curso'
         await updateObjetivo(id, { estado: estadoAnterior })
-        await crearLogEvento({ objetivoId: id, tipoEvento: 'Modificación Rechazada', usuarioId, notas: datos.motivo })
+        await crearLogEvento({ objetivoId: id, tipoEvento: 'Modificación Rechazada', usuarioId, notas: `Motivo: ${datos.motivo}` })
         return NextResponse.json({ ok: true })
       }
 
