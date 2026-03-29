@@ -30,7 +30,7 @@ export function AprobacionesPendientes({ cumplimientos, objetivosMap, userId }: 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields: { 'Aprobado': true, 'Aprobado por': [userId] } }),
     })
-    const nuevoEstado = obj.esRepetible ? 'Pendiente' : 'Cumplido'
+    const nuevoEstado: Objetivo['estado'] = obj.esRepetible ? 'No iniciado' : 'Completado'
     await fetch(`/api/airtable/tbl9ljCeFDMeCsbAT/${obj.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

@@ -25,16 +25,19 @@ function mapObjetivo(r: any): Objetivo {
     nombre: r.fields['Nombre'] ?? '',
     tipo: r.fields['Tipo']?.name ?? r.fields['Tipo'] ?? 'Operativo',
     programaIds: r.fields['Programa'] ?? [],
-    responsableId: (r.fields['Responsable'] ?? [])[0] ?? '',
+    responsableId: r.fields['Responsable']?.[0] ?? '',
     aprobadorId: r.fields['Aprobador']?.[0] ?? undefined,
-    estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'Pendiente',
+    estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'No iniciado',
+    fechaInicioReal: r.fields['Fecha inicio real'],
+    fechaCumplimientoReportado: r.fields['Fecha Cumplimiento Reportado'],
     fechaLimite: r.fields['Fecha Limite'],
-    descripcionDoingness: r.fields['Descripcion Doingness'],
+    descripcionDoingness: r.fields['Descripcion Doingness'] ?? '',
     esRepetible: r.fields['Es Repetible'] ?? false,
     orden: r.fields['Orden'],
     notas: r.fields['Notas'],
     pbIds: r.fields['PB'] ?? [],
     cumplimientoIds: r.fields['Cumplimientos'] ?? [],
+    logIds: r.fields['Log de objetivos'] ?? [],
   }
 }
 
@@ -112,7 +115,7 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
         id: r.id,
         cumplimiento: r.fields['Cumplimiento'],
         objetivoIds: r.fields['Objetivo'] ?? [],
-        reportadoPorIds: r.fields['Reportado Por'] ?? [],
+        reportadoPorId: r.fields['Reportado Por']?.[0] ?? '',
         fecha: r.fields['Fecha'],
         descripcionCumplimiento: r.fields['Descripcion del Cumplimiento'],
         aprobado: r.fields['Aprobado'] ?? false,
@@ -174,13 +177,13 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
     // Si no hay aprobador efectivo, cambiar estado directamente
     const aprobadorEfectivo = objetivo.aprobadorId ?? programa?.aprobadorId
     if (!aprobadorEfectivo) {
-      const nuevoEstado = objetivo.esRepetible ? 'Pendiente' : 'Cumplido'
+      const nuevoEstado: Objetivo['estado'] = objetivo.esRepetible ? 'No iniciado' : 'Completado'
       await fetch(`/api/airtable/tbl9ljCeFDMeCsbAT/${objetivo.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fields: { 'Estado': nuevoEstado } }),
       })
-      setObjetivo(prev => prev ? { ...prev, estado: nuevoEstado as Objetivo['estado'] } : null)
+      setObjetivo(prev => prev ? { ...prev, estado: nuevoEstado } : null)
     }
 
     setSavingCumplimiento(false)
@@ -198,7 +201,7 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
     })
 
     // Cambiar estado del objetivo
-    const nuevoEstado = objetivo.esRepetible ? 'Pendiente' : 'Cumplido'
+    const nuevoEstado: Objetivo['estado'] = objetivo.esRepetible ? 'No iniciado' : 'Completado'
     await fetch(`/api/airtable/tbl9ljCeFDMeCsbAT/${objetivo.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -285,18 +288,18 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
         </div>
 
         <div className="flex gap-2 flex-shrink-0">
-          {objetivo.estado !== 'Cumplido' && (
+          {objetivo.estado !== 'Completado' && (
             <Button size="sm" onClick={() => setModalCumplir(true)}>
               Reportar Cumplimiento
             </Button>
           )}
           {isEjecutivo && (
             <div className="flex gap-1">
-              {objetivo.estado === 'Pendiente' && (
+              {(objetivo.estado === 'No iniciado' || objetivo.estado === 'Asignado') && (
                 <Button size="sm" variant="secondary" onClick={() => handleCambiarEstado('En curso')}>Iniciar</Button>
               )}
               {objetivo.estado === 'Incumplido' && (
-                <Button size="sm" variant="secondary" onClick={() => handleCambiarEstado('Pendiente')}>Reactivar</Button>
+                <Button size="sm" variant="secondary" onClick={() => handleCambiarEstado('No iniciado')}>Reactivar</Button>
               )}
             </div>
           )}

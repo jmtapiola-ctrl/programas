@@ -3,6 +3,7 @@ import type {
   Programa,
   Objetivo,
   Cumplimiento,
+  LogEvento,
   PlanDeBatalla,
 } from './types'
 
@@ -72,7 +73,7 @@ async function deleteRecord(table: string, id: string): Promise<void> {
   if (!res.ok) throw new Error(`Airtable error: ${res.status}`)
 }
 
-// ─── Mappers ─────────────────────────────────────────────────────────────────
+// ─── Mappers ──────────────────────────────────────────────────────────────────
 
 function mapUsuario(r: any): Usuario {
   return {
@@ -107,16 +108,19 @@ function mapObjetivo(r: any): Objetivo {
     nombre: r.fields['Nombre'] ?? '',
     tipo: r.fields['Tipo']?.name ?? r.fields['Tipo'] ?? 'Operativo',
     programaIds: r.fields['Programa'] ?? [],
-    responsableId: (r.fields['Responsable'] ?? [])[0] ?? '',
+    responsableId: r.fields['Responsable']?.[0] ?? '',
     aprobadorId: r.fields['Aprobador']?.[0] ?? undefined,
-    estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'Pendiente',
+    estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'No iniciado',
+    fechaInicioReal: r.fields['Fecha inicio real'],
+    fechaCumplimientoReportado: r.fields['Fecha Cumplimiento Reportado'],
     fechaLimite: r.fields['Fecha Limite'],
-    descripcionDoingness: r.fields['Descripcion Doingness'],
+    descripcionDoingness: r.fields['Descripcion Doingness'] ?? '',
     esRepetible: r.fields['Es Repetible'] ?? false,
     orden: r.fields['Orden'],
     notas: r.fields['Notas'],
     pbIds: r.fields['PB'] ?? [],
     cumplimientoIds: r.fields['Cumplimientos'] ?? [],
+    logIds: r.fields['Log de objetivos'] ?? [],
   }
 }
 
@@ -125,13 +129,25 @@ function mapCumplimiento(r: any): Cumplimiento {
     id: r.id,
     cumplimiento: r.fields['Cumplimiento'],
     objetivoIds: r.fields['Objetivo'] ?? [],
-    reportadoPorIds: r.fields['Reportado Por'] ?? [],
-    fecha: r.fields['Fecha'],
-    descripcionCumplimiento: r.fields['Descripcion del Cumplimiento'],
-    aprobado: r.fields['Aprobado'] ?? false,
+    reportadoPorId: r.fields['Reportado Por']?.[0] ?? '',
     aprobadoPorId: r.fields['Aprobado por']?.[0] ?? undefined,
+    fecha: r.fields['Fecha'],
     rechazado: r.fields['Rechazado'] ?? false,
     motivoRechazo: r.fields['Motivo rechazo'],
+    descripcionCumplimiento: r.fields['Descripcion del Cumplimiento'],
+    aprobado: r.fields['Aprobado'] ?? false,
+  }
+}
+
+function mapLogEvento(r: any): LogEvento {
+  return {
+    id: r.id,
+    nombre: r.fields['Nombre'],
+    objetivoIds: r.fields['Objetivo'] ?? [],
+    tipoEvento: r.fields['Tipo Evento']?.name ?? r.fields['Tipo Evento'] ?? '',
+    usuarioId: r.fields['Usuario']?.[0] ?? '',
+    fechaYHora: r.fields['Fecha y Hora'],
+    notas: r.fields['Notas'],
   }
 }
 
@@ -211,7 +227,7 @@ export async function createPrograma(data: Partial<Programa>): Promise<Programa>
   if (data.objetivoMayor) fields['Objetivo Mayor'] = data.objetivoMayor
   if (data.estado) fields['Estado'] = data.estado
   if (data.responsableIds?.length) fields['Responsable'] = data.responsableIds
-  if (data.aprobadorId !== undefined) fields['Aprobador'] = data.aprobadorId ? [data.aprobadorId] : []
+  if (data.aprobadorId) fields['Aprobador'] = [data.aprobadorId]
   if (data.fechaInicio) fields['Fecha Inicio'] = data.fechaInicio
   if (data.fechaObjetivo) fields['Fecha Objetivo'] = data.fechaObjetivo
   if (data.notas) fields['Notas'] = data.notas
@@ -244,15 +260,20 @@ export async function deletePrograma(id: string): Promise<void> {
 export const TABLA_OBJETIVOS = 'tbl9ljCeFDMeCsbAT'
 
 export async function getObjetivos(programaId?: string): Promise<Objetivo[]> {
-  const records = await fetchAll(TABLA_OBJETIVOS, 'sort[0][field]=fldxX3JXMRguaJD2Y&sort[0][direction]=asc')
-  const all = records.map(mapObjetivo)
-  if (programaId) return all.filter(o => o.programaIds.includes(programaId))
-  return all
+  let params = 'sort[0][field]=fldxX3JXMRguaJD2Y&sort[0][direction]=asc'
+  if (programaId) {
+    params += `&filterByFormula=${encodeURIComponent(
+      `FIND("${programaId}",ARRAYJOIN({Programa}))`
+    )}`
+  }
+  const records = await fetchAll(TABLA_OBJETIVOS, params)
+  return records.map(mapObjetivo)
 }
 
 export async function getObjetivosByResponsable(usuarioId: string): Promise<Objetivo[]> {
-  const records = await fetchAll(TABLA_OBJETIVOS, 'sort[0][field]=fldxX3JXMRguaJD2Y&sort[0][direction]=asc')
-  return records.map(mapObjetivo).filter(o => o.responsableId === usuarioId)
+  const formula = encodeURIComponent(`FIND("${usuarioId}",ARRAYJOIN({Responsable}))`)
+  const records = await fetchAll(TABLA_OBJETIVOS, `filterByFormula=${formula}`)
+  return records.map(mapObjetivo)
 }
 
 export async function getObjetivo(id: string): Promise<Objetivo> {
@@ -260,19 +281,21 @@ export async function getObjetivo(id: string): Promise<Objetivo> {
   return mapObjetivo(r)
 }
 
-export async function createObjetivo(data: Partial<Objetivo>): Promise<Objetivo> {
+export async function createObjetivo(
+  data: Partial<Objetivo> & { creadorId: string }
+): Promise<Objetivo> {
   const fields: Record<string, any> = {}
   if (data.nombre) fields['Nombre'] = data.nombre
   if (data.tipo) fields['Tipo'] = data.tipo
   if (data.programaIds?.length) fields['Programa'] = data.programaIds
   if (data.responsableId) fields['Responsable'] = [data.responsableId]
-  if (data.aprobadorId !== undefined) fields['Aprobador'] = data.aprobadorId ? [data.aprobadorId] : []
-  if (data.estado) fields['Estado'] = data.estado
+  if (data.aprobadorId) fields['Aprobador'] = [data.aprobadorId]
   if (data.fechaLimite) fields['Fecha Limite'] = data.fechaLimite
   if (data.descripcionDoingness) fields['Descripcion Doingness'] = data.descripcionDoingness
   if (data.esRepetible !== undefined) fields['Es Repetible'] = data.esRepetible
   if (data.orden !== undefined) fields['Orden'] = data.orden
   if (data.notas) fields['Notas'] = data.notas
+  fields['Estado'] = data.responsableId === data.creadorId ? 'No iniciado' : 'Asignado'
   const r = await createRecord(TABLA_OBJETIVOS, fields)
   return mapObjetivo(r)
 }
@@ -282,9 +305,11 @@ export async function updateObjetivo(id: string, data: Partial<Objetivo>): Promi
   if (data.nombre !== undefined) fields['Nombre'] = data.nombre
   if (data.tipo !== undefined) fields['Tipo'] = data.tipo
   if (data.programaIds !== undefined) fields['Programa'] = data.programaIds
-  if (data.responsableId !== undefined) fields['Responsable'] = data.responsableId ? [data.responsableId] : []
+  if (data.responsableId !== undefined) fields['Responsable'] = [data.responsableId]
   if (data.aprobadorId !== undefined) fields['Aprobador'] = data.aprobadorId ? [data.aprobadorId] : []
   if (data.estado !== undefined) fields['Estado'] = data.estado
+  if (data.fechaInicioReal !== undefined) fields['Fecha inicio real'] = data.fechaInicioReal
+  if (data.fechaCumplimientoReportado !== undefined) fields['Fecha Cumplimiento Reportado'] = data.fechaCumplimientoReportado
   if (data.fechaLimite !== undefined) fields['Fecha Limite'] = data.fechaLimite
   if (data.descripcionDoingness !== undefined) fields['Descripcion Doingness'] = data.descripcionDoingness
   if (data.esRepetible !== undefined) fields['Es Repetible'] = data.esRepetible
@@ -303,19 +328,24 @@ export async function deleteObjetivo(id: string): Promise<void> {
 export const TABLA_CUMPLIMIENTOS = 'tblTbB0eYz3xsdyNk'
 
 export async function getCumplimientos(objetivoId?: string): Promise<Cumplimiento[]> {
-  const records = await fetchAll(TABLA_CUMPLIMIENTOS, 'sort[0][field]=fld8GA6aFyu09Ofp5&sort[0][direction]=desc')
-  const all = records.map(mapCumplimiento)
-  if (objetivoId) return all.filter(c => c.objetivoIds.includes(objetivoId))
-  return all
+  let params = 'sort[0][field]=fld8GA6aFyu09Ofp5&sort[0][direction]=desc'
+  if (objetivoId) {
+    params += `&filterByFormula=${encodeURIComponent(
+      `FIND("${objetivoId}",ARRAYJOIN({Objetivo}))`
+    )}`
+  }
+  const records = await fetchAll(TABLA_CUMPLIMIENTOS, params)
+  return records.map(mapCumplimiento)
 }
 
 export async function createCumplimiento(data: Partial<Cumplimiento>): Promise<Cumplimiento> {
   const fields: Record<string, any> = {}
   if (data.objetivoIds?.length) fields['Objetivo'] = data.objetivoIds
-  if (data.reportadoPorIds?.length) fields['Reportado Por'] = data.reportadoPorIds
+  if (data.reportadoPorId) fields['Reportado Por'] = [data.reportadoPorId]
   if (data.fecha) fields['Fecha'] = data.fecha
   if (data.descripcionCumplimiento) fields['Descripcion del Cumplimiento'] = data.descripcionCumplimiento
-  if (data.aprobado !== undefined) fields['Aprobado'] = data.aprobado
+  fields['Aprobado'] = false
+  fields['Rechazado'] = false
   const r = await createRecord(TABLA_CUMPLIMIENTOS, fields)
   return mapCumplimiento(r)
 }
@@ -331,15 +361,51 @@ export async function updateCumplimiento(id: string, data: Partial<Cumplimiento>
   return mapCumplimiento(r)
 }
 
+// ─── Log de Objetivos ─────────────────────────────────────────────────────────
+
+export const TABLA_LOG = 'tblX04cxihBvwPs8c'
+
+export async function getLogObjetivo(objetivoId: string): Promise<LogEvento[]> {
+  const params = `sort[0][field]=fld2MTbzWmFkLoohR&sort[0][direction]=asc&filterByFormula=${encodeURIComponent(
+    `FIND("${objetivoId}",ARRAYJOIN({Objetivo}))`
+  )}`
+  const records = await fetchAll(TABLA_LOG, params)
+  return records.map(mapLogEvento)
+}
+
+export async function crearLogEvento({
+  objetivoId,
+  tipoEvento,
+  usuarioId,
+  notas,
+}: {
+  objetivoId: string
+  tipoEvento: string
+  usuarioId: string
+  notas?: string
+}): Promise<void> {
+  await createRecord(TABLA_LOG, {
+    'Objetivo': [objetivoId],
+    'Tipo Evento': tipoEvento,
+    'Usuario': [usuarioId],
+    'Fecha y Hora': new Date().toISOString(),
+    'Notas': notas ?? '',
+  })
+}
+
 // ─── Planes de Batalla ────────────────────────────────────────────────────────
 
 export const TABLA_PB = 'tbliUTM4zaoyztD6O'
 
 export async function getPlanesDB(responsableId?: string): Promise<PlanDeBatalla[]> {
-  const records = await fetchAll(TABLA_PB, 'sort[0][field]=flduXU9YPEnp04XvA&sort[0][direction]=desc')
-  const all = records.map(mapPB)
-  if (responsableId) return all.filter(pb => pb.responsableIds.includes(responsableId))
-  return all
+  let params = 'sort[0][field]=flduXU9YPEnp04XvA&sort[0][direction]=desc'
+  if (responsableId) {
+    params += `&filterByFormula=${encodeURIComponent(
+      `FIND("${responsableId}",ARRAYJOIN({Responsable}))`
+    )}`
+  }
+  const records = await fetchAll(TABLA_PB, params)
+  return records.map(mapPB)
 }
 
 export async function getPlanDB(id: string): Promise<PlanDeBatalla> {

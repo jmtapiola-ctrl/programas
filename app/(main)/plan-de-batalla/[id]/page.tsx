@@ -53,11 +53,13 @@ export default function PBDetailPage({ params }: { params: Promise<{ id: string 
           nombre: r.fields['Nombre'] ?? '',
           tipo: r.fields['Tipo']?.name ?? r.fields['Tipo'] ?? 'Operativo',
           programaIds: r.fields['Programa'] ?? [],
-          responsableId: (r.fields['Responsable'] ?? [])[0] ?? '',
-          estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'Pendiente',
+          responsableId: r.fields['Responsable']?.[0] ?? '',
+          estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'No iniciado',
+          descripcionDoingness: r.fields['Descripcion Doingness'] ?? '',
           esRepetible: r.fields['Es Repetible'] ?? false,
-          pbIds: [],
-          cumplimientoIds: [],
+          pbIds: r.fields['PB'] ?? [],
+          cumplimientoIds: r.fields['Cumplimientos'] ?? [],
+          logIds: r.fields['Log de objetivos'] ?? [],
         }))
         setObjetivos(allObjs.filter(o => plan.objetivosIncluidosIds.includes(o.id)))
       }
@@ -99,7 +101,7 @@ export default function PBDetailPage({ params }: { params: Promise<{ id: string 
     })
 
     const obj = objetivos.find(o => o.id === objetivoId)
-    const nuevoEstado = obj?.esRepetible ? 'Pendiente' : 'Cumplido'
+    const nuevoEstado: Objetivo['estado'] = obj?.esRepetible ? 'No iniciado' : 'Completado'
 
     await fetch(`/api/airtable/tbl9ljCeFDMeCsbAT/${objetivoId}`, {
       method: 'PATCH',

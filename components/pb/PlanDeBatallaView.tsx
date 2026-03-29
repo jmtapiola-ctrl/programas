@@ -19,7 +19,7 @@ export function PlanDeBatallaView({
   onCumplirObjetivo,
   onCambiarEstado,
 }: PlanDeBatallaViewProps) {
-  const cumplidos = objetivos.filter(o => o.estado === 'Cumplido').length
+  const cumplidos = objetivos.filter(o => o.estado === 'Completado').length
   const total = objetivos.length
   const porcentaje = total > 0 ? Math.round((cumplidos / total) * 100) : 0
 

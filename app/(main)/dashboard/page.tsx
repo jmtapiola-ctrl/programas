@@ -65,21 +65,21 @@ export default async function DashboardPage() {
   for (const o of objetivos) { objetivosMap[o.id] = o }
 
   const programasActivos = programas.filter(p => p.estado === 'Activo')
-  const objetivosPendientes = objetivos.filter(o => o.estado === 'Pendiente' || o.estado === 'En curso')
-  const objetivosCumplidos = objetivos.filter(o => o.estado === 'Cumplido')
+  const objetivosPendientes = objetivos.filter(o => o.estado === 'No iniciado' || o.estado === 'Asignado' || o.estado === 'En curso')
+  const objetivosCumplidos = objetivos.filter(o => o.estado === 'Completado')
   const objetivosIncumplidos = objetivos.filter(o => o.estado === 'Incumplido')
   const criticos = objetivos.filter(o => (o.tipo === 'Primario' || o.tipo === 'Vital') && o.estado === 'Incumplido')
 
   // Programas en riesgo (Ejecutivo): objetivos con fecha vencida
   const objetivosEnRiesgo = objetivos.filter(o =>
     o.fechaLimite && o.fechaLimite < hoy &&
-    (o.estado === 'Pendiente' || o.estado === 'En curso')
+    (o.estado === 'No iniciado' || o.estado === 'Asignado' || o.estado === 'En curso')
   )
   const programaIdsEnRiesgo = new Set(objetivosEnRiesgo.flatMap(o => o.programaIds))
   const programasEnRiesgo = programas.filter(p => programaIdsEnRiesgo.has(p.id))
 
   // Staff: objetivos pendientes/en curso
-  const misObjetivosPendientes = misObjetivos.filter(o => o.estado === 'Pendiente' || o.estado === 'En curso')
+  const misObjetivosPendientes = misObjetivos.filter(o => o.estado === 'No iniciado' || o.estado === 'Asignado' || o.estado === 'En curso')
 
   return (
     <div className="space-y-6">

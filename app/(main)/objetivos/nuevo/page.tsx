@@ -31,7 +31,7 @@ export default function NuevoObjetivoPage() {
     programaId: programaIdParam,
     responsableId: '',
     aprobadorId: '',
-    estado: 'Pendiente' as const,
+    estado: 'No iniciado' as const,
     fechaLimite: '',
     descripcionDoingness: '',
     esRepetible: false,
@@ -162,9 +162,10 @@ export default function NuevoObjetivoPage() {
             value={form.estado}
             onChange={e => setForm(f => ({ ...f, estado: e.target.value as any }))}
           >
-            <option>Pendiente</option>
+            <option>No iniciado</option>
+            <option>Asignado</option>
             <option>En curso</option>
-            <option>Cumplido</option>
+            <option>Completado</option>
             <option>Incumplido</option>
           </Select>
         </div>

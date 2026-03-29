@@ -20,7 +20,7 @@ export function ObjetivoCard({ objetivo, responsable, onCumplir, compact, cumpli
   // Calcular "sin movimiento"
   let sinMovimiento = false
   if (
-    (objetivo.estado === 'Pendiente' || objetivo.estado === 'En curso') &&
+    (objetivo.estado === 'No iniciado' || objetivo.estado === 'Asignado' || objetivo.estado === 'En curso') &&
     (cumplimientosRecientes ?? 1) === 0 &&
     objetivo.fechaLimite != null
   ) {
@@ -74,7 +74,7 @@ export function ObjetivoCard({ objetivo, responsable, onCumplir, compact, cumpli
             )}
           </div>
         </div>
-        {onCumplir && objetivo.estado !== 'Cumplido' && (
+        {onCumplir && objetivo.estado !== 'Completado' && (
           <button
             onClick={() => onCumplir(objetivo.id)}
             className="flex-shrink-0 px-3 py-1.5 text-xs bg-green-800 hover:bg-green-700 text-green-200 border border-green-700 rounded-md transition-colors"

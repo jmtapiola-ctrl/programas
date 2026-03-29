@@ -38,16 +38,16 @@ export default async function InformesPage() {
   for (const o of objetivos) { objetivosMap[o.id] = o }
 
   const total = objetivos.length
-  const cumplidos = objetivos.filter(o => o.estado === 'Cumplido').length
+  const cumplidos = objetivos.filter(o => o.estado === 'Completado').length
   const incumplidos = objetivos.filter(o => o.estado === 'Incumplido').length
   const enCurso = objetivos.filter(o => o.estado === 'En curso').length
-  const pendientes = objetivos.filter(o => o.estado === 'Pendiente').length
+  const pendientes = objetivos.filter(o => o.estado === 'No iniciado' || o.estado === 'Asignado').length
   const porcentajeCumplimiento = total > 0 ? Math.round((cumplidos / total) * 100) : 0
 
   const porTipo = ['Primario', 'Vital', 'Condicional', 'Operativo', 'Producción', 'Mayor'].map(tipo => ({
     tipo,
     total: objetivos.filter(o => o.tipo === tipo).length,
-    cumplidos: objetivos.filter(o => o.tipo === tipo && o.estado === 'Cumplido').length,
+    cumplidos: objetivos.filter(o => o.tipo === tipo && o.estado === 'Completado').length,
     incumplidos: objetivos.filter(o => o.tipo === tipo && o.estado === 'Incumplido').length,
   }))
 
@@ -138,7 +138,7 @@ export default async function InformesPage() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {usuarios.filter(u => u.activo).map(u => {
               const objsUsuario = objetivos.filter(o => o.responsableId === u.id)
-              const cumplidosU = objsUsuario.filter(o => o.estado === 'Cumplido').length
+              const cumplidosU = objsUsuario.filter(o => o.estado === 'Completado').length
               return (
                 <div key={u.id} className="bg-gray-700/50 rounded-lg p-3">
                   <p className="text-gray-200 font-medium text-sm">{u.nombre}</p>

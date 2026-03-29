@@ -39,12 +39,14 @@ export default function NuevoPBPage() {
         nombre: r.fields['Nombre'] ?? '',
         tipo: r.fields['Tipo']?.name ?? r.fields['Tipo'] ?? 'Operativo',
         programaIds: r.fields['Programa'] ?? [],
-        responsableId: (r.fields['Responsable'] ?? [])[0] ?? '',
-        estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'Pendiente',
+        responsableId: r.fields['Responsable']?.[0] ?? '',
+        estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'No iniciado',
+        descripcionDoingness: r.fields['Descripcion Doingness'] ?? '',
         esRepetible: r.fields['Es Repetible'] ?? false,
-        pbIds: [],
-        cumplimientoIds: [],
-      })).filter((o: Objetivo) => o.estado !== 'Cumplido'))
+        pbIds: r.fields['PB'] ?? [],
+        cumplimientoIds: r.fields['Cumplimientos'] ?? [],
+        logIds: r.fields['Log de objetivos'] ?? [],
+      })).filter((o: Objetivo) => o.estado !== 'Completado'))
 
       setUsuarios((ud.records ?? []).map((r: any): Usuario => ({
         id: r.id,

@@ -2,24 +2,31 @@ import type { TipoObjetivo, EstadoObjetivo, EstadoPrograma, EstadoPB } from '@/l
 
 type BadgeVariant = 'primario' | 'vital' | 'condicional' | 'operativo' | 'produccion' | 'mayor' |
   'pendiente' | 'en-curso' | 'cumplido' | 'incumplido' |
+  'asignado' | 'no-iniciado' | 'completado-pendiente' | 'rechazado' | 'cancelado' | 'modificacion' |
   'borrador' | 'activo' | 'completado' | 'archivado' | 'default'
 
 const variantClasses: Record<BadgeVariant, string> = {
-  primario:    'bg-blue-900 text-blue-200 border border-blue-700',
-  vital:       'bg-red-900/40 text-red-300 border border-red-700/40',
-  condicional: 'bg-yellow-900 text-yellow-200 border border-yellow-700',
-  operativo:   'bg-orange-900 text-orange-200 border border-orange-700',
-  produccion:  'bg-green-900 text-green-200 border border-green-700',
-  mayor:       'bg-purple-900 text-purple-200 border border-purple-700',
-  pendiente:   'bg-gray-800 text-gray-300 border border-gray-600',
-  'en-curso':  'bg-blue-900 text-blue-200 border border-blue-700',
-  cumplido:    'bg-green-900 text-green-200 border border-green-700',
-  incumplido:  'bg-red-900 text-red-200 border border-red-700',
-  borrador:    'bg-gray-800 text-gray-300 border border-gray-600',
-  activo:      'bg-blue-900 text-blue-200 border border-blue-700',
-  completado:  'bg-green-900 text-green-200 border border-green-700',
-  archivado:   'bg-gray-900 text-gray-400 border border-gray-700',
-  default:     'bg-gray-800 text-gray-300 border border-gray-600',
+  primario:              'bg-blue-900 text-blue-200 border border-blue-700',
+  vital:                 'bg-red-900/40 text-red-300 border border-red-700/40',
+  condicional:           'bg-yellow-900 text-yellow-200 border border-yellow-700',
+  operativo:             'bg-orange-900 text-orange-200 border border-orange-700',
+  produccion:            'bg-green-900 text-green-200 border border-green-700',
+  mayor:                 'bg-purple-900 text-purple-200 border border-purple-700',
+  pendiente:             'bg-gray-800 text-gray-300 border border-gray-600',
+  'en-curso':            'bg-blue-900 text-blue-200 border border-blue-700',
+  cumplido:              'bg-green-900 text-green-200 border border-green-700',
+  incumplido:            'bg-red-900 text-red-200 border border-red-700',
+  asignado:              'bg-gray-700 text-gray-300 border border-gray-600',
+  'no-iniciado':         'bg-gray-800 text-gray-400 border border-gray-700',
+  'completado-pendiente':'bg-yellow-900 text-yellow-200 border border-yellow-700',
+  rechazado:             'bg-orange-900 text-orange-200 border border-orange-700',
+  cancelado:             'bg-red-950 text-red-300 border border-red-800',
+  modificacion:          'bg-purple-900 text-purple-200 border border-purple-700',
+  borrador:              'bg-gray-800 text-gray-300 border border-gray-600',
+  activo:                'bg-blue-900 text-blue-200 border border-blue-700',
+  completado:            'bg-green-900 text-green-200 border border-green-700',
+  archivado:             'bg-gray-900 text-gray-400 border border-gray-700',
+  default:               'bg-gray-800 text-gray-300 border border-gray-600',
 }
 
 function tipoToVariant(tipo: TipoObjetivo): BadgeVariant {
@@ -36,9 +43,14 @@ function tipoToVariant(tipo: TipoObjetivo): BadgeVariant {
 
 function estadoObjetivoToVariant(estado: EstadoObjetivo): BadgeVariant {
   const map: Record<EstadoObjetivo, BadgeVariant> = {
-    'Pendiente': 'pendiente',
+    'Asignado': 'asignado',
+    'No iniciado': 'no-iniciado',
     'En curso': 'en-curso',
-    'Cumplido': 'cumplido',
+    'Completado pendiente': 'completado-pendiente',
+    'Completado': 'cumplido',
+    'Rechazado': 'rechazado',
+    'Cancelado': 'cancelado',
+    'Modificación solicitada': 'modificacion',
     'Incumplido': 'incumplido',
   }
   return map[estado] ?? 'default'
