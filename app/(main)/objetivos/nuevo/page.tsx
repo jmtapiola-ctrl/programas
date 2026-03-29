@@ -91,11 +91,7 @@ export default function NuevoObjetivoPage() {
     setLoading(false)
     if (res.ok) {
       const data = await res.json()
-      if (form.programaId) {
-        router.push(`/programas/${form.programaId}`)
-      } else {
-        router.push(`/objetivos/${data.id}`)
-      }
+      router.push(`/objetivos/${data.id}`)
     }
   }
 
@@ -166,16 +162,25 @@ export default function NuevoObjetivoPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Select
-            label="Programa"
-            value={form.programaId}
-            onChange={e => setForm(f => ({ ...f, programaId: e.target.value }))}
-          >
-            <option value="">Sin programa</option>
-            {programas.map(p => (
-              <option key={p.id} value={p.id}>{p.nombre}</option>
-            ))}
-          </Select>
+          {programaIdParam ? (
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Programa</label>
+              <div className="w-full bg-gray-700/50 border border-gray-600 rounded-md px-3 py-2 text-gray-400 text-sm">
+                {programas.find(p => p.id === programaIdParam)?.nombre ?? programaIdParam}
+              </div>
+            </div>
+          ) : (
+            <Select
+              label="Programa"
+              value={form.programaId}
+              onChange={e => setForm(f => ({ ...f, programaId: e.target.value }))}
+            >
+              <option value="">Sin programa</option>
+              {programas.map(p => (
+                <option key={p.id} value={p.id}>{p.nombre}</option>
+              ))}
+            </Select>
+          )}
 
           <div>
             <Select
@@ -253,7 +258,13 @@ export default function NuevoObjetivoPage() {
 
         <div className="flex gap-3 pt-2">
           <Button type="submit" loading={loading}>Crear Objetivo</Button>
-          <Button type="button" variant="secondary" onClick={() => router.back()}>Cancelar</Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => router.push(programaIdParam ? `/programas/${programaIdParam}` : '/programas')}
+          >
+            Cancelar
+          </Button>
         </div>
       </form>
     </div>

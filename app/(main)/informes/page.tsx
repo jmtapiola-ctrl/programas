@@ -1,14 +1,18 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { redirect } from 'next/navigation'
 import { getObjetivos, getCumplimientos, getUsuarios, getProgramas } from '@/lib/airtable'
 import { AprobacionesPendientes } from '@/components/informes/AprobacionesPendientes'
+import { Badge } from '@/components/ui/Badge'
+import Link from 'next/link'
 import type { Objetivo, Cumplimiento, Usuario } from '@/lib/types'
+import { isVencido } from '@/lib/types'
 
 export default async function InformesPage() {
   const session = await getServerSession(authOptions)
+  if (!session) redirect('/login')
   const isEjecutivo = (session?.user as any)?.role === 'Ejecutivo'
-
-  const userId = (session?.user as any)?.id
+  const userId = (session?.user as any)?.id as string
 
   let objetivos: Objetivo[] = []
   let cumplimientos: Cumplimiento[] = []
@@ -50,6 +54,18 @@ export default async function InformesPage() {
     cumplidos: objetivos.filter(o => o.tipo === tipo && o.estado === 'Completado').length,
     incumplidos: objetivos.filter(o => o.tipo === tipo && o.estado === 'Incumplido').length,
   }))
+
+  const vencidos = objetivos
+    .filter(o => isVencido(o))
+    .map(o => {
+      const diasVencido = o.fechaLimite
+        ? Math.floor((new Date().getTime() - new Date(o.fechaLimite).getTime()) / (1000 * 60 * 60 * 24))
+        : 0
+      return { ...o, diasVencido }
+    })
+    .sort((a, b) => b.diasVencido - a.diasVencido)
+
+  const usuariosMap = Object.fromEntries(usuarios.map(u => [u.id, u]))
 
 
   return (
@@ -129,6 +145,31 @@ export default async function InformesPage() {
           objetivosMap={objetivosMap}
           userId={userId}
         />
+      )}
+
+      {/* Objetivos vencidos */}
+      {isEjecutivo && vencidos.length > 0 && (
+        <div className="bg-gray-800 border border-red-800/40 rounded-lg p-5">
+          <h2 className="font-semibold text-red-300 mb-4">Objetivos Vencidos ({vencidos.length})</h2>
+          <div className="space-y-2">
+            {vencidos.map(o => (
+              <div key={o.id} className="flex items-center justify-between gap-4 bg-gray-700/50 rounded-lg p-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Badge tipo={o.tipo} />
+                  <Link href={`/objetivos/${o.id}`} className="text-gray-200 text-sm hover:text-blue-400 truncate">
+                    {o.nombre}
+                  </Link>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0 text-xs text-gray-400">
+                  {usuariosMap[o.responsableId] && (
+                    <span>{usuariosMap[o.responsableId].nombre}</span>
+                  )}
+                  <span className="text-red-400 font-medium">{o.diasVencido}d vencido</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Usuarios */}

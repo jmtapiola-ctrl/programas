@@ -124,17 +124,22 @@ export function ObjetivoDetalle({
 
   return (
     <div className="space-y-6 max-w-3xl">
+      {/* Breadcrumb */}
+      <nav className="text-sm text-gray-500 flex items-center gap-2 flex-wrap">
+        <Link href="/programas" className="hover:text-gray-300">Programas</Link>
+        {programa && (
+          <>
+            <span>/</span>
+            <Link href={`/programas/${programa.id}`} className="hover:text-gray-300">{programa.nombre}</Link>
+          </>
+        )}
+        <span>/</span>
+        <span className="text-gray-300">{objetivo.nombre}</span>
+      </nav>
+
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          {objetivo.programaIds.length > 0 && (
-            <Link
-              href={`/programas/${objetivo.programaIds[0]}`}
-              className="text-gray-400 hover:text-gray-200 text-sm mb-2 inline-block"
-            >
-              ← {programa?.nombre ?? 'Programa'}
-            </Link>
-          )}
           <div className="flex items-center gap-2 mb-2">
             <Badge tipo={objetivo.tipo} />
             {TOOLTIP_TIPOS[objetivo.tipo] && (
@@ -363,9 +368,26 @@ export function ObjetivoDetalle({
                         {usuario ? ` · ${usuario.nombre}` : ''}
                       </span>
                     </div>
-                    {e.notas && (
+                    {e.notas && e.tipoEvento === 'Desatoramiento' ? (() => {
+                      const notas = e.notas!
+                      const causaIdx = notas.indexOf('Causa:')
+                      const accionIdx = notas.indexOf('Acción correctiva:')
+                      const causa = causaIdx >= 0
+                        ? notas.slice(causaIdx + 'Causa:'.length, accionIdx >= 0 ? accionIdx : undefined).trim()
+                        : ''
+                      const accion = accionIdx >= 0
+                        ? notas.slice(accionIdx + 'Acción correctiva:'.length).trim()
+                        : ''
+                      return (
+                        <div className="text-xs mt-2 space-y-1 opacity-80">
+                          {causa && <p><span className="font-semibold">Causa:</span> {causa}</p>}
+                          {accion && <p><span className="font-semibold">Acción correctiva:</span> {accion}</p>}
+                          {!causa && !accion && <p className="whitespace-pre-wrap">{notas}</p>}
+                        </div>
+                      )
+                    })() : e.notas ? (
                       <p className="text-xs mt-1 whitespace-pre-wrap opacity-80">{e.notas}</p>
-                    )}
+                    ) : null}
                   </div>
                 )
               } else {
@@ -422,6 +444,7 @@ export function ObjetivoDetalle({
             placeholder="¿Qué necesitás saber o clarificar?"
             rows={4}
           />
+          {error && modalActivo === 'pedir_clarificacion' && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3">
             <Button
               loading={pending}
@@ -446,6 +469,7 @@ export function ObjetivoDetalle({
             placeholder="Tu respuesta..."
             rows={4}
           />
+          {error && modalActivo === 'responder_clarificacion' && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3">
             <Button
               loading={pending}
@@ -470,6 +494,7 @@ export function ObjetivoDetalle({
             placeholder="Describí las acciones realizadas..."
             rows={4}
           />
+          {error && modalActivo === 'reportar_cumplimiento' && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3">
             <Button
               loading={pending}
@@ -494,6 +519,7 @@ export function ObjetivoDetalle({
             placeholder="Explicá qué falta o qué está mal..."
             rows={3}
           />
+          {error && modalActivo === 'rechazar_cumplimiento' && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3">
             <Button
               loading={pending}
@@ -522,6 +548,7 @@ export function ObjetivoDetalle({
             placeholder="Explicá el motivo del rechazo..."
             rows={3}
           />
+          {error && modalActivo === 'rechazar_objetivo' && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3">
             <Button
               loading={pending}
@@ -554,6 +581,7 @@ export function ObjetivoDetalle({
             placeholder="¿Qué cambio proponés?"
             rows={3}
           />
+          {error && modalActivo === 'solicitar_modificacion' && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3">
             <Button
               loading={pending}
@@ -574,6 +602,7 @@ export function ObjetivoDetalle({
       <Modal open={modalActivo === 'aprobar_modificacion'} onClose={() => setModalActivo(null)} title="Aprobar Modificación">
         <div className="space-y-4">
           <p className="text-gray-400 text-sm">¿Confirmás la aprobación de la modificación solicitada? El objetivo volverá al estado anterior.</p>
+          {error && modalActivo === 'aprobar_modificacion' && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3">
             <Button
               loading={pending}
@@ -597,6 +626,7 @@ export function ObjetivoDetalle({
             placeholder="Motivo del rechazo..."
             rows={3}
           />
+          {error && modalActivo === 'rechazar_modificacion' && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3">
             <Button
               loading={pending}
@@ -624,6 +654,7 @@ export function ObjetivoDetalle({
             placeholder="¿Por qué se declara incumplido?"
             rows={3}
           />
+          {error && modalActivo === 'declarar_incumplido' && <p className="text-red-400 text-sm">{error}</p>}
           {allUsuarios.length > 0 && (
             <Select
               label="Reasignar a (opcional)"
@@ -666,6 +697,7 @@ export function ObjetivoDetalle({
             placeholder="Motivo de la cancelación..."
             rows={3}
           />
+          {error && modalActivo === 'cancelar' && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3">
             <Button
               loading={pending}
@@ -700,6 +732,7 @@ export function ObjetivoDetalle({
             placeholder="¿Qué acción vas a tomar para resolver el paro?"
             rows={3}
           />
+          {error && modalActivo === 'desatorar' && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3">
             <Button
               loading={pending}

@@ -60,7 +60,7 @@ export default function LoginPage() {
             type="password"
             value={password}
             onChange={e => setPassword(e.target.value)}
-            placeholder="••••••••"
+            placeholder="Dejá vacío si no tenés contraseña asignada"
           />
 
           {error && (

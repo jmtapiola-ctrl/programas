@@ -1,4 +1,23 @@
+import { TIPO_COLOR, ESTADO_COLOR } from '@/lib/types'
 import type { TipoObjetivo, EstadoObjetivo, EstadoPrograma, EstadoPB } from '@/lib/types'
+
+export function BadgeTipo({ tipo }: { tipo: string }) {
+  const cls = TIPO_COLOR[tipo] ?? 'bg-gray-700 text-gray-300 border-gray-600'
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${cls}`}>
+      {tipo}
+    </span>
+  )
+}
+
+export function BadgeEstado({ estado }: { estado: string }) {
+  const cls = ESTADO_COLOR[estado] ?? 'bg-gray-700 text-gray-300 border-gray-600'
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${cls}`}>
+      {estado}
+    </span>
+  )
+}
 
 type BadgeVariant = 'primario' | 'vital' | 'condicional' | 'operativo' | 'produccion' | 'mayor' |
   'pendiente' | 'en-curso' | 'cumplido' | 'incumplido' |

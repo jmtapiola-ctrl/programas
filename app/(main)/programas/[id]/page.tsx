@@ -33,6 +33,7 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
   const usuariosMap = Object.fromEntries(usuarios.map((u: Usuario) => [u.id, u]))
   const sortedObjetivos = sortObjetivos(objetivos)
   const responsables = programa.responsableIds.map(rid => usuariosMap[rid]).filter(Boolean)
+  const aprobador = programa.aprobadorId ? usuariosMap[programa.aprobadorId] : undefined
 
   const puedeAgregarObjetivo = isEjecutivo || (userId != null && programa.responsableIds.includes(userId))
 
@@ -44,18 +45,25 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
 
   return (
     <div className="space-y-6">
+      {/* Breadcrumb */}
+      <nav className="text-sm text-gray-500 flex items-center gap-2">
+        <Link href="/programas" className="hover:text-gray-300">Programas</Link>
+        <span>/</span>
+        <span className="text-gray-300">{programa.nombre}</span>
+      </nav>
+
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Link href="/programas" className="text-gray-400 hover:text-gray-200 text-sm">← Programas</Link>
-          </div>
           <div className="flex items-center gap-3 mb-1">
             <Badge estadoPrograma={programa.estado} />
           </div>
           <h1 className="text-2xl font-bold text-white">{programa.nombre}</h1>
           {responsables.length > 0 && (
             <p className="text-gray-400 text-sm mt-1">Responsable: {responsables.map((r: any) => r.nombre).join(', ')}</p>
+          )}
+          {aprobador && (
+            <p className="text-gray-500 text-xs mt-0.5">Aprobador: {aprobador.nombre}</p>
           )}
         </div>
         {puedeAgregarObjetivo && (
@@ -92,7 +100,7 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
 
       {/* Info */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {programa.proposito && (
+        {programa.proposito ? (
           <div className="md:col-span-3 bg-blue-900/20 border border-blue-800/40 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-1">
               <p className="text-xs text-blue-400 font-medium uppercase tracking-wider">Propósito</p>
@@ -100,7 +108,14 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
             </div>
             <p className="text-gray-200">{programa.proposito}</p>
           </div>
-        )}
+        ) : isEjecutivo ? (
+          <div className="md:col-span-3 bg-gray-800/50 border border-gray-700 border-dashed rounded-lg p-4 flex items-center justify-between">
+            <p className="text-gray-500 text-sm">Sin propósito definido</p>
+            <Link href={`/programas/${id}/editar`} className="text-blue-400 hover:text-blue-300 text-sm">
+              Editar programa →
+            </Link>
+          </div>
+        ) : null}
         {programa.objetivoMayor && (
           <div className="md:col-span-3 bg-purple-900/20 border border-purple-800/40 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-1">

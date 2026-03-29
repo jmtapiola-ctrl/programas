@@ -1,10 +1,15 @@
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
-import { getProgramas, getUsuarios } from '@/lib/airtable'
+import { getProgramas, getUsuarios, getObjetivos } from '@/lib/airtable'
 import { ProgramaCard } from '@/components/programas/ProgramaCard'
 import Link from 'next/link'
-import type { Usuario } from '@/lib/types'
+import type { Usuario, Objetivo } from '@/lib/types'
+
+const ORDEN_ESTADO_PROGRAMA: Record<string, number> = {
+  'Activo': 0, 'Borrador': 1, 'Completado': 2, 'Archivado': 3
+}
+const ESTADOS_PROBLEMA = ['Incumplido', 'Rechazado', 'Modificación solicitada']
 
 export default async function ProgramasPage() {
   const session = await getServerSession(authOptions)
@@ -13,15 +18,29 @@ export default async function ProgramasPage() {
 
   let programas: Awaited<ReturnType<typeof getProgramas>> = []
   let usuarios: Usuario[] = []
+  let todosObjetivos: Objetivo[] = []
   let error = ''
 
   try {
-    [programas, usuarios] = await Promise.all([getProgramas(), getUsuarios()])
+    [programas, usuarios, todosObjetivos] = await Promise.all([getProgramas(), getUsuarios(), getObjetivos()])
   } catch (e: any) {
     error = e.message
   }
 
   const usuariosMap = Object.fromEntries(usuarios.map(u => [u.id, u]))
+  const programasOrdenados = [...programas].sort((a, b) =>
+    (ORDEN_ESTADO_PROGRAMA[a.estado] ?? 9) - (ORDEN_ESTADO_PROGRAMA[b.estado] ?? 9)
+  )
+
+  // Build map of objetivos problemáticos por programa
+  const conAlertas = new Set<string>()
+  for (const obj of todosObjetivos) {
+    if (ESTADOS_PROBLEMA.includes(obj.estado)) {
+      for (const pid of obj.programaIds) {
+        conAlertas.add(pid)
+      }
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -56,12 +75,13 @@ export default async function ProgramasPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {programas.map(p => (
+          {programasOrdenados.map(p => (
             <ProgramaCard
               key={p.id}
               programa={p}
               responsables={p.responsableIds.map(id => usuariosMap[id]).filter(Boolean)}
               objetivosCount={p.objetivoIds.length}
+              tieneAlertas={conAlertas.has(p.id)}
             />
           ))}
         </div>
