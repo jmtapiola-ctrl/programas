@@ -256,9 +256,9 @@ export async function deletePrograma(id: string): Promise<void> {
 }
 
 export async function getProgramasByResponsable(usuarioId: string): Promise<Programa[]> {
-  const formula = encodeURIComponent(`FIND("${usuarioId}",ARRAYJOIN({Responsable}))`)
-  const records = await fetchAll(TABLA_PROGRAMAS, `filterByFormula=${formula}`)
-  return records.map(mapPrograma)
+  // ARRAYJOIN on linked fields returns names, not IDs — filter in memory
+  const records = await fetchAll(TABLA_PROGRAMAS, '')
+  return records.map(mapPrograma).filter(p => p.responsableIds.includes(usuarioId))
 }
 
 export async function getProgramasVisiblesParaUsuario(usuarioId: string): Promise<Programa[]> {
@@ -282,20 +282,21 @@ export async function getProgramasVisiblesParaUsuario(usuarioId: string): Promis
 export const TABLA_OBJETIVOS = 'tbl9ljCeFDMeCsbAT'
 
 export async function getObjetivos(programaId?: string): Promise<Objetivo[]> {
-  let params = 'sort[0][field]=fldxX3JXMRguaJD2Y&sort[0][direction]=asc'
-  if (programaId) {
-    params += `&filterByFormula=${encodeURIComponent(
-      `FIND("${programaId}",ARRAYJOIN({Programa}))`
-    )}`
-  }
+  // ARRAYJOIN on linked fields returns names, not IDs — filter in memory
+  const params = 'sort[0][field]=fldxX3JXMRguaJD2Y&sort[0][direction]=asc'
   const records = await fetchAll(TABLA_OBJETIVOS, params)
-  return records.map(mapObjetivo)
+  const all = records.map(mapObjetivo)
+  if (programaId) {
+    return all.filter(o => o.programaIds.includes(programaId))
+  }
+  return all
 }
 
 export async function getObjetivosByResponsable(usuarioId: string): Promise<Objetivo[]> {
-  const formula = encodeURIComponent(`FIND("${usuarioId}",ARRAYJOIN({Responsable}))`)
-  const records = await fetchAll(TABLA_OBJETIVOS, `filterByFormula=${formula}`)
-  return records.map(mapObjetivo)
+  // ARRAYJOIN on linked fields returns names, not IDs — filter in memory
+  const params = 'sort[0][field]=fldxX3JXMRguaJD2Y&sort[0][direction]=asc'
+  const records = await fetchAll(TABLA_OBJETIVOS, params)
+  return records.map(mapObjetivo).filter(o => o.responsableId === usuarioId)
 }
 
 export async function getObjetivo(id: string): Promise<Objetivo> {
