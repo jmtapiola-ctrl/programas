@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, use } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { PlanDeBatallaView } from '@/components/pb/PlanDeBatallaView'
 import type { PlanDeBatalla, Objetivo, Usuario } from '@/lib/types'
 
-export default function PBDetailPage({ params }: { params: { id: string } }) {
+export default function PBDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const { data: session } = useSession()
   const userId = (session?.user as any)?.id
 
@@ -18,7 +19,7 @@ export default function PBDetailPage({ params }: { params: { id: string } }) {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const pbRes = await fetch(`/api/airtable/tbliUTM4zaoyztD6O/${params.id}`)
+      const pbRes = await fetch(`/api/airtable/tbliUTM4zaoyztD6O/${id}`)
 
       if (!pbRes.ok) {
         setLoading(false)
@@ -78,7 +79,7 @@ export default function PBDetailPage({ params }: { params: { id: string } }) {
     } finally {
       setLoading(false)
     }
-  }, [params.id])
+  }, [id])
 
   useEffect(() => { load() }, [load])
 

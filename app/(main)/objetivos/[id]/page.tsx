@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, use } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/Badge'
@@ -37,7 +37,8 @@ function mapObjetivo(r: any): Objetivo {
   }
 }
 
-export default function ObjetivoDetailPage({ params }: { params: { id: string } }) {
+export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const { data: session } = useSession()
   const isEjecutivo = (session?.user as any)?.role === 'Ejecutivo'
   const userId = (session?.user as any)?.id
@@ -54,8 +55,8 @@ export default function ObjetivoDetailPage({ params }: { params: { id: string } 
     setLoading(true)
     try {
       const [objRes, cumRes] = await Promise.all([
-        fetch(`/api/airtable/tbl9ljCeFDMeCsbAT/${params.id}`),
-        fetch(`/api/airtable/tblTbB0eYz3xsdyNk?filterByFormula=${encodeURIComponent(`FIND("${params.id}", ARRAYJOIN({Objetivo}))`)}`)
+        fetch(`/api/airtable/tbl9ljCeFDMeCsbAT/${id}`),
+        fetch(`/api/airtable/tblTbB0eYz3xsdyNk?filterByFormula=${encodeURIComponent(`FIND("${id}", ARRAYJOIN({Objetivo}))`)}`)
       ])
 
       if (!objRes.ok) {
@@ -101,7 +102,7 @@ export default function ObjetivoDetailPage({ params }: { params: { id: string } 
     } finally {
       setLoading(false)
     }
-  }, [params.id])
+  }, [id])
 
   useEffect(() => { load() }, [load])
 
