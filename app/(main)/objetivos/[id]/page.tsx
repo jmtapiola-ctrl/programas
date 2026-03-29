@@ -50,13 +50,16 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
   const [modalCumplir, setModalCumplir] = useState(false)
   const [descripcionCumplimiento, setDescripcionCumplimiento] = useState('')
   const [savingCumplimiento, setSavingCumplimiento] = useState(false)
+  const [editandoCumplimiento, setEditandoCumplimiento] = useState<Cumplimiento | null>(null)
+  const [editTexto, setEditTexto] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const [objRes, cumRes] = await Promise.all([
         fetch(`/api/airtable/tbl9ljCeFDMeCsbAT/${id}`),
-        fetch(`/api/airtable/tblTbB0eYz3xsdyNk?filterByFormula=${encodeURIComponent(`FIND("${id}", ARRAYJOIN({Objetivo}))`)}`)
+        fetch(`/api/airtable/tblTbB0eYz3xsdyNk?sort%5B0%5D%5Bfield%5D=fld8GA6aFyu09Ofp5&sort%5B0%5D%5Bdirection%5D=desc`),
       ])
 
       if (!objRes.ok) {
@@ -75,7 +78,7 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
       const obj = mapObjetivo(objData)
       setObjetivo(obj)
 
-      setCumplimientos((cumData.records ?? []).map((r: any): Cumplimiento => ({
+      const todoCums: Cumplimiento[] = (cumData.records ?? []).map((r: any): Cumplimiento => ({
         id: r.id,
         cumplimiento: r.fields['Cumplimiento'],
         objetivoIds: r.fields['Objetivo'] ?? [],
@@ -83,7 +86,8 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
         fecha: r.fields['Fecha'],
         descripcionCumplimiento: r.fields['Descripcion del Cumplimiento'],
         aprobado: r.fields['Aprobado'] ?? false,
-      })))
+      }))
+      setCumplimientos(todoCums.filter(c => c.objetivoIds.includes(id)))
 
       if (obj.responsableId) {
         const usersRes = await fetch('/api/airtable/tblXhgSBuh0f1BNPV')
@@ -142,6 +146,9 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
       body: JSON.stringify({ fields: { 'Estado': nuevoEstado } }),
     })
 
+    // Actualización optimista del estado para que el botón desaparezca inmediatamente
+    setObjetivo(prev => prev ? { ...prev, estado: nuevoEstado as Objetivo['estado'] } : null)
+
     setSavingCumplimiento(false)
     setModalCumplir(false)
     setDescripcionCumplimiento('')
@@ -154,6 +161,25 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields: { 'Aprobado': aprobado } }),
     })
+    await load()
+  }
+
+  function abrirEditarCumplimiento(c: Cumplimiento) {
+    setEditandoCumplimiento(c)
+    setEditTexto(c.descripcionCumplimiento ?? '')
+  }
+
+  async function handleGuardarEdit() {
+    if (!editandoCumplimiento) return
+    setSavingEdit(true)
+    await fetch(`/api/airtable/tblTbB0eYz3xsdyNk/${editandoCumplimiento.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { 'Descripcion del Cumplimiento': editTexto } }),
+    })
+    setSavingEdit(false)
+    setEditandoCumplimiento(null)
+    setEditTexto('')
     await load()
   }
 
@@ -268,17 +294,39 @@ export default function ObjetivoDetailPage({ params }: { params: Promise<{ id: s
                       <p className="text-gray-300 text-sm">{c.descripcionCumplimiento}</p>
                     )}
                   </div>
-                  {isEjecutivo && !c.aprobado && (
-                    <Button size="sm" variant="ghost" onClick={() => handleAprobarCumplimiento(c.id, true)}>
-                      Aprobar
+                  <div className="flex gap-2 flex-shrink-0">
+                    <Button size="sm" variant="ghost" onClick={() => abrirEditarCumplimiento(c)}>
+                      Editar
                     </Button>
-                  )}
+                    {isEjecutivo && !c.aprobado && (
+                      <Button size="sm" variant="ghost" onClick={() => handleAprobarCumplimiento(c.id, true)}>
+                        Aprobar
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* Modal editar cumplimiento */}
+      <Modal open={!!editandoCumplimiento} onClose={() => setEditandoCumplimiento(null)} title="Editar Cumplimiento">
+        <div className="space-y-4">
+          <Textarea
+            label="Descripción del cumplimiento"
+            value={editTexto}
+            onChange={e => setEditTexto(e.target.value)}
+            placeholder="Describí las acciones realizadas..."
+            rows={4}
+          />
+          <div className="flex gap-3">
+            <Button loading={savingEdit} onClick={handleGuardarEdit}>Guardar</Button>
+            <Button variant="secondary" onClick={() => setEditandoCumplimiento(null)}>Cancelar</Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Modal cumplir */}
       <Modal open={modalCumplir} onClose={() => setModalCumplir(false)} title="Reportar Cumplimiento">
