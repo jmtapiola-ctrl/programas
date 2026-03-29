@@ -1,4 +1,4 @@
-export type Rol = 'Ejecutivo' | 'Staff'
+export type Rol = 'Ejecutivo' | 'Operador' | 'Program Manager'
 
 export interface Usuario {
   id: string
@@ -171,6 +171,18 @@ export const CAUSAS_DESATORAMIENTO = [
   'El objetivo se desatendió por el responsable',
   'El objetivo no era factible tal y como está expresado',
 ] as const
+
+export function puedeVerTodo(rol: Rol): boolean {
+  return rol === 'Ejecutivo' || rol === 'Program Manager'
+}
+
+export function puedeCrearProgramas(rol: Rol): boolean {
+  return rol === 'Ejecutivo'
+}
+
+export function esOficialDelPrograma(usuarioId: string, programa: Programa): boolean {
+  return programa.responsableIds.includes(usuarioId)
+}
 
 export function sortObjetivos(objetivos: Objetivo[]): Objetivo[] {
   return [...objetivos].sort((a, b) => {

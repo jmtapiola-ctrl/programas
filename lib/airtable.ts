@@ -80,7 +80,7 @@ function mapUsuario(r: any): Usuario {
     id: r.id,
     nombre: r.fields['Nombre'] ?? '',
     email: r.fields['Email'] ?? '',
-    rol: r.fields['Rol']?.name ?? r.fields['Rol'] ?? 'Staff',
+    rol: r.fields['Rol']?.name ?? r.fields['Rol'] ?? 'Operador',
     activo: r.fields['Activo'] ?? false,
   }
 }
@@ -253,6 +253,28 @@ export async function updatePrograma(id: string, data: Partial<Programa>): Promi
 
 export async function deletePrograma(id: string): Promise<void> {
   await deleteRecord(TABLA_PROGRAMAS, id)
+}
+
+export async function getProgramasByResponsable(usuarioId: string): Promise<Programa[]> {
+  const formula = encodeURIComponent(`FIND("${usuarioId}",ARRAYJOIN({Responsable}))`)
+  const records = await fetchAll(TABLA_PROGRAMAS, `filterByFormula=${formula}`)
+  return records.map(mapPrograma)
+}
+
+export async function getProgramasVisiblesParaUsuario(usuarioId: string): Promise<Programa[]> {
+  const comoResponsable = await getProgramasByResponsable(usuarioId)
+  const objetivos = await getObjetivosByResponsable(usuarioId)
+  const programaIdsDeObjetivos = [...new Set(objetivos.flatMap(o => o.programaIds))]
+  const idsYaIncluidos = new Set(comoResponsable.map(p => p.id))
+  const programasExtra = await Promise.all(
+    programaIdsDeObjetivos
+      .filter(id => !idsYaIncluidos.has(id))
+      .map(id => getPrograma(id).catch(() => null))
+  )
+  return [
+    ...comoResponsable,
+    ...(programasExtra.filter(Boolean) as Programa[]),
+  ]
 }
 
 // ─── Objetivos ────────────────────────────────────────────────────────────────

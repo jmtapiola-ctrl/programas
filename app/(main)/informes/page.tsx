@@ -6,12 +6,15 @@ import { AprobacionesPendientes } from '@/components/informes/AprobacionesPendie
 import { Badge } from '@/components/ui/Badge'
 import Link from 'next/link'
 import type { Objetivo, Cumplimiento, Usuario } from '@/lib/types'
-import { isVencido } from '@/lib/types'
+import { isVencido, puedeVerTodo } from '@/lib/types'
 
 export default async function InformesPage() {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/login')
-  const isEjecutivo = (session?.user as any)?.role === 'Ejecutivo'
+  const rol = (session?.user as any)?.role as string
+  const isEjecutivo = rol === 'Ejecutivo'
+  const tieneAcceso = puedeVerTodo(rol as any)
+  if (!tieneAcceso) redirect('/dashboard')
   const userId = (session?.user as any)?.id as string
 
   let objetivos: Objetivo[] = []
@@ -29,7 +32,7 @@ export default async function InformesPage() {
   } catch {}
 
   // Cumplimientos donde el aprobador efectivo es el userId actual
-  const misCumplimientosPendientes = isEjecutivo ? cumplimientos.filter(c => {
+  const misCumplimientosPendientes = tieneAcceso ? cumplimientos.filter(c => {
     if (c.aprobado || c.rechazado) return false
     const obj = objetivos.find(o => c.objetivoIds.includes(o.id))
     if (!obj) return false
@@ -139,7 +142,7 @@ export default async function InformesPage() {
       </div>
 
       {/* Cumplimientos pendientes de mi aprobación */}
-      {isEjecutivo && misCumplimientosPendientes.length > 0 && (
+      {misCumplimientosPendientes.length > 0 && (
         <AprobacionesPendientes
           cumplimientos={misCumplimientosPendientes}
           objetivosMap={objetivosMap}
@@ -148,7 +151,7 @@ export default async function InformesPage() {
       )}
 
       {/* Objetivos vencidos */}
-      {isEjecutivo && vencidos.length > 0 && (
+      {vencidos.length > 0 && (
         <div className="bg-gray-800 border border-red-800/40 rounded-lg p-5">
           <h2 className="font-semibold text-red-300 mb-4">Objetivos Vencidos ({vencidos.length})</h2>
           <div className="space-y-2">

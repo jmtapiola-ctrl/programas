@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Badge } from '@/components/ui/Badge'
 import { Tooltip } from '@/components/ui/Tooltip'
 import { ObjetivoCard } from '@/components/objetivos/ObjetivoCard'
-import { sortObjetivos } from '@/lib/types'
+import { sortObjetivos, puedeVerTodo, esOficialDelPrograma } from '@/lib/types'
 import type { TipoObjetivo, Usuario } from '@/lib/types'
 
 const TIPO_GRUPOS: TipoObjetivo[] = ['Primario', 'Vital', 'Condicional', 'Operativo', 'Producción', 'Mayor']
@@ -15,7 +15,9 @@ const ESTADOS_PROBLEMA = ['Incumplido', 'Rechazado', 'Modificación solicitada']
 export default async function ProgramaDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const session = await getServerSession(authOptions)
-  const isEjecutivo = (session?.user as any)?.role === 'Ejecutivo'
+  const rol = (session?.user as any)?.role as string
+  const isEjecutivo = rol === 'Ejecutivo'
+  const isProgramManager = rol === 'Program Manager'
   const userId = (session?.user as any)?.id as string | undefined
 
   let programa: Awaited<ReturnType<typeof getPrograma>>
@@ -35,7 +37,9 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
   const responsables = programa.responsableIds.map(rid => usuariosMap[rid]).filter(Boolean)
   const aprobador = programa.aprobadorId ? usuariosMap[programa.aprobadorId] : undefined
 
-  const puedeAgregarObjetivo = isEjecutivo || (userId != null && programa.responsableIds.includes(userId))
+  const esOficial = userId != null && esOficialDelPrograma(userId, programa)
+  const puedeAgregarObjetivo = isEjecutivo || esOficial
+  const puedeEditar = isEjecutivo || esOficial
 
   const problematicos = sortedObjetivos.filter(o =>
     (o.tipo === 'Primario' || o.tipo === 'Vital') &&
@@ -66,16 +70,24 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
             <p className="text-gray-500 text-xs mt-0.5">Aprobador: {aprobador.nombre}</p>
           )}
         </div>
-        {puedeAgregarObjetivo && (
-          <div className="flex gap-2 flex-shrink-0">
+        <div className="flex gap-2 flex-shrink-0">
+          {puedeEditar && (
+            <Link
+              href={`/programas/${id}/editar`}
+              className="px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-600 rounded-md transition-colors"
+            >
+              Editar
+            </Link>
+          )}
+          {puedeAgregarObjetivo && (
             <Link
               href={`/objetivos/nuevo?programaId=${id}`}
               className="px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-600 rounded-md transition-colors"
             >
               + Objetivo
             </Link>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Banner de alerta de problemas */}
@@ -108,7 +120,7 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
             </div>
             <p className="text-gray-200">{programa.proposito}</p>
           </div>
-        ) : isEjecutivo ? (
+        ) : puedeEditar ? (
           <div className="md:col-span-3 bg-gray-800/50 border border-gray-700 border-dashed rounded-lg p-4 flex items-center justify-between">
             <p className="text-gray-500 text-sm">Sin propósito definido</p>
             <Link href={`/programas/${id}/editar`} className="text-blue-400 hover:text-blue-300 text-sm">

@@ -1,22 +1,27 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 import { Input, Textarea, Select } from '@/components/ui/Input'
 import { Tooltip } from '@/components/ui/Tooltip'
 import type { Usuario } from '@/lib/types'
 
-export default function NuevoProgramaPage() {
+export default function EditarProgramaPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const router = useRouter()
+  const { data: session } = useSession()
   const [loading, setLoading] = useState(false)
+  const [loadingData, setLoadingData] = useState(true)
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [form, setForm] = useState({
     nombre: '',
     proposito: '',
     descripcion: '',
     objetivoMayor: '',
-    estado: 'Borrador' as const,
+    estado: 'Borrador' as 'Borrador' | 'Activo' | 'Completado' | 'Archivado',
     responsableId: '',
     aprobadorId: '',
     fechaInicio: '',
@@ -25,20 +30,46 @@ export default function NuevoProgramaPage() {
   })
 
   useEffect(() => {
-    fetch('/api/airtable/tblXhgSBuh0f1BNPV')
-      .then(r => r.json())
-      .then(d => {
-        const users = (d.records ?? []).map((r: any) => ({
-          id: r.id,
-          nombre: r.fields['Nombre'] ?? '',
-          email: r.fields['Email'] ?? '',
-          rol: r.fields['Rol']?.name ?? r.fields['Rol'] ?? 'Operador',
-          activo: r.fields['Activo'] ?? false,
-        }))
-        setUsuarios(users.filter((u: Usuario) => u.activo))
+    const role = (session?.user as any)?.role as string | undefined
+    const userId = (session?.user as any)?.id as string | undefined
+
+    Promise.all([
+      fetch(`/api/airtable/tbld952MAM0ApHqT0/${id}`).then(r => r.json()),
+      fetch('/api/airtable/tblXhgSBuh0f1BNPV').then(r => r.json()),
+    ]).then(([progData, usersData]) => {
+      const f = progData.fields ?? {}
+
+      // Program Manager cannot edit; redirect back
+      const responsableIds: string[] = f['Responsable'] ?? []
+      if (role === 'Program Manager' && !responsableIds.includes(userId ?? '')) {
+        router.replace(`/programas/${id}`)
+        return
+      }
+
+      setForm({
+        nombre: f['Nombre'] ?? '',
+        proposito: f['Proposito'] ?? '',
+        descripcion: f['Descripcion'] ?? '',
+        objetivoMayor: f['Objetivo Mayor'] ?? '',
+        estado: f['Estado']?.name ?? f['Estado'] ?? 'Borrador',
+        responsableId: f['Responsable']?.[0] ?? '',
+        aprobadorId: f['Aprobador']?.[0] ?? '',
+        fechaInicio: f['Fecha Inicio'] ?? '',
+        fechaObjetivo: f['Fecha Objetivo'] ?? '',
+        notas: f['Notas'] ?? '',
       })
-      .catch(() => {})
-  }, [])
+
+      const users: Usuario[] = (usersData.records ?? []).map((r: any) => ({
+        id: r.id,
+        nombre: r.fields['Nombre'] ?? '',
+        email: r.fields['Email'] ?? '',
+        rol: r.fields['Rol']?.name ?? r.fields['Rol'] ?? 'Operador',
+        activo: r.fields['Activo'] ?? false,
+      }))
+      setUsuarios(users.filter(u => u.activo))
+      setLoadingData(false)
+    }).catch(() => setLoadingData(false))
+  }, [id, session, router])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -47,34 +78,44 @@ export default function NuevoProgramaPage() {
     const fields: Record<string, any> = {
       'Nombre': form.nombre,
       'Estado': form.estado,
+      'Proposito': form.proposito,
+      'Descripcion': form.descripcion,
+      'Objetivo Mayor': form.objetivoMayor,
+      'Responsable': form.responsableId ? [form.responsableId] : [],
+      'Aprobador': form.aprobadorId ? [form.aprobadorId] : [],
+      'Fecha Inicio': form.fechaInicio || null,
+      'Fecha Objetivo': form.fechaObjetivo || null,
+      'Notas': form.notas,
     }
-    if (form.proposito) fields['Proposito'] = form.proposito
-    if (form.descripcion) fields['Descripcion'] = form.descripcion
-    if (form.objetivoMayor) fields['Objetivo Mayor'] = form.objetivoMayor
-    if (form.responsableId) fields['Responsable'] = [form.responsableId]
-    if (form.aprobadorId) fields['Aprobador'] = [form.aprobadorId]
-    if (form.fechaInicio) fields['Fecha Inicio'] = form.fechaInicio
-    if (form.fechaObjetivo) fields['Fecha Objetivo'] = form.fechaObjetivo
-    if (form.notas) fields['Notas'] = form.notas
 
-    const res = await fetch('/api/airtable/tbld952MAM0ApHqT0', {
-      method: 'POST',
+    const res = await fetch(`/api/airtable/tbld952MAM0ApHqT0/${id}`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields }),
     })
 
     setLoading(false)
     if (res.ok) {
-      const data = await res.json()
-      router.push(`/programas/${data.id}`)
+      router.push(`/programas/${id}`)
     }
+  }
+
+  if (loadingData) {
+    return <div className="text-gray-400 py-8">Cargando...</div>
   }
 
   return (
     <div className="max-w-2xl space-y-6">
+      <nav className="text-sm text-gray-500 flex items-center gap-2">
+        <Link href="/programas" className="hover:text-gray-300">Programas</Link>
+        <span>/</span>
+        <Link href={`/programas/${id}`} className="hover:text-gray-300">{form.nombre || id}</Link>
+        <span>/</span>
+        <span className="text-gray-300">Editar</span>
+      </nav>
+
       <div>
-        <h1 className="text-2xl font-bold text-white">Nuevo Programa</h1>
-        <p className="text-gray-400 text-sm mt-1">Creá un nuevo programa de objetivos</p>
+        <h1 className="text-2xl font-bold text-white">Editar Programa</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="bg-gray-800 border border-gray-700 rounded-lg p-6 space-y-5">
@@ -98,7 +139,6 @@ export default function NuevoProgramaPage() {
             placeholder="Los propósitos tienen que ejecutarse. Son algo que HACER."
             className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
           />
-          <p className="text-xs text-gray-500 mt-1">Los propósitos tienen que ejecutarse. Son algo que HACER.</p>
         </div>
 
         <div>
@@ -161,7 +201,6 @@ export default function NuevoProgramaPage() {
               <option key={u.id} value={u.id}>{u.nombre}</option>
             ))}
           </select>
-          <p className="text-xs text-gray-500 mt-1">Usuario que aprueba los cumplimientos de los objetivos de este programa.</p>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -187,8 +226,8 @@ export default function NuevoProgramaPage() {
         />
 
         <div className="flex gap-3 pt-2">
-          <Button type="submit" loading={loading}>Crear Programa</Button>
-          <Button type="button" variant="secondary" onClick={() => router.back()}>Cancelar</Button>
+          <Button type="submit" loading={loading}>Guardar Cambios</Button>
+          <Button type="button" variant="secondary" onClick={() => router.push(`/programas/${id}`)}>Cancelar</Button>
         </div>
       </form>
     </div>

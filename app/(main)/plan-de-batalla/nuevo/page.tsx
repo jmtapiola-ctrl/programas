@@ -52,7 +52,7 @@ export default function NuevoPBPage() {
         id: r.id,
         nombre: r.fields['Nombre'] ?? '',
         email: r.fields['Email'] ?? '',
-        rol: r.fields['Rol']?.name ?? r.fields['Rol'] ?? 'Staff',
+        rol: r.fields['Rol']?.name ?? r.fields['Rol'] ?? 'Operador',
         activo: r.fields['Activo'] ?? false,
       })).filter((u: Usuario) => u.activo))
     }).catch(() => {})

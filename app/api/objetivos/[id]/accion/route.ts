@@ -19,6 +19,8 @@ export async function POST(
   const usuarioId = (session.user as any).id as string
   const rol = (session.user as any).role as string
   const isEjecutivo = rol === 'Ejecutivo'
+  const isProgramManager = rol === 'Program Manager'
+  const puedeSupervision = isEjecutivo || isProgramManager
 
   const body = await req.json()
   const { accion, datos } = body
@@ -161,7 +163,7 @@ export async function POST(
       }
 
       case 'declarar_incumplido': {
-        if (!isEjecutivo && !esAprobador) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
+        if (!puedeSupervision && !esAprobador) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
         if (estadosTerminales.includes(objetivo.estado)) return NextResponse.json({ error: 'Estado inválido' }, { status: 400 })
         if (!datos?.motivo?.trim()) return NextResponse.json({ error: 'Se requiere motivo' }, { status: 400 })
         if (datos?.nuevoResponsableId) {
@@ -176,7 +178,7 @@ export async function POST(
       }
 
       case 'cancelar': {
-        if (!isEjecutivo && !esAprobador) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
+        if (!puedeSupervision && !esAprobador) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
         if (['Completado', 'Cancelado'].includes(objetivo.estado)) return NextResponse.json({ error: 'Estado inválido' }, { status: 400 })
         if (!datos?.motivo?.trim()) return NextResponse.json({ error: 'Se requiere motivo' }, { status: 400 })
         await updateObjetivo(id, { estado: 'Cancelado' })
@@ -185,7 +187,7 @@ export async function POST(
       }
 
       case 'desatorar': {
-        if (!isEjecutivo && !esAprobador) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
+        if (!puedeSupervision && !esAprobador) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
         if (!datos?.causa?.trim() || !datos?.accionCorrectiva?.trim()) return NextResponse.json({ error: 'Se requieren causa y acción correctiva' }, { status: 400 })
         await crearLogEvento({
           objetivoId: id,

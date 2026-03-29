@@ -4,7 +4,7 @@ import { getProgramas, getObjetivos, getObjetivosByResponsable, getPlanesDB, get
 import Link from 'next/link'
 import { Badge } from '@/components/ui/Badge'
 import { AprobacionesSection } from '@/components/dashboard/AprobacionesSection'
-import { isVencido, getAprobadorEfectivo, sortObjetivos } from '@/lib/types'
+import { isVencido, getAprobadorEfectivo, sortObjetivos, puedeVerTodo, puedeCrearProgramas } from '@/lib/types'
 import type { Objetivo, Programa, EstadoObjetivo } from '@/lib/types'
 
 function StatCard({ label, value, sub, href }: { label: string; value: number | string; sub?: string; href?: string }) {
@@ -21,13 +21,16 @@ function StatCard({ label, value, sub, href }: { label: string; value: number | 
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions)
-  const isEjecutivo = (session?.user as any)?.role === 'Ejecutivo'
+  const rol = (session?.user as any)?.role as string
+  const isEjecutivo = rol === 'Ejecutivo'
+  const isProgramManager = rol === 'Program Manager'
+  const isOperador = !isEjecutivo && !isProgramManager
   const userId = (session?.user as any)?.id as string
 
   const hoy = new Date().toISOString().split('T')[0]
 
-  if (!isEjecutivo) {
-    // ── STAFF ──────────────────────────────────────────────────────────────
+  if (isOperador) {
+    // ── OPERADOR ──────────────────────────────────────────────────────────────
     let misObjetivos: Objetivo[] = []
     let planes: Awaited<ReturnType<typeof getPlanesDB>> = []
 
@@ -121,7 +124,7 @@ export default async function DashboardPage() {
     )
   }
 
-  // ── EJECUTIVO ──────────────────────────────────────────────────────────────
+  // ── EJECUTIVO / PROGRAM MANAGER ────────────────────────────────────────────
   let programas: Programa[] = []
   let todosObjetivos: Objetivo[] = []
 
@@ -332,12 +335,14 @@ export default async function DashboardPage() {
               ))}
             </div>
           )}
-          <Link href="/programas/nuevo" className="mt-4 inline-flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Nuevo programa
-          </Link>
+          {isEjecutivo && (
+            <Link href="/programas/nuevo" className="mt-4 inline-flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Nuevo programa
+            </Link>
+          )}
         </div>
 
         <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">

@@ -71,7 +71,7 @@ export default function PBDetailPage({ params }: { params: Promise<{ id: string 
           id: r.id,
           nombre: r.fields['Nombre'] ?? '',
           email: r.fields['Email'] ?? '',
-          rol: r.fields['Rol']?.name ?? r.fields['Rol'] ?? 'Staff',
+          rol: r.fields['Rol']?.name ?? r.fields['Rol'] ?? 'Operador',
           activo: r.fields['Activo'] ?? false,
         }))
         setResponsables(allUsers.filter(u => plan.responsableIds.includes(u.id)))
