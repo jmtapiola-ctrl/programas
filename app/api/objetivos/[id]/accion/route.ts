@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth'
 import {
   getObjetivo, updateObjetivo, getPrograma,
   createCumplimiento, updateCumplimiento, crearLogEvento,
-  getUsuarios,
+  getLogObjetivo, getUsuarios,
 } from '@/lib/airtable'
 import { getAprobadorEfectivo } from '@/lib/types'
 
@@ -125,6 +125,31 @@ export async function POST(
         if (!datos?.motivo?.trim()) return NextResponse.json({ error: 'Se requiere motivo' }, { status: 400 })
         await updateObjetivo(id, { estado: 'Rechazado' })
         await crearLogEvento({ objetivoId: id, tipoEvento: 'Objetivo Rechazado', usuarioId, notas: datos.motivo })
+        return NextResponse.json({ ok: true })
+      }
+
+      case 'aceptar_rechazo': {
+        if (objetivo.estado !== 'Rechazado') return NextResponse.json({ error: 'Estado inválido' }, { status: 400 })
+        if (!isEjecutivo && !esAprobador) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
+        if (!datos?.motivo?.trim()) return NextResponse.json({ error: 'Se requiere motivo' }, { status: 400 })
+        await updateObjetivo(id, { estado: 'Cancelado', responsableId: '' })
+        await crearLogEvento({ objetivoId: id, tipoEvento: 'Rechazo Aprobado', usuarioId, notas: datos.motivo })
+        return NextResponse.json({ ok: true })
+      }
+
+      case 'rechazar_rechazo': {
+        if (objetivo.estado !== 'Rechazado') return NextResponse.json({ error: 'Estado inválido' }, { status: 400 })
+        if (!isEjecutivo && !esAprobador) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
+        if (!datos?.motivo?.trim()) return NextResponse.json({ error: 'Se requiere motivo' }, { status: 400 })
+        // Determine the state the objective was in before the rejection
+        const logEntries = await getLogObjetivo(id)
+        const rechazadoIdx = logEntries.findIndex(e => e.tipoEvento === 'Objetivo Rechazado')
+        const prevEvents = rechazadoIdx >= 0 ? logEntries.slice(0, rechazadoIdx) : logEntries
+        let estadoAnterior = 'Asignado'
+        if (prevEvents.some(e => e.tipoEvento === 'Iniciado')) estadoAnterior = 'En curso'
+        else if (prevEvents.some(e => e.tipoEvento === 'Aceptado')) estadoAnterior = 'No iniciado'
+        await updateObjetivo(id, { estado: estadoAnterior })
+        await crearLogEvento({ objetivoId: id, tipoEvento: 'Rechazo Rechazado', usuarioId, notas: datos.motivo })
         return NextResponse.json({ ok: true })
       }
 

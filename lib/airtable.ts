@@ -328,7 +328,7 @@ export async function updateObjetivo(id: string, data: Partial<Objetivo>): Promi
   if (data.nombre !== undefined) fields['Nombre'] = data.nombre
   if (data.tipo !== undefined) fields['Tipo'] = data.tipo
   if (data.programaIds !== undefined) fields['Programa'] = data.programaIds
-  if (data.responsableId !== undefined) fields['Responsable'] = [data.responsableId]
+  if (data.responsableId !== undefined) fields['Responsable'] = data.responsableId ? [data.responsableId] : []
   if (data.aprobadorId !== undefined) fields['Aprobador'] = data.aprobadorId ? [data.aprobadorId] : []
   if (data.estado !== undefined) fields['Estado'] = data.estado
   if (data.fechaInicioReal !== undefined) fields['Fecha inicio real'] = data.fechaInicioReal

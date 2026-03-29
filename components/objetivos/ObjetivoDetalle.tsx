@@ -40,6 +40,8 @@ const EVENTO_COLOR: Record<string, string> = {
   'Reasignado': 'bg-gray-800 text-gray-300 border-gray-600',
   'Cancelado': 'bg-red-950 text-red-300 border-red-800',
   'Desatoramiento': 'bg-yellow-950 text-yellow-200 border-yellow-800',
+  'Rechazo Aprobado': 'bg-red-950 text-red-300 border-red-800',
+  'Rechazo Rechazado': 'bg-green-900 text-green-200 border-green-700',
 }
 
 function parsearNotasModificacion(notas: string) {
@@ -76,6 +78,8 @@ export function ObjetivoDetalle({
   const [textoFinalMod, setTextoFinalMod] = useState('')
   const [rechazandoMod, setRechazandoMod] = useState(false)
   const [motivoRechazoMod, setMotivoRechazoMod] = useState('')
+  // Rechazo de objetivo modal state
+  const [respuestaRechazo, setRespuestaRechazo] = useState('')
   const [, startTransition] = useTransition()
   const router = useRouter()
 
@@ -89,6 +93,8 @@ export function ObjetivoDetalle({
 
   // Last modification request from log
   const ultimaModSolicitada = [...log].reverse().find(e => e.tipoEvento === 'Modificación Solicitada')
+  // Last objective rejection from log
+  const ultimoRechazo = [...log].reverse().find(e => e.tipoEvento === 'Objetivo Rechazado')
 
   async function ejecutarAccion(accion: string, datos?: Record<string, any>) {
     setPending(true)
@@ -115,6 +121,7 @@ export function ObjetivoDetalle({
       setTextoFinalMod('')
       setRechazandoMod(false)
       setMotivoRechazoMod('')
+      setRespuestaRechazo('')
     }
   }
 
@@ -198,6 +205,24 @@ export function ObjetivoDetalle({
         <div className="text-xs mt-2 opacity-90">
           <span className="font-semibold text-pink-300">Motivo:</span>{' '}
           <span>{motivo}</span>
+        </div>
+      )
+    }
+
+    if (e.tipoEvento === 'Objetivo Rechazado') {
+      return (
+        <div className="text-xs mt-2 opacity-90">
+          <span className="font-semibold text-orange-300">Motivo:</span>{' '}
+          <span>{notas}</span>
+        </div>
+      )
+    }
+
+    if (e.tipoEvento === 'Rechazo Aprobado' || e.tipoEvento === 'Rechazo Rechazado') {
+      return (
+        <div className="text-xs mt-2 opacity-90">
+          <span className="font-semibold">Respuesta:</span>{' '}
+          <span>{notas}</span>
         </div>
       )
     }
@@ -415,6 +440,17 @@ export function ObjetivoDetalle({
           {objetivo.estado === 'Modificación solicitada' && (isEjecutivo || esAprobador) && (
             <Button size="sm" variant="secondary" onClick={abrirModalVerModificacion}>
               Ver modificación solicitada
+            </Button>
+          )}
+
+          {/* Ejecutivo/Aprobador: Objetivo rechazado */}
+          {objetivo.estado === 'Rechazado' && (isEjecutivo || esAprobador) && (
+            <Button size="sm" variant="secondary" onClick={() => {
+              setRespuestaRechazo('')
+              setError(null)
+              setModalActivo('ver_rechazo')
+            }}>
+              Ver rechazo
             </Button>
           )}
 
@@ -806,6 +842,54 @@ export function ObjetivoDetalle({
               Cancelar Objetivo
             </Button>
             <Button variant="secondary" onClick={() => setModalActivo(null)}>Volver</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Ver rechazo */}
+      <Modal open={modalActivo === 'ver_rechazo'} onClose={() => setModalActivo(null)} title="Rechazo del objetivo">
+        <div className="space-y-5">
+          {/* Motivo del responsable (solo lectura) */}
+          <div className="bg-gray-900 border border-orange-800/40 rounded-lg p-4 space-y-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              Rechazo reportado por {objetivo.responsableId && usuariosMap[objetivo.responsableId]
+                ? usuariosMap[objetivo.responsableId].nombre
+                : 'el responsable'}
+            </p>
+            {ultimoRechazo?.notas ? (
+              <p className="text-sm text-orange-200">{ultimoRechazo.notas}</p>
+            ) : (
+              <p className="text-sm text-gray-500">Sin motivo registrado.</p>
+            )}
+          </div>
+
+          <Textarea
+            label="Tu respuesta"
+            value={respuestaRechazo}
+            onChange={e => setRespuestaRechazo(e.target.value)}
+            placeholder="Explicá tu decisión al responsable..."
+            rows={4}
+          />
+
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+
+          <div className="flex gap-3">
+            <Button
+              loading={pending}
+              disabled={!respuestaRechazo.trim()}
+              onClick={() => ejecutarAccion('aceptar_rechazo', { motivo: respuestaRechazo })}
+              className="bg-red-800 hover:bg-red-700 text-white border-red-700"
+            >
+              Aceptar rechazo
+            </Button>
+            <Button
+              loading={pending}
+              disabled={!respuestaRechazo.trim()}
+              onClick={() => ejecutarAccion('rechazar_rechazo', { motivo: respuestaRechazo })}
+            >
+              Rechazar el rechazo
+            </Button>
+            <Button variant="secondary" onClick={() => setModalActivo(null)}>Cancelar</Button>
           </div>
         </div>
       </Modal>
