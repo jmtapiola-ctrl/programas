@@ -19,7 +19,18 @@ export default function PBDetailPage({ params }: { params: { id: string } }) {
     setLoading(true)
     try {
       const pbRes = await fetch(`/api/airtable/tbliUTM4zaoyztD6O/${params.id}`)
+
+      if (!pbRes.ok) {
+        setLoading(false)
+        return
+      }
+
       const pbData = await pbRes.json()
+
+      if (!pbData || !pbData.id) {
+        setLoading(false)
+        return
+      }
 
       const plan: PlanDeBatalla = {
         id: pbData.id,

@@ -57,8 +57,19 @@ export default function ObjetivoDetailPage({ params }: { params: { id: string } 
         fetch(`/api/airtable/tbl9ljCeFDMeCsbAT/${params.id}`),
         fetch(`/api/airtable/tblTbB0eYz3xsdyNk?filterByFormula=${encodeURIComponent(`FIND("${params.id}", ARRAYJOIN({Objetivo}))`)}`)
       ])
+
+      if (!objRes.ok) {
+        setLoading(false)
+        return
+      }
+
       const objData = await objRes.json()
       const cumData = await cumRes.json()
+
+      if (!objData || !objData.id) {
+        setLoading(false)
+        return
+      }
 
       const obj = mapObjetivo(objData)
       setObjetivo(obj)

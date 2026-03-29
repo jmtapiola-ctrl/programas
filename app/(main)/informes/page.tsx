@@ -26,7 +26,7 @@ export default async function InformesPage() {
   const pendientes = objetivos.filter(o => o.estado === 'Pendiente').length
   const porcentajeCumplimiento = total > 0 ? Math.round((cumplidos / total) * 100) : 0
 
-  const porTipo = ['Primario', 'Condicional', 'Operativo', 'Producción', 'Mayor'].map(tipo => ({
+  const porTipo = ['Primario', 'Vital', 'Condicional', 'Operativo', 'Producción', 'Mayor'].map(tipo => ({
     tipo,
     total: objetivos.filter(o => o.tipo === tipo).length,
     cumplidos: objetivos.filter(o => o.tipo === tipo && o.estado === 'Cumplido').length,
