@@ -10,11 +10,13 @@ import { sortObjetivos } from '@/lib/types'
 import type { TipoObjetivo, Usuario } from '@/lib/types'
 
 const TIPO_GRUPOS: TipoObjetivo[] = ['Primario', 'Vital', 'Condicional', 'Operativo', 'Producción', 'Mayor']
+const ESTADOS_PROBLEMA = ['Incumplido', 'Rechazado', 'Modificación solicitada'] as const
 
 export default async function ProgramaDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const session = await getServerSession(authOptions)
   const isEjecutivo = (session?.user as any)?.role === 'Ejecutivo'
+  const userId = (session?.user as any)?.id as string | undefined
 
   let programa: Awaited<ReturnType<typeof getPrograma>>
   try {
@@ -30,11 +32,15 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
 
   const usuariosMap = Object.fromEntries(usuarios.map((u: Usuario) => [u.id, u]))
   const sortedObjetivos = sortObjetivos(objetivos)
-  const responsables = programa.responsableIds.map(id => usuariosMap[id]).filter(Boolean)
+  const responsables = programa.responsableIds.map(rid => usuariosMap[rid]).filter(Boolean)
 
-  const criticos = objetivos.filter(o =>
-    (o.tipo === 'Primario' || o.tipo === 'Vital') && o.estado === 'Incumplido'
+  const puedeAgregarObjetivo = isEjecutivo || (userId != null && programa.responsableIds.includes(userId))
+
+  const problematicos = sortedObjetivos.filter(o =>
+    (o.tipo === 'Primario' || o.tipo === 'Vital') &&
+    (ESTADOS_PROBLEMA as readonly string[]).includes(o.estado)
   )
+  const hayIncumplido = problematicos.some(o => o.estado === 'Incumplido')
 
   return (
     <div className="space-y-6">
@@ -52,7 +58,7 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
             <p className="text-gray-400 text-sm mt-1">Responsable: {responsables.map((r: any) => r.nombre).join(', ')}</p>
           )}
         </div>
-        {isEjecutivo && (
+        {puedeAgregarObjetivo && (
           <div className="flex gap-2 flex-shrink-0">
             <Link
               href={`/objetivos/nuevo?programaId=${id}`}
@@ -63,6 +69,26 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
           </div>
         )}
       </div>
+
+      {/* Banner de alerta de problemas */}
+      {problematicos.length > 0 && (
+        <div className="bg-red-900/50 border border-red-700 rounded-lg p-4 text-red-200">
+          <p className="font-semibold mb-2">⚠ Objetivos con problemas detectados</p>
+          <ul className="space-y-1">
+            {problematicos.map(o => (
+              <li key={o.id} className="text-sm">
+                ⚠ Objetivo {o.tipo} con problema: <strong>{o.nombre}</strong>
+                {' '}<span className="text-red-300">({o.estado})</span>
+              </li>
+            ))}
+          </ul>
+          {hayIncumplido && (
+            <p className="mt-2 text-sm text-red-300 font-medium">
+              Los demás objetivos de este programa no pueden avanzar hasta que se resuelva.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Info */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -110,20 +136,6 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
         </div>
       </div>
 
-      {/* Alerta criticos */}
-      {criticos.length > 0 && (
-        <div className="bg-red-900 border border-red-600 rounded-lg p-4 text-white">
-          <p className="font-semibold mb-2">⚠ Cadena de objetivos rota</p>
-          <ul className="space-y-1">
-            {criticos.map(o => (
-              <li key={o.id} className="text-sm">
-                Objetivo {o.tipo} Incumplido: <strong>{o.nombre}</strong> — Los demás objetivos de este programa no pueden avanzar hasta que se resuelva.
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {/* Objetivos por tipo */}
       {TIPO_GRUPOS.map(tipo => {
         const grupo = sortedObjetivos.filter(o => o.tipo === tipo)
@@ -151,7 +163,7 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
       {objetivos.length === 0 && (
         <div className="text-center py-12 text-gray-500">
           <p>Este programa no tiene objetivos aún.</p>
-          {isEjecutivo && (
+          {puedeAgregarObjetivo && (
             <Link href={`/objetivos/nuevo?programaId=${id}`} className="mt-2 inline-block text-blue-400 hover:text-blue-300 text-sm">
               Agregar primer objetivo →
             </Link>

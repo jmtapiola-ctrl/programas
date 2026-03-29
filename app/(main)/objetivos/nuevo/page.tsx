@@ -2,24 +2,19 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/Button'
 import { Input, Textarea, Select } from '@/components/ui/Input'
 import { Tooltip } from '@/components/ui/Tooltip'
+import { TOOLTIP_TIPOS, getTomorrow } from '@/lib/types'
 import type { Usuario, Programa } from '@/lib/types'
-
-const DEFINICIONES_TIPO: Record<string, string> = {
-  'Primario': 'Los objetivos del tipo de organización, de personal y de comunicaciones. Estos deben mantenerse.',
-  'Vital': 'Por definición, un objetivo VITAL es algo que debe hacerse para funcionar en medida alguna.',
-  'Condicional': 'Aquellos que se establecen como O BIEN… O, para averiguar información o si un proyecto puede hacerse, o dónde o a quién.',
-  'Operativo': 'Aquellos que establecen direcciones y acciones o un calendario de eventos e itinerario.',
-  'Producción': 'Aquellos que establecen cantidades como estadísticas.',
-  'Mayor': 'La aspiración general y amplia, que posiblemente abarca un período de tiempo largo y aproximado.',
-}
 
 export default function NuevoObjetivoPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const programaIdParam = searchParams.get('programaId') ?? ''
+  const { data: session } = useSession()
+  const userId = (session?.user as any)?.id as string | undefined
 
   const [loading, setLoading] = useState(false)
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
@@ -32,7 +27,7 @@ export default function NuevoObjetivoPage() {
     responsableId: '',
     aprobadorId: '',
     estado: 'No iniciado' as const,
-    fechaLimite: '',
+    fechaLimite: getTomorrow(),
     descripcionDoingness: '',
     esRepetible: false,
     orden: '',
@@ -71,10 +66,12 @@ export default function NuevoObjetivoPage() {
     setDoignessError('')
     setLoading(true)
 
+    const estadoFinal = (form.responsableId && form.responsableId !== userId) ? 'Asignado' : 'No iniciado'
+
     const fields: Record<string, any> = {
       'Nombre': form.nombre,
       'Tipo': form.tipo,
-      'Estado': form.estado,
+      'Estado': estadoFinal,
       'Es Repetible': form.esRepetible,
     }
     if (form.programaId) fields['Programa'] = [form.programaId]
@@ -139,9 +136,7 @@ export default function NuevoObjetivoPage() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <label className="block text-sm font-medium text-gray-300">Tipo</label>
-              {form.tipo && DEFINICIONES_TIPO[form.tipo] && (
-                <Tooltip texto={DEFINICIONES_TIPO[form.tipo]} />
-              )}
+              <Tooltip texto={TOOLTIP_TIPOS[form.tipo] ?? 'Seleccioná un tipo para ver su definición.'} />
             </div>
             <select
               value={form.tipo}
@@ -182,16 +177,23 @@ export default function NuevoObjetivoPage() {
             ))}
           </Select>
 
-          <Select
-            label="Responsable"
-            value={form.responsableId}
-            onChange={e => setForm(f => ({ ...f, responsableId: e.target.value }))}
-          >
-            <option value="">Sin asignar</option>
-            {usuarios.map(u => (
-              <option key={u.id} value={u.id}>{u.nombre}</option>
-            ))}
-          </Select>
+          <div>
+            <Select
+              label="Responsable"
+              value={form.responsableId}
+              onChange={e => setForm(f => ({ ...f, responsableId: e.target.value }))}
+            >
+              <option value="">Sin asignar</option>
+              {usuarios.map(u => (
+                <option key={u.id} value={u.id}>{u.nombre}</option>
+              ))}
+            </Select>
+            {form.responsableId && form.responsableId !== userId && (
+              <p className="text-xs text-gray-500 mt-1">
+                Este objetivo se asignará en estado &apos;Asignado&apos;. El responsable deberá aceptarlo antes de poder iniciarlo.
+              </p>
+            )}
+          </div>
         </div>
 
         {usuarios.filter(u => u.rol === 'Ejecutivo').length > 0 && (
