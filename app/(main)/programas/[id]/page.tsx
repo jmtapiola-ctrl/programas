@@ -9,7 +9,7 @@ import { ObjetivoCard } from '@/components/objetivos/ObjetivoCard'
 import { sortObjetivos, puedeVerTodo, esOficialDelPrograma } from '@/lib/types'
 import type { TipoObjetivo, Usuario, Rol } from '@/lib/types'
 
-const TIPO_GRUPOS: TipoObjetivo[] = ['Primario', 'Vital', 'Condicional', 'Operativo', 'Producción', 'Mayor']
+const TIPO_GRUPOS: TipoObjetivo[] = ['Condicional', 'Primario', 'Vital', 'Operativo', 'Producción', 'Mayor']
 const ESTADOS_PROBLEMA = ['Incumplido', 'Rechazado', 'Modificación solicitada'] as const
 
 export default async function ProgramaDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -220,7 +220,7 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
           <div key={tipo}>
             <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
               <Badge tipo={tipo} />
-              {tipo} ({grupo.length})
+              <span>({grupo.length})</span>
             </h2>
             <div className="space-y-2">
               {grupo.map(obj => (
