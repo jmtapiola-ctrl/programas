@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { Calendar, RefreshCw, AlertTriangle } from 'lucide-react'
 import type { Objetivo, Usuario } from '@/lib/types'
 import { Badge } from '@/components/ui/Badge'
 
@@ -14,81 +15,103 @@ interface ObjetivoCardProps {
   cumplimientosRecientes?: number
 }
 
-export function ObjetivoCard({ objetivo, responsable, onCumplir, compact, cumplimientosRecientes, showTipo = true }: ObjetivoCardProps) {
+export function ObjetivoCard({
+  objetivo,
+  responsable,
+  onCumplir,
+  compact,
+  cumplimientosRecientes,
+  showTipo = true,
+}: ObjetivoCardProps) {
   const isIncumplido = objetivo.estado === 'Incumplido'
-  const isCriticoIncumplido = (objetivo.tipo === 'Primario' || objetivo.tipo === 'Vital') && isIncumplido
+  const isCriticoIncumplido =
+    (objetivo.tipo === 'Primario' || objetivo.tipo === 'Vital') && isIncumplido
 
-  // Calcular "sin movimiento"
   let sinMovimiento = false
   if (
-    (objetivo.estado === 'No iniciado' || objetivo.estado === 'Asignado' || objetivo.estado === 'En curso') &&
+    (objetivo.estado === 'No iniciado' ||
+      objetivo.estado === 'Asignado' ||
+      objetivo.estado === 'En curso') &&
     (cumplimientosRecientes ?? 1) === 0 &&
     objetivo.fechaLimite != null
   ) {
     const hoy = new Date()
     const limite = new Date(objetivo.fechaLimite + 'T00:00:00')
-    const diasRestantes = Math.ceil((limite.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24))
+    const diasRestantes = Math.ceil(
+      (limite.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24)
+    )
     sinMovimiento = diasRestantes <= 7
   }
 
   return (
-    <div className={`
-      bg-gray-800 border rounded-lg p-4 transition-all
-      ${isCriticoIncumplido ? 'border-red-700 bg-red-950/20' : 'border-gray-700 hover:border-gray-600'}
-    `}>
+    <div
+      className={`group rounded-lg border px-4 py-3 transition-colors ${
+        isCriticoIncumplido
+          ? 'border-red-500/30 bg-red-500/5'
+          : 'border-border bg-card hover:border-border/80 hover:bg-accent/30'
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
+          {/* Badges row */}
+          <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
             {showTipo && <Badge tipo={objetivo.tipo} />}
             <Badge estadoObjetivo={objetivo.estado} />
             {sinMovimiento && (
-              <span className="text-xs bg-orange-900/40 text-orange-300 border border-orange-700/40 rounded px-1.5 py-0.5">
+              <span className="inline-flex items-center rounded-full border border-orange-500/20 bg-orange-500/10 px-2 py-0.5 text-xs font-medium text-orange-400">
                 Sin movimiento
               </span>
             )}
             {objetivo.esRepetible && (
-              <span className="text-xs text-gray-400 flex items-center gap-1">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
+              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                <RefreshCw className="h-3 w-3" strokeWidth={1.75} />
                 Repetible
               </span>
             )}
           </div>
-          <Link href={`/objetivos/${objetivo.id}`} className="text-gray-100 font-medium hover:text-blue-400 transition-colors line-clamp-2">
+
+          {/* Title */}
+          <Link
+            href={`/objetivos/${objetivo.id}`}
+            className="text-[13px] font-medium text-foreground hover:text-primary transition-colors line-clamp-2"
+          >
             {objetivo.nombre}
           </Link>
+
+          {/* Doingness */}
           {!compact && objetivo.descripcionDoingness && (
-            <p className="text-gray-400 text-sm mt-1 line-clamp-2">{objetivo.descripcionDoingness}</p>
+            <p className="mt-1 text-[12px] text-muted-foreground line-clamp-2">
+              {objetivo.descripcionDoingness}
+            </p>
           )}
-          <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+
+          {/* Meta row */}
+          <div className="mt-2 flex items-center gap-3 text-[11px] text-muted-foreground">
             {objetivo.fechaLimite && (
               <span className="flex items-center gap-1">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
+                <Calendar className="h-3 w-3" strokeWidth={1.75} />
                 {objetivo.fechaLimite}
               </span>
             )}
-            {responsable && (
-              <span>{responsable.nombre}</span>
-            )}
+            {responsable && <span>{responsable.nombre}</span>}
           </div>
         </div>
+
+        {/* Cumplir button */}
         {onCumplir && objetivo.estado !== 'Completado' && (
           <button
             onClick={() => onCumplir(objetivo.id)}
-            className="flex-shrink-0 px-3 py-1.5 text-xs bg-green-800 hover:bg-green-700 text-green-200 border border-green-700 rounded-md transition-colors"
+            className="flex-shrink-0 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-500/20"
           >
             Cumplir
           </button>
         )}
       </div>
+
+      {/* Critical warning */}
       {isCriticoIncumplido && (
-        <div className="mt-2 text-xs text-red-400 flex items-center gap-1">
-          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
+        <div className="mt-2 flex items-center gap-1.5 text-[11px] text-red-400">
+          <AlertTriangle className="h-3 w-3" strokeWidth={1.75} />
           Objetivo {objetivo.tipo} Incumplido — rompe la cadena
         </div>
       )}
