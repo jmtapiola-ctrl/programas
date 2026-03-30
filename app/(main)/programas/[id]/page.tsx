@@ -180,6 +180,7 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
                   objetivo={obj}
                   responsable={usuariosMap[obj.responsableId]}
                   cumplimientosRecientes={0}
+                  showTipo={false}
                 />
               ))}
             </div>

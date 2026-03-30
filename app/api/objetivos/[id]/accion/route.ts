@@ -145,7 +145,7 @@ export async function POST(
         const logEntries = await getLogObjetivo(id)
         const rechazadoIdx = logEntries.findIndex(e => e.tipoEvento === 'Objetivo Rechazado')
         const prevEvents = rechazadoIdx >= 0 ? logEntries.slice(0, rechazadoIdx) : logEntries
-        let estadoAnterior = 'Asignado'
+        let estadoAnterior: import('@/lib/types').EstadoObjetivo = 'Asignado'
         if (prevEvents.some(e => e.tipoEvento === 'Iniciado')) estadoAnterior = 'En curso'
         else if (prevEvents.some(e => e.tipoEvento === 'Aceptado')) estadoAnterior = 'No iniciado'
         await updateObjetivo(id, { estado: estadoAnterior })
@@ -233,6 +233,50 @@ export async function POST(
           usuarioId,
           notas: `Causa: ${datos.causa}\nAcción correctiva: ${datos.accionCorrectiva}`,
         })
+        return NextResponse.json({ ok: true })
+      }
+
+      case 'editar_objetivo': {
+        const esOficialDelPrograma = programa ? programa.responsableIds.includes(usuarioId) : false
+        if (!isEjecutivo && !esOficialDelPrograma) return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
+        if (!datos?.nombre?.trim()) return NextResponse.json({ error: 'El nombre no puede estar vacío' }, { status: 400 })
+        if (!datos?.descripcionDoingness?.trim()) return NextResponse.json({ error: 'La descripción no puede estar vacía' }, { status: 400 })
+
+        // Build human-readable change log
+        const allUsuarios = await getUsuarios()
+        const nombresMap = Object.fromEntries(allUsuarios.map(u => [u.id, u.nombre]))
+        function resolveVal(campo: string, valor: any): string {
+          if (valor === undefined || valor === null || valor === '') return '(vacío)'
+          if (campo === 'responsableId' || campo === 'aprobadorId') return nombresMap[valor] ?? valor
+          if (campo === 'esRepetible') return valor ? 'Sí' : 'No'
+          return String(valor)
+        }
+        const CAMPO_LABEL: Record<string, string> = {
+          nombre: 'Nombre', tipo: 'Tipo', descripcionDoingness: 'Descripción',
+          fechaLimite: 'Fecha Límite', responsableId: 'Responsable',
+          aprobadorId: 'Aprobador', esRepetible: 'Repetible', notas: 'Notas',
+        }
+        const cambios: string[] = []
+        for (const campo of Object.keys(CAMPO_LABEL)) {
+          if (!(campo in datos)) continue
+          const ant = resolveVal(campo, (objetivo as any)[campo])
+          const nvo = resolveVal(campo, datos[campo])
+          if (ant !== nvo) cambios.push(`${CAMPO_LABEL[campo]}: ${ant} → ${nvo}`)
+        }
+
+        await updateObjetivo(id, {
+          nombre: datos.nombre.trim(),
+          tipo: datos.tipo,
+          descripcionDoingness: datos.descripcionDoingness.trim(),
+          fechaLimite: datos.fechaLimite || undefined,
+          responsableId: datos.responsableId || '',
+          aprobadorId: datos.aprobadorId || undefined,
+          esRepetible: !!datos.esRepetible,
+          notas: datos.notas || undefined,
+        })
+        if (cambios.length > 0) {
+          await crearLogEvento({ objetivoId: id, tipoEvento: 'Objetivo Editado', usuarioId, notas: cambios.join('\n') })
+        }
         return NextResponse.json({ ok: true })
       }
 

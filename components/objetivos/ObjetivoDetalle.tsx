@@ -7,10 +7,10 @@ import { Badge } from '@/components/ui/Badge'
 import { Tooltip } from '@/components/ui/Tooltip'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
-import { Textarea } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Input'
+import { Input, Textarea, Select } from '@/components/ui/Input'
+import { Temporizadores } from '@/components/ui/Temporizadores'
 import type { Objetivo, Cumplimiento, LogEvento, Usuario, Programa } from '@/lib/types'
-import { TOOLTIP_TIPOS, isVencido, CAUSAS_DESATORAMIENTO } from '@/lib/types'
+import { TOOLTIP_TIPOS, isVencido, CAUSAS_DESATORAMIENTO, esOficialDelPrograma } from '@/lib/types'
 
 interface Props {
   objetivo: Objetivo
@@ -23,26 +23,7 @@ interface Props {
   aprobadorEfectivo: string | undefined
 }
 
-const EVENTO_COLOR: Record<string, string> = {
-  'Aceptado': 'bg-gray-700 text-gray-300 border-gray-600',
-  'Iniciado': 'bg-blue-900 text-blue-200 border-blue-700',
-  'Cumplimiento Reportado': 'bg-cyan-900 text-cyan-200 border-cyan-700',
-  'Cumplimiento Aprobado': 'bg-green-900 text-green-200 border-green-700',
-  'Cumplimiento Rechazado por Aprobador': 'bg-red-900 text-red-200 border-red-700',
-  'Reabierto': 'bg-yellow-900 text-yellow-200 border-yellow-700',
-  'Clarificación Solicitada': 'bg-orange-800 text-orange-200 border-orange-600',
-  'Clarificación Respondida': 'bg-orange-900 text-orange-200 border-orange-700',
-  'Objetivo Rechazado': 'bg-orange-950 text-orange-300 border-orange-800',
-  'Modificación Solicitada': 'bg-purple-800 text-purple-200 border-purple-600',
-  'Modificación Aprobada': 'bg-purple-900 text-purple-200 border-purple-700',
-  'Modificación Rechazada': 'bg-pink-900 text-pink-200 border-pink-700',
-  'Incumplido Declarado': 'bg-red-950 text-red-300 border-red-800',
-  'Reasignado': 'bg-gray-800 text-gray-300 border-gray-600',
-  'Cancelado': 'bg-red-950 text-red-300 border-red-800',
-  'Desatoramiento': 'bg-yellow-950 text-yellow-200 border-yellow-800',
-  'Rechazo Aprobado': 'bg-red-950 text-red-300 border-red-800',
-  'Rechazo Rechazado': 'bg-green-900 text-green-200 border-green-700',
-}
+const EVENTO_COLOR_NEUTRO = 'bg-gray-800 border-gray-700 text-gray-300'
 
 function parsearNotasModificacion(notas: string) {
   const justIdx = notas.indexOf('Justificación:')
@@ -80,11 +61,24 @@ export function ObjetivoDetalle({
   const [motivoRechazoMod, setMotivoRechazoMod] = useState('')
   // Rechazo de objetivo modal state
   const [respuestaRechazo, setRespuestaRechazo] = useState('')
+  // Edit mode state
+  const [modoEdicion, setModoEdicion] = useState(false)
+  const [editForm, setEditForm] = useState({
+    nombre: objetivo.nombre,
+    tipo: objetivo.tipo as string,
+    descripcionDoingness: objetivo.descripcionDoingness,
+    fechaLimite: objetivo.fechaLimite ?? '',
+    responsableId: objetivo.responsableId,
+    aprobadorId: objetivo.aprobadorId ?? programa?.aprobadorId ?? '',
+    esRepetible: objetivo.esRepetible,
+    notas: objetivo.notas ?? '',
+  })
   const [, startTransition] = useTransition()
   const router = useRouter()
 
   const esAprobador = userId === aprobadorEfectivo
   const esResponsable = userId === objetivo.responsableId
+  const puedeEditar = isEjecutivo || (programa ? esOficialDelPrograma(userId, programa) : false)
   const estadosTerminales = ['Completado', 'Cancelado', 'Incumplido']
   const vencido = isVencido(objetivo)
   const isCriticoIncumplido = (objetivo.tipo === 'Primario' || objetivo.tipo === 'Vital') && objetivo.estado === 'Incumplido'
@@ -95,6 +89,14 @@ export function ObjetivoDetalle({
   const ultimaModSolicitada = [...log].reverse().find(e => e.tipoEvento === 'Modificación Solicitada')
   // Last objective rejection from log
   const ultimoRechazo = [...log].reverse().find(e => e.tipoEvento === 'Objetivo Rechazado')
+
+  // Clarificación pendiente: hay al menos una solicitada y la última de clarificación no es una respuesta
+  const eventosClari = log
+    .filter(e => e.tipoEvento === 'Clarificación Solicitada' || e.tipoEvento === 'Clarificación Respondida')
+    .sort((a, b) => new Date(a.fechaYHora ?? '').getTime() - new Date(b.fechaYHora ?? '').getTime())
+  const hayClarificacionPendiente =
+    eventosClari.length > 0 &&
+    eventosClari[eventosClari.length - 1].tipoEvento === 'Clarificación Solicitada'
 
   async function ejecutarAccion(accion: string, datos?: Record<string, any>) {
     setPending(true)
@@ -141,6 +143,43 @@ export function ObjetivoDetalle({
     setMotivoRechazoMod('')
     setError(null)
     setModalActivo('ver_modificacion')
+  }
+
+  function entrarModoEdicion() {
+    setEditForm({
+      nombre: objetivo.nombre,
+      tipo: objetivo.tipo,
+      descripcionDoingness: objetivo.descripcionDoingness,
+      fechaLimite: objetivo.fechaLimite ?? '',
+      responsableId: objetivo.responsableId,
+      aprobadorId: objetivo.aprobadorId ?? programa?.aprobadorId ?? '',
+      esRepetible: objetivo.esRepetible,
+      notas: objetivo.notas ?? '',
+    })
+    setError(null)
+    setModoEdicion(true)
+  }
+
+  async function guardarEdicion() {
+    if (!editForm.nombre.trim()) { setError('El nombre no puede estar vacío'); return }
+    if (!editForm.descripcionDoingness.trim()) { setError('La descripción no puede estar vacía'); return }
+    setPending(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/objetivos/${objetivo.id}/accion`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'editar_objetivo', datos: editForm }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Error desconocido'); return }
+      setModoEdicion(false)
+      startTransition(() => { router.refresh() })
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setPending(false)
+    }
   }
 
   // Historia: log + cumplimientos ordenados cronológicamente
@@ -245,6 +284,36 @@ export function ObjetivoDetalle({
       )
     }
 
+    if (e.tipoEvento === 'Objetivo Editado') {
+      const lineas = notas.split('\n').filter(l => l.trim())
+      return (
+        <div className="text-xs mt-2 space-y-1 opacity-90">
+          {lineas.map((linea, i) => {
+            const arrowIdx = linea.indexOf(' → ')
+            const colonIdx = linea.indexOf(': ')
+            if (arrowIdx < 0 || colonIdx < 0) return <p key={i} className="whitespace-pre-wrap">{linea}</p>
+            const campo = linea.slice(0, colonIdx)
+            const rest = linea.slice(colonIdx + 2)
+            const restArrow = rest.indexOf(' → ')
+            const anterior = restArrow >= 0 ? rest.slice(0, restArrow) : rest
+            const nuevo = restArrow >= 0 ? rest.slice(restArrow + 3) : ''
+            return (
+              <p key={i}>
+                <span className="font-semibold text-gray-400">{campo}: </span>
+                <span className="line-through text-gray-500">{anterior}</span>
+                {nuevo && (
+                  <>
+                    <span className="text-gray-500"> → </span>
+                    <span className="text-gray-100">{nuevo}</span>
+                  </>
+                )}
+              </p>
+            )
+          })}
+        </div>
+      )
+    }
+
     return <p className="text-xs mt-1 whitespace-pre-wrap opacity-80">{notas}</p>
   }
 
@@ -295,6 +364,18 @@ export function ObjetivoDetalle({
             </p>
           )}
         </div>
+        <div className="flex flex-col items-end gap-2">
+          <Temporizadores
+            fechaInicioReal={objetivo.fechaInicioReal}
+            fechaLimite={objetivo.fechaLimite}
+            estado={objetivo.estado}
+          />
+          {puedeEditar && !modoEdicion && (
+            <Button size="sm" variant="secondary" onClick={entrarModoEdicion}>
+              ✏ Editar objetivo
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Alerta crítica */}
@@ -312,51 +393,137 @@ export function ObjetivoDetalle({
         </div>
       )}
 
-      {/* Detalles */}
-      <div className="bg-gray-800 border border-gray-700 rounded-lg p-5 space-y-4">
-        {objetivo.descripcionDoingness && (
-          <div>
-            <p className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1">
-              Descripción / Doingness
-            </p>
-            <p className="text-gray-200 whitespace-pre-wrap">{objetivo.descripcionDoingness}</p>
+      {/* Detalles / Edición inline */}
+      {modoEdicion ? (
+        <div className="bg-gray-800 border border-blue-700/50 rounded-lg p-5 space-y-4">
+          <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Editando objetivo</p>
+          <Input
+            label="Nombre"
+            value={editForm.nombre}
+            onChange={e => setEditForm(f => ({ ...f, nombre: e.target.value }))}
+          />
+          <Select
+            label="Tipo"
+            value={editForm.tipo}
+            onChange={e => setEditForm(f => ({ ...f, tipo: e.target.value }))}
+          >
+            {['Primario', 'Vital', 'Condicional', 'Operativo', 'Producción', 'Mayor'].map(t => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </Select>
+          <Textarea
+            label="Descripción / Doingness"
+            value={editForm.descripcionDoingness}
+            onChange={e => setEditForm(f => ({ ...f, descripcionDoingness: e.target.value }))}
+            rows={4}
+          />
+          <Input
+            label="Fecha Límite"
+            type="date"
+            value={editForm.fechaLimite}
+            onChange={e => setEditForm(f => ({ ...f, fechaLimite: e.target.value }))}
+          />
+          <Select
+            label="Responsable"
+            value={editForm.responsableId}
+            onChange={e => setEditForm(f => ({ ...f, responsableId: e.target.value }))}
+          >
+            <option value="">— Sin asignar —</option>
+            {allUsuarios.filter(u => u.activo).map(u => (
+              <option key={u.id} value={u.id}>{u.nombre}</option>
+            ))}
+          </Select>
+          <Select
+            label="Aprobador (opcional)"
+            value={editForm.aprobadorId}
+            onChange={e => setEditForm(f => ({ ...f, aprobadorId: e.target.value }))}
+          >
+            <option value="">— Sin aprobador específico —</option>
+            {allUsuarios.filter(u => u.activo).map(u => (
+              <option key={u.id} value={u.id}>{u.nombre}</option>
+            ))}
+          </Select>
+          <div className="flex items-center gap-3">
+            <input
+              id="esRepetible"
+              type="checkbox"
+              checked={editForm.esRepetible}
+              onChange={e => setEditForm(f => ({ ...f, esRepetible: e.target.checked }))}
+              className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-blue-500 focus:ring-blue-500"
+            />
+            <label htmlFor="esRepetible" className="text-sm text-gray-300">Es repetible</label>
           </div>
-        )}
-        <div className="grid grid-cols-3 gap-4 text-sm">
-          {objetivo.fechaLimite && (
-            <div>
-              <p className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">Fecha Límite</p>
-              <p className={vencido ? 'text-red-400 font-medium' : 'text-gray-300'}>
-                {objetivo.fechaLimite}
-              </p>
-            </div>
-          )}
-          {objetivo.fechaInicioReal && (
-            <div>
-              <p className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">Inicio Real</p>
-              <p className="text-gray-300">{objetivo.fechaInicioReal.split('T')[0]}</p>
-            </div>
-          )}
-          {objetivo.orden !== undefined && (
-            <div>
-              <p className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">Orden</p>
-              <p className="text-gray-300">{objetivo.orden}</p>
-            </div>
-          )}
-          <div>
-            <p className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">Cumplimientos</p>
-            <p className="text-gray-300">{cumplimientos.length}</p>
+          <Textarea
+            label="Notas (opcional)"
+            value={editForm.notas}
+            onChange={e => setEditForm(f => ({ ...f, notas: e.target.value }))}
+            rows={3}
+          />
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          <div className="flex gap-3 pt-1">
+            <Button loading={pending} onClick={guardarEdicion}>Guardar cambios</Button>
+            <Button variant="secondary" onClick={() => { setModoEdicion(false); setError(null) }}>Cancelar</Button>
           </div>
         </div>
-        {objetivo.notas && (
-          <div className="border-t border-gray-700 pt-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1">Notas</p>
-            <p className="text-gray-300 text-sm">{objetivo.notas}</p>
+      ) : (
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-5 space-y-4">
+          {objetivo.descripcionDoingness && (
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1">
+                Descripción / Doingness
+              </p>
+              <p className="text-gray-200 whitespace-pre-wrap">{objetivo.descripcionDoingness}</p>
+            </div>
+          )}
+          <div className="grid grid-cols-3 gap-4 text-sm">
+            {objetivo.fechaLimite && (
+              <div>
+                <p className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">Fecha Límite</p>
+                <p className={vencido ? 'text-red-400 font-medium' : 'text-gray-300'}>
+                  {objetivo.fechaLimite}
+                </p>
+              </div>
+            )}
+            {objetivo.fechaInicioReal && (
+              <div>
+                <p className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">Inicio Real</p>
+                <p className="text-gray-300">{objetivo.fechaInicioReal.split('T')[0]}</p>
+              </div>
+            )}
+            {objetivo.orden !== undefined && (
+              <div>
+                <p className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">Orden</p>
+                <p className="text-gray-300">{objetivo.orden}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">Cumplimientos</p>
+              <p className="text-gray-300">{cumplimientos.length}</p>
+            </div>
           </div>
-        )}
-      </div>
+          {objetivo.notas && (
+            <div className="border-t border-gray-700 pt-4">
+              <p className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1">Notas</p>
+              <p className="text-gray-300 text-sm">{objetivo.notas}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Acciones */}
+      {(() => {
+        const esEjecutivoOAprobador = isEjecutivo || esAprobador
+        const accionesDisponibles =
+          (objetivo.estado === 'Asignado' && esResponsable) ||
+          (esEjecutivoOAprobador && hayClarificacionPendiente) ||
+          (objetivo.estado === 'No iniciado' && esResponsable) ||
+          (objetivo.estado === 'En curso' && esResponsable) ||
+          (objetivo.estado === 'Completado pendiente' && esAprobador && !esResponsable && !!cumplimientoPendiente) ||
+          (objetivo.estado === 'Modificación solicitada' && esEjecutivoOAprobador) ||
+          (objetivo.estado === 'Rechazado' && esEjecutivoOAprobador) ||
+          (esEjecutivoOAprobador && !estadosTerminales.includes(objetivo.estado))
+        if (!accionesDisponibles) return null
+        return (
       <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
         <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Acciones</h2>
         <div className="flex flex-wrap gap-2">
@@ -376,8 +543,8 @@ export function ObjetivoDetalle({
             </>
           )}
 
-          {/* Ejecutivo/Aprobador: responder clarificación */}
-          {(isEjecutivo || esAprobador) && log.some(e => e.tipoEvento === 'Clarificación Solicitada') && (
+          {/* Ejecutivo/Aprobador: responder clarificación solo si hay una pendiente */}
+          {(isEjecutivo || esAprobador) && hayClarificacionPendiente && (
             <Button size="sm" variant="secondary" onClick={() => abrirModal('responder_clarificacion')}>
               Responder Clarificación
             </Button>
@@ -476,6 +643,8 @@ export function ObjetivoDetalle({
             )}
         </div>
       </div>
+        )
+      })()}
 
       {/* Historia */}
       <div>
@@ -487,12 +656,11 @@ export function ObjetivoDetalle({
             {historia.map(item => {
               if (item.tipo === 'log') {
                 const e = item.item
-                const colorClass = EVENTO_COLOR[e.tipoEvento] ?? 'bg-gray-800 text-gray-300 border-gray-600'
                 const usuario = e.usuarioId ? usuariosMap[e.usuarioId] : undefined
                 return (
-                  <div key={`log-${e.id}`} className={`border rounded-lg p-3 ${colorClass}`}>
+                  <div key={`log-${e.id}`} className={`border rounded-lg p-3 ${EVENTO_COLOR_NEUTRO}`}>
                     <div className="flex items-center justify-between gap-2 mb-1">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${colorClass}`}>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${EVENTO_COLOR_NEUTRO}`}>
                         {e.tipoEvento}
                       </span>
                       <span className="text-xs opacity-60">

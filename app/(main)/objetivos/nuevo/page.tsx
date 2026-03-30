@@ -46,13 +46,22 @@ export default function NuevoObjetivoPage() {
         rol: r.fields['Rol']?.name ?? r.fields['Rol'] ?? 'Operador',
         activo: r.fields['Activo'] ?? false,
       })).filter((u: Usuario) => u.activo))
-      setProgramas((pd.records ?? []).map((r: any) => ({
+      const ps = (pd.records ?? []).map((r: any) => ({
         id: r.id,
         nombre: r.fields['Nombre'] ?? '',
         estado: r.fields['Estado']?.name ?? r.fields['Estado'] ?? 'Borrador',
         responsableIds: r.fields['Responsable'] ?? [],
+        aprobadorId: (r.fields['Aprobador'] ?? [])[0] as string | undefined,
         objetivoIds: r.fields['Objetivos'] ?? [],
-      })))
+      }))
+      setProgramas(ps)
+      // Pre-select program's aprobador
+      if (programaIdParam) {
+        const prog = ps.find((p: any) => p.id === programaIdParam)
+        if (prog?.aprobadorId) {
+          setForm(f => ({ ...f, aprobadorId: f.aprobadorId || prog.aprobadorId! }))
+        }
+      }
     }).catch(() => {})
   }, [])
 

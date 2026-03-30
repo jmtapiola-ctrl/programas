@@ -9,11 +9,12 @@ interface ObjetivoCardProps {
   responsable?: Usuario
   onCumplir?: (id: string) => void
   showPrograma?: boolean
+  showTipo?: boolean
   compact?: boolean
   cumplimientosRecientes?: number
 }
 
-export function ObjetivoCard({ objetivo, responsable, onCumplir, compact, cumplimientosRecientes }: ObjetivoCardProps) {
+export function ObjetivoCard({ objetivo, responsable, onCumplir, compact, cumplimientosRecientes, showTipo = true }: ObjetivoCardProps) {
   const isIncumplido = objetivo.estado === 'Incumplido'
   const isCriticoIncumplido = (objetivo.tipo === 'Primario' || objetivo.tipo === 'Vital') && isIncumplido
 
@@ -38,7 +39,7 @@ export function ObjetivoCard({ objetivo, responsable, onCumplir, compact, cumpli
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
-            <Badge tipo={objetivo.tipo} />
+            {showTipo && <Badge tipo={objetivo.tipo} />}
             <Badge estadoObjetivo={objetivo.estado} />
             {sinMovimiento && (
               <span className="text-xs bg-orange-900/40 text-orange-300 border border-orange-700/40 rounded px-1.5 py-0.5">
