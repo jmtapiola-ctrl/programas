@@ -104,14 +104,14 @@ export default function NuevoPBPage() {
     <div className="max-w-2xl space-y-6">
       <div>
         <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold text-white">Nuevo Plan de Batalla</h1>
+          <h1 className="text-2xl font-bold text-foreground">Nuevo Plan de Batalla</h1>
           <Tooltip texto="Una lista de objetivos para el día o la semana siguiente, que ayudan al avance de la planificación estratégica, y se ocupan de las acciones inmediatas y de los puntos fuera que la estorban." />
         </div>
-        <p className="text-gray-400 text-sm mt-1">Objetivos del día/semana que implementan el plan estratégico</p>
+        <p className="text-muted-foreground text-sm mt-1">Objetivos del día/semana que implementan el plan estratégico</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 space-y-5">
+        <div className="bg-card border border-border rounded-lg p-6 space-y-5">
           <Input
             label="Título *"
             value={form.titulo}
@@ -165,30 +165,30 @@ export default function NuevoPBPage() {
         </div>
 
         {/* Selector de objetivos */}
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">
-          <h2 className="font-medium text-gray-200 mb-3">
+        <div className="bg-card border border-border rounded-lg p-5">
+          <h2 className="font-medium text-foreground mb-3">
             Objetivos a incluir ({selectedObjetivos.length} seleccionados)
           </h2>
           {objetivos.length === 0 ? (
-            <p className="text-gray-500 text-sm">No hay objetivos disponibles.</p>
+            <p className="text-muted-foreground text-sm">No hay objetivos disponibles.</p>
           ) : (
             <div className="space-y-1 max-h-80 overflow-y-auto">
               {objetivos.map(o => (
                 <label
                   key={o.id}
                   className={`flex items-center gap-3 p-2.5 rounded-md cursor-pointer transition-colors ${
-                    selectedObjetivos.includes(o.id) ? 'bg-blue-900/30 border border-blue-800' : 'hover:bg-gray-700 border border-transparent'
+                    selectedObjetivos.includes(o.id) ? 'bg-blue-900/30 border border-blue-800' : 'hover:bg-accent border border-transparent'
                   }`}
                 >
                   <input
                     type="checkbox"
                     checked={selectedObjetivos.includes(o.id)}
                     onChange={() => toggleObjetivo(o.id)}
-                    className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600"
+                    className="w-4 h-4 rounded border-border bg-card text-blue-600"
                   />
-                  <span className={`text-xs font-medium ${tipoColor[o.tipo] ?? 'text-gray-400'}`}>{o.tipo}</span>
-                  <span className="text-sm text-gray-200 flex-1">{o.nombre}</span>
-                  <span className="text-xs text-gray-500">{o.estado}</span>
+                  <span className={`text-xs font-medium ${tipoColor[o.tipo] ?? 'text-muted-foreground'}`}>{o.tipo}</span>
+                  <span className="text-sm text-foreground flex-1">{o.nombre}</span>
+                  <span className="text-xs text-muted-foreground">{o.estado}</span>
                 </label>
               ))}
             </div>

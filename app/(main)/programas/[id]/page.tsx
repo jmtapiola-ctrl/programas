@@ -68,10 +68,10 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
-      <nav className="text-sm text-gray-500 flex items-center gap-2">
-        <Link href="/programas" className="hover:text-gray-300">Programas</Link>
+      <nav className="text-sm text-muted-foreground flex items-center gap-2">
+        <Link href="/programas" className="hover:text-foreground">Programas</Link>
         <span>/</span>
-        <span className="text-gray-300">{programa.nombre}</span>
+        <span className="text-foreground">{programa.nombre}</span>
       </nav>
 
       {/* Header */}
@@ -84,10 +84,10 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
                 <span className={`text-xs font-medium px-2 py-0.5 rounded border ${scoreColor}`}>
                   {scoreLabel}
                 </span>
-                <div className="absolute left-0 top-full mt-1 z-50 w-64 bg-gray-900 border border-gray-600 rounded-lg p-3 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
-                  <p className="font-semibold text-gray-200 mb-2 text-xs">Calidad del programa</p>
+                <div className="absolute left-0 top-full mt-1 z-50 w-64 bg-background border border-border rounded-lg p-3 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
+                  <p className="font-semibold text-foreground mb-2 text-xs">Calidad del programa</p>
                   {scoreItems.map((item, i) => (
-                    <p key={i} className={`flex items-center gap-1.5 text-xs py-0.5 ${item.ok ? 'text-green-400' : 'text-gray-500'}`}>
+                    <p key={i} className={`flex items-center gap-1.5 text-xs py-0.5 ${item.ok ? 'text-green-400' : 'text-muted-foreground'}`}>
                       <span>{item.ok ? '✓' : '✗'}</span>
                       <span>{item.label}</span>
                     </p>
@@ -96,19 +96,19 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
               </div>
             )}
           </div>
-          <h1 className="text-2xl font-bold text-white">{programa.nombre}</h1>
+          <h1 className="text-2xl font-bold text-foreground">{programa.nombre}</h1>
           {responsables.length > 0 && (
-            <p className="text-gray-400 text-sm mt-1">Responsable: {responsables.map((r: any) => r.nombre).join(', ')}</p>
+            <p className="text-muted-foreground text-sm mt-1">Responsable: {responsables.map((r: any) => r.nombre).join(', ')}</p>
           )}
           {aprobador && (
-            <p className="text-gray-500 text-xs mt-0.5">Aprobador: {aprobador.nombre}</p>
+            <p className="text-muted-foreground text-xs mt-0.5">Aprobador: {aprobador.nombre}</p>
           )}
         </div>
         <div className="flex gap-2 flex-shrink-0">
           {puedeEditar && (
             <Link
               href={`/programas/${id}/editar`}
-              className="px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-600 rounded-md transition-colors"
+              className="px-3 py-1.5 text-sm bg-muted hover:bg-accent text-foreground border border-border rounded-md transition-colors"
             >
               Editar
             </Link>
@@ -116,7 +116,7 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
           {puedeAgregarObjetivo && (
             <Link
               href={`/objetivos/nuevo?programaId=${id}`}
-              className="px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-gray-200 border border-gray-600 rounded-md transition-colors"
+              className="px-3 py-1.5 text-sm bg-muted hover:bg-accent text-foreground border border-border rounded-md transition-colors"
             >
               + Objetivo
             </Link>
@@ -151,11 +151,11 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
             <div className="flex items-center gap-2 mb-1">
               <p className="text-xs text-orange-400 font-medium uppercase tracking-wider">Situación</p>
             </div>
-            <p className="text-gray-200">{programa.situacion}</p>
+            <p className="text-foreground">{programa.situacion}</p>
           </div>
         ) : puedeEditar ? (
-          <div className="md:col-span-3 bg-gray-800/50 border border-gray-700 border-dashed rounded-lg p-4 flex items-center justify-between">
-            <p className="text-gray-500 text-sm">Sin situación definida</p>
+          <div className="md:col-span-3 bg-card/50 border border-border border-dashed rounded-lg p-4 flex items-center justify-between">
+            <p className="text-muted-foreground text-sm">Sin situación definida</p>
             <Link href={`/programas/${id}/editar`} className="text-blue-400 hover:text-blue-300 text-sm">
               Editar programa →
             </Link>
@@ -167,11 +167,11 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
               <p className="text-xs text-blue-400 font-medium uppercase tracking-wider">Propósito</p>
               <Tooltip texto="Los propósitos tienen que ejecutarse. Son algo que HACER." />
             </div>
-            <p className="text-gray-200">{programa.proposito}</p>
+            <p className="text-foreground">{programa.proposito}</p>
           </div>
         ) : puedeEditar ? (
-          <div className="md:col-span-3 bg-gray-800/50 border border-gray-700 border-dashed rounded-lg p-4 flex items-center justify-between">
-            <p className="text-gray-500 text-sm">Sin propósito definido</p>
+          <div className="md:col-span-3 bg-card/50 border border-border border-dashed rounded-lg p-4 flex items-center justify-between">
+            <p className="text-muted-foreground text-sm">Sin propósito definido</p>
             <Link href={`/programas/${id}/editar`} className="text-blue-400 hover:text-blue-300 text-sm">
               Editar programa →
             </Link>
@@ -183,31 +183,31 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
               <p className="text-xs text-purple-400 font-medium uppercase tracking-wider">Objetivo Mayor</p>
               <Tooltip texto={'El propósito general deseable que se acomete. Esto es muy general, como "llegar a ser auditor".'} />
             </div>
-            <p className="text-gray-200">{programa.objetivoMayor}</p>
+            <p className="text-foreground">{programa.objetivoMayor}</p>
           </div>
         )}
         {programa.descripcion && (
-          <div className="md:col-span-2 bg-gray-800 border border-gray-700 rounded-lg p-4">
-            <p className="text-xs text-gray-500 font-medium mb-1 uppercase tracking-wider">Descripción</p>
-            <p className="text-gray-300 text-sm">{programa.descripcion}</p>
+          <div className="md:col-span-2 bg-card border border-border rounded-lg p-4">
+            <p className="text-xs text-muted-foreground font-medium mb-1 uppercase tracking-wider">Descripción</p>
+            <p className="text-muted-foreground text-sm">{programa.descripcion}</p>
           </div>
         )}
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 space-y-2">
+        <div className="bg-card border border-border rounded-lg p-4 space-y-2">
           {programa.fechaInicio && (
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wider">Inicio</p>
-              <p className="text-gray-300 text-sm">{programa.fechaInicio}</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider">Inicio</p>
+              <p className="text-muted-foreground text-sm">{programa.fechaInicio}</p>
             </div>
           )}
           {programa.fechaObjetivo && (
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wider">Fecha Objetivo</p>
-              <p className="text-gray-300 text-sm">{programa.fechaObjetivo}</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider">Fecha Objetivo</p>
+              <p className="text-muted-foreground text-sm">{programa.fechaObjetivo}</p>
             </div>
           )}
           <div>
-            <p className="text-xs text-gray-500 uppercase tracking-wider">Objetivos</p>
-            <p className="text-gray-300 text-sm">{objetivos.length}</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Objetivos</p>
+            <p className="text-muted-foreground text-sm">{objetivos.length}</p>
           </div>
         </div>
       </div>
@@ -218,7 +218,7 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
         if (grupo.length === 0) return null
         return (
           <div key={tipo}>
-            <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
               <Badge tipo={tipo} />
               <span>({grupo.length})</span>
             </h2>
@@ -238,7 +238,7 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
       })}
 
       {objetivos.length === 0 && (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-muted-foreground">
           <p>Este programa no tiene objetivos aún.</p>
           {puedeAgregarObjetivo && (
             <Link href={`/objetivos/nuevo?programaId=${id}`} className="mt-2 inline-block text-blue-400 hover:text-blue-300 text-sm">

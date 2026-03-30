@@ -8,7 +8,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   if (!session) redirect('/login')
 
   return (
-    <div className="flex h-screen bg-gray-950">
+    <div className="flex h-screen bg-background">
       <Sidebar />
       <main className="flex-1 overflow-y-auto ml-56 transition-all">
         <div className="p-6 max-w-6xl mx-auto">

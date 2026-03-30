@@ -74,60 +74,60 @@ export default async function InformesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Informes</h1>
-        <p className="text-gray-400 text-sm mt-1">Resumen del estado de objetivos y programas</p>
+        <h1 className="text-2xl font-bold text-foreground">Informes</h1>
+        <p className="text-muted-foreground text-sm mt-1">Resumen del estado de objetivos y programas</p>
       </div>
 
       {/* Stats generales */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">
-          <p className="text-gray-400 text-sm">Total Objetivos</p>
-          <p className="text-3xl font-bold text-white mt-1">{total}</p>
+        <div className="bg-card border border-border rounded-lg p-5">
+          <p className="text-muted-foreground text-sm">Total Objetivos</p>
+          <p className="text-3xl font-bold text-foreground mt-1">{total}</p>
         </div>
         <div className="bg-green-900/20 border border-green-800/40 rounded-lg p-5">
           <p className="text-green-400 text-sm">Cumplidos</p>
-          <p className="text-3xl font-bold text-white mt-1">{cumplidos}</p>
+          <p className="text-3xl font-bold text-foreground mt-1">{cumplidos}</p>
           <p className="text-green-500 text-xs mt-1">{porcentajeCumplimiento}%</p>
         </div>
         <div className="bg-red-900/20 border border-red-800/40 rounded-lg p-5">
           <p className="text-red-400 text-sm">Incumplidos</p>
-          <p className="text-3xl font-bold text-white mt-1">{incumplidos}</p>
+          <p className="text-3xl font-bold text-foreground mt-1">{incumplidos}</p>
         </div>
         <div className="bg-blue-900/20 border border-blue-800/40 rounded-lg p-5">
           <p className="text-blue-400 text-sm">En Curso</p>
-          <p className="text-3xl font-bold text-white mt-1">{enCurso}</p>
-          <p className="text-gray-500 text-xs mt-1">{pendientes} pendientes</p>
+          <p className="text-3xl font-bold text-foreground mt-1">{enCurso}</p>
+          <p className="text-muted-foreground text-xs mt-1">{pendientes} pendientes</p>
         </div>
       </div>
 
       {/* Barra de progreso general */}
-      <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">
+      <div className="bg-card border border-border rounded-lg p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-gray-100">Progreso General</h2>
-          <span className="text-gray-400 text-sm">{porcentajeCumplimiento}% completado</span>
+          <h2 className="font-semibold text-foreground">Progreso General</h2>
+          <span className="text-muted-foreground text-sm">{porcentajeCumplimiento}% completado</span>
         </div>
-        <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
+        <div className="h-3 bg-muted rounded-full overflow-hidden">
           <div className="h-full bg-green-600 rounded-full transition-all" style={{ width: `${porcentajeCumplimiento}%` }} />
         </div>
-        <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
+        <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-600 inline-block" />Cumplidos: {cumplidos}</span>
           <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-600 inline-block" />En curso: {enCurso}</span>
           <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-600 inline-block" />Incumplidos: {incumplidos}</span>
-          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-600 inline-block" />Pendientes: {pendientes}</span>
+          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-muted-foreground/40 inline-block" />Pendientes: {pendientes}</span>
         </div>
       </div>
 
       {/* Por tipo */}
-      <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">
-        <h2 className="font-semibold text-gray-100 mb-4">Por Tipo de Objetivo</h2>
+      <div className="bg-card border border-border rounded-lg p-5">
+        <h2 className="font-semibold text-foreground mb-4">Por Tipo de Objetivo</h2>
         <div className="space-y-3">
           {porTipo.filter(g => g.total > 0).map(grupo => (
             <div key={grupo.tipo}>
               <div className="flex items-center justify-between text-sm mb-1">
-                <span className="text-gray-300">{grupo.tipo}</span>
-                <span className="text-gray-500">{grupo.cumplidos}/{grupo.total}</span>
+                <span className="text-muted-foreground">{grupo.tipo}</span>
+                <span className="text-muted-foreground">{grupo.cumplidos}/{grupo.total}</span>
               </div>
-              <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
                 <div
                   className="h-full bg-blue-600 rounded-full"
                   style={{ width: grupo.total > 0 ? `${Math.round((grupo.cumplidos / grupo.total) * 100)}%` : '0%' }}
@@ -152,18 +152,18 @@ export default async function InformesPage() {
 
       {/* Objetivos vencidos */}
       {vencidos.length > 0 && (
-        <div className="bg-gray-800 border border-red-800/40 rounded-lg p-5">
+        <div className="bg-card border border-red-800/40 rounded-lg p-5">
           <h2 className="font-semibold text-red-300 mb-4">Objetivos Vencidos ({vencidos.length})</h2>
           <div className="space-y-2">
             {vencidos.map(o => (
-              <div key={o.id} className="flex items-center justify-between gap-4 bg-gray-700/50 rounded-lg p-3">
+              <div key={o.id} className="flex items-center justify-between gap-4 bg-muted/50 rounded-lg p-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <Badge tipo={o.tipo} />
-                  <Link href={`/objetivos/${o.id}`} className="text-gray-200 text-sm hover:text-blue-400 truncate">
+                  <Link href={`/objetivos/${o.id}`} className="text-foreground text-sm hover:text-blue-400 truncate">
                     {o.nombre}
                   </Link>
                 </div>
-                <div className="flex items-center gap-3 flex-shrink-0 text-xs text-gray-400">
+                <div className="flex items-center gap-3 flex-shrink-0 text-xs text-muted-foreground">
                   {usuariosMap[o.responsableId] && (
                     <span>{usuariosMap[o.responsableId].nombre}</span>
                   )}
@@ -177,17 +177,17 @@ export default async function InformesPage() {
 
       {/* Usuarios */}
       {isEjecutivo && (
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">
-          <h2 className="font-semibold text-gray-100 mb-4">Equipo ({usuarios.filter(u => u.activo).length} activos)</h2>
+        <div className="bg-card border border-border rounded-lg p-5">
+          <h2 className="font-semibold text-foreground mb-4">Equipo ({usuarios.filter(u => u.activo).length} activos)</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {usuarios.filter(u => u.activo).map(u => {
               const objsUsuario = objetivos.filter(o => o.responsableId === u.id)
               const cumplidosU = objsUsuario.filter(o => o.estado === 'Completado').length
               return (
-                <div key={u.id} className="bg-gray-700/50 rounded-lg p-3">
-                  <p className="text-gray-200 font-medium text-sm">{u.nombre}</p>
-                  <p className="text-gray-500 text-xs">{u.rol}</p>
-                  <p className="text-gray-400 text-xs mt-1">{cumplidosU}/{objsUsuario.length} obj. cumplidos</p>
+                <div key={u.id} className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-foreground font-medium text-sm">{u.nombre}</p>
+                  <p className="text-muted-foreground text-xs">{u.rol}</p>
+                  <p className="text-muted-foreground text-xs mt-1">{cumplidosU}/{objsUsuario.length} obj. cumplidos</p>
                 </div>
               )
             })}

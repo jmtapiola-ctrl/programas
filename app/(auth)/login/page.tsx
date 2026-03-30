@@ -35,15 +35,15 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-white tracking-tight">PROGRAMAS</h1>
-          <p className="text-gray-400 text-sm mt-1">Sistema de Objetivos — LRH</p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">PROGRAMAS</h1>
+          <p className="text-muted-foreground text-sm mt-1">Sistema de Objetivos — LRH</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-gray-800 border border-gray-700 rounded-lg p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-white mb-4">Iniciar Sesión</h2>
+        <form onSubmit={handleSubmit} className="bg-card border border-border rounded-lg p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-foreground mb-4">Iniciar Sesión</h2>
 
           <Input
             label="Email"

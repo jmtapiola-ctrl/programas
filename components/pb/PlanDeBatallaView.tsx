@@ -26,18 +26,18 @@ export function PlanDeBatallaView({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">
+      <div className="bg-card border border-border rounded-lg p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Badge estadoPB={pb.estado} />
-              <span className="text-sm text-gray-400">
+              <span className="text-sm text-muted-foreground">
                 {pb.periodo} · {pb.fecha ?? '—'}
               </span>
             </div>
-            <h2 className="text-xl font-bold text-white">{pb.titulo}</h2>
+            <h2 className="text-xl font-bold text-foreground">{pb.titulo}</h2>
             {responsables && responsables.length > 0 && (
-              <p className="text-gray-400 text-sm mt-1">{responsables.map(r => r.nombre).join(', ')}</p>
+              <p className="text-muted-foreground text-sm mt-1">{responsables.map(r => r.nombre).join(', ')}</p>
             )}
           </div>
           {onCambiarEstado && (
@@ -65,11 +65,11 @@ export function PlanDeBatallaView({
         {/* Progreso */}
         {total > 0 && (
           <div className="mt-4">
-            <div className="flex items-center justify-between text-sm text-gray-400 mb-1.5">
+            <div className="flex items-center justify-between text-sm text-muted-foreground mb-1.5">
               <span>Progreso</span>
               <span>{cumplidos}/{total} objetivos · {porcentaje}%</span>
             </div>
-            <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+            <div className="h-2 bg-muted rounded-full overflow-hidden">
               <div
                 className="h-full bg-green-600 rounded-full transition-all"
                 style={{ width: `${porcentaje}%` }}
@@ -79,17 +79,17 @@ export function PlanDeBatallaView({
         )}
 
         {pb.notas && (
-          <p className="text-gray-400 text-sm mt-3 border-t border-gray-700 pt-3">{pb.notas}</p>
+          <p className="text-muted-foreground text-sm mt-3 border-t border-border pt-3">{pb.notas}</p>
         )}
       </div>
 
       {/* Objetivos */}
       <div className="space-y-2">
-        <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider px-1">
+        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider px-1">
           Objetivos del {pb.periodo} ({total})
         </h3>
         {objetivos.length === 0 ? (
-          <p className="text-gray-500 text-sm text-center py-8">No hay objetivos en este plan.</p>
+          <p className="text-muted-foreground text-sm text-center py-8">No hay objetivos en este plan.</p>
         ) : (
           objetivos.map(obj => (
             <ObjetivoCard

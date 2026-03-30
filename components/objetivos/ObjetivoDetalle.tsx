@@ -23,7 +23,7 @@ interface Props {
   aprobadorEfectivo: string | undefined
 }
 
-const EVENTO_COLOR_NEUTRO = 'bg-gray-800 border-gray-700 text-gray-300'
+const EVENTO_COLOR_NEUTRO = 'bg-card border-border text-muted-foreground'
 
 function parsearNotasModificacion(notas: string) {
   const justIdx = notas.indexOf('Justificación:')
@@ -330,12 +330,12 @@ export function ObjetivoDetalle({
             const nuevo = restArrow >= 0 ? rest.slice(restArrow + 3) : ''
             return (
               <p key={i}>
-                <span className="font-semibold text-gray-400">{campo}: </span>
-                <span className="line-through text-gray-500">{anterior}</span>
+                <span className="font-semibold text-muted-foreground">{campo}: </span>
+                <span className="line-through text-muted-foreground">{anterior}</span>
                 {nuevo && (
                   <>
-                    <span className="text-gray-500"> → </span>
-                    <span className="text-gray-100">{nuevo}</span>
+                    <span className="text-muted-foreground"> → </span>
+                    <span className="text-foreground">{nuevo}</span>
                   </>
                 )}
               </p>
@@ -351,16 +351,16 @@ export function ObjetivoDetalle({
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Breadcrumb */}
-      <nav className="text-sm text-gray-500 flex items-center gap-2 flex-wrap">
-        <Link href="/programas" className="hover:text-gray-300">Programas</Link>
+      <nav className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
+        <Link href="/programas" className="hover:text-foreground">Programas</Link>
         {programa && (
           <>
             <span>/</span>
-            <Link href={`/programas/${programa.id}`} className="hover:text-gray-300">{programa.nombre}</Link>
+            <Link href={`/programas/${programa.id}`} className="hover:text-foreground">{programa.nombre}</Link>
           </>
         )}
         <span>/</span>
-        <span className="text-gray-300">{objetivo.nombre}</span>
+        <span className="text-foreground">{objetivo.nombre}</span>
       </nav>
 
       {/* Header */}
@@ -373,7 +373,7 @@ export function ObjetivoDetalle({
             )}
             <Badge estadoObjetivo={objetivo.estado} />
             {objetivo.esRepetible && (
-              <span className="text-xs text-gray-400 bg-gray-800 border border-gray-700 px-2 py-0.5 rounded">
+              <span className="text-xs text-muted-foreground bg-card border border-border px-2 py-0.5 rounded">
                 Repetible
               </span>
             )}
@@ -383,14 +383,14 @@ export function ObjetivoDetalle({
               </span>
             )}
           </div>
-          <h1 className="text-2xl font-bold text-white">{objetivo.nombre}</h1>
+          <h1 className="text-2xl font-bold text-foreground">{objetivo.nombre}</h1>
           {objetivo.responsableId && usuariosMap[objetivo.responsableId] && (
-            <p className="text-gray-400 text-sm mt-1">
+            <p className="text-muted-foreground text-sm mt-1">
               Responsable: {usuariosMap[objetivo.responsableId].nombre}
             </p>
           )}
           {aprobadorEfectivo && usuariosMap[aprobadorEfectivo] && (
-            <p className="text-gray-500 text-xs mt-0.5">
+            <p className="text-muted-foreground text-xs mt-0.5">
               Aprobador: {usuariosMap[aprobadorEfectivo].nombre}
             </p>
           )}
@@ -426,7 +426,7 @@ export function ObjetivoDetalle({
 
       {/* Detalles / Edición inline */}
       {modoEdicion ? (
-        <div className="bg-gray-800 border border-blue-700/50 rounded-lg p-5 space-y-4">
+        <div className="bg-card border border-blue-700/50 rounded-lg p-5 space-y-4">
           <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Editando objetivo</p>
           <Input
             label="Nombre"
@@ -454,20 +454,20 @@ export function ObjetivoDetalle({
               {erroresGemini.map((err, i) => (
                 <div key={i}>
                   <p className="text-red-300 text-xs font-medium">{err.principio}</p>
-                  <p className="text-gray-400 text-xs">{err.descripcion}</p>
+                  <p className="text-muted-foreground text-xs">{err.descripcion}</p>
                 </div>
               ))}
             </div>
           )}
           {sugerenciaGemini && (
             <div className="p-3 bg-yellow-900/30 border border-yellow-700/50 rounded-md space-y-2">
-              <p className="text-yellow-300 text-xs font-semibold">💡 Gemini sugiere una versión más precisa</p>
-              <p className="text-gray-400 text-xs">Editá libremente. Podés usar el original, la sugerencia, o combinar ambos.</p>
+              <p className="text-yellow-300 text-xs font-semibold">Gemini sugiere una versión más precisa</p>
+              <p className="text-muted-foreground text-xs">Editá libremente. Podés usar el original, la sugerencia, o combinar ambos.</p>
               <textarea
                 value={textSugerencia}
                 onChange={e => setTextSugerencia(e.target.value)}
                 rows={6}
-                className="w-full bg-gray-700 border border-yellow-700/50 rounded-md px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-sm"
+                className="bg-transparent border border-yellow-700/50 text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 rounded-md px-3 py-2 text-sm w-full"
               />
               <div className="flex gap-2">
                 <button
@@ -489,7 +489,7 @@ export function ObjetivoDetalle({
                     setPending(true)
                     doGuardar(editForm.descripcionDoingness)
                   }}
-                  className="px-3 py-1.5 text-xs bg-gray-600 hover:bg-gray-500 text-gray-200 rounded-md transition-colors"
+                  className="px-3 py-1.5 text-xs bg-muted hover:bg-accent text-foreground rounded-md transition-colors"
                 >
                   Ignorar sugerencia
                 </button>
@@ -528,9 +528,9 @@ export function ObjetivoDetalle({
               type="checkbox"
               checked={editForm.esRepetible}
               onChange={e => setEditForm(f => ({ ...f, esRepetible: e.target.checked }))}
-              className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-blue-500 focus:ring-blue-500"
+              className="w-4 h-4 rounded border-border bg-background text-blue-500 focus-visible:ring-2"
             />
-            <label htmlFor="esRepetible" className="text-sm text-gray-300">Es repetible</label>
+            <label htmlFor="esRepetible" className="text-sm text-muted-foreground">Es repetible</label>
           </div>
           <Textarea
             label="Notas (opcional)"
@@ -547,45 +547,45 @@ export function ObjetivoDetalle({
           </div>
         </div>
       ) : (
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-5 space-y-4">
+        <div className="bg-card border border-border rounded-lg p-5 space-y-4">
           {objetivo.descripcionDoingness && (
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">
                 Descripción / Doingness
               </p>
-              <p className="text-gray-200 whitespace-pre-wrap">{objetivo.descripcionDoingness}</p>
+              <p className="text-foreground whitespace-pre-wrap">{objetivo.descripcionDoingness}</p>
             </div>
           )}
           <div className="grid grid-cols-3 gap-4 text-sm">
             {objetivo.fechaLimite && (
               <div>
-                <p className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">Fecha Límite</p>
-                <p className={vencido ? 'text-red-400 font-medium' : 'text-gray-300'}>
+                <p className="text-muted-foreground text-xs uppercase tracking-wider mb-0.5">Fecha Límite</p>
+                <p className={vencido ? 'text-red-400 font-medium' : 'text-muted-foreground'}>
                   {objetivo.fechaLimite}
                 </p>
               </div>
             )}
             {objetivo.fechaInicioReal && (
               <div>
-                <p className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">Inicio Real</p>
-                <p className="text-gray-300">{objetivo.fechaInicioReal.split('T')[0]}</p>
+                <p className="text-muted-foreground text-xs uppercase tracking-wider mb-0.5">Inicio Real</p>
+                <p className="text-muted-foreground">{objetivo.fechaInicioReal.split('T')[0]}</p>
               </div>
             )}
             {objetivo.orden !== undefined && (
               <div>
-                <p className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">Orden</p>
-                <p className="text-gray-300">{objetivo.orden}</p>
+                <p className="text-muted-foreground text-xs uppercase tracking-wider mb-0.5">Orden</p>
+                <p className="text-muted-foreground">{objetivo.orden}</p>
               </div>
             )}
             <div>
-              <p className="text-gray-500 text-xs uppercase tracking-wider mb-0.5">Cumplimientos</p>
-              <p className="text-gray-300">{cumplimientos.length}</p>
+              <p className="text-muted-foreground text-xs uppercase tracking-wider mb-0.5">Cumplimientos</p>
+              <p className="text-muted-foreground">{cumplimientos.length}</p>
             </div>
           </div>
           {objetivo.notas && (
-            <div className="border-t border-gray-700 pt-4">
-              <p className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1">Notas</p>
-              <p className="text-gray-300 text-sm">{objetivo.notas}</p>
+            <div className="border-t border-border pt-4">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">Notas</p>
+              <p className="text-muted-foreground text-sm">{objetivo.notas}</p>
             </div>
           )}
         </div>
@@ -605,8 +605,8 @@ export function ObjetivoDetalle({
           (esEjecutivoOAprobador && !estadosTerminales.includes(objetivo.estado))
         if (!accionesDisponibles) return null
         return (
-      <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Acciones</h2>
+      <div className="bg-card/50 border border-border rounded-lg p-4">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Acciones</h2>
         <div className="flex flex-wrap gap-2">
 
           {/* Responsable: Asignado */}
@@ -729,9 +729,9 @@ export function ObjetivoDetalle({
 
       {/* Historia */}
       <div>
-        <h2 className="text-lg font-semibold text-white mb-3">Historia</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-3">Historia</h2>
         {historia.length === 0 ? (
-          <p className="text-gray-500 text-sm">Sin actividad registrada.</p>
+          <p className="text-muted-foreground text-sm">Sin actividad registrada.</p>
         ) : (
           <div className="space-y-2">
             {historia.map(item => {
@@ -798,7 +798,7 @@ export function ObjetivoDetalle({
       {/* Pedir Clarificación */}
       <Modal open={modalActivo === 'pedir_clarificacion'} onClose={() => setModalActivo(null)} title="Pedir Clarificación">
         <div className="space-y-4">
-          <p className="text-gray-400 text-sm">Describí qué necesitás clarificar sobre este objetivo.</p>
+          <p className="text-muted-foreground text-sm">Describí qué necesitás clarificar sobre este objetivo.</p>
           <Textarea
             label="Texto de clarificación"
             value={textoModal}
@@ -820,7 +820,7 @@ export function ObjetivoDetalle({
       {/* Responder Clarificación */}
       <Modal open={modalActivo === 'responder_clarificacion'} onClose={() => setModalActivo(null)} title="Responder Clarificación">
         <div className="space-y-4">
-          <p className="text-gray-400 text-sm">Escribí tu respuesta a la solicitud de clarificación.</p>
+          <p className="text-muted-foreground text-sm">Escribí tu respuesta a la solicitud de clarificación.</p>
           <Textarea
             label="Respuesta"
             value={textoModal}
@@ -842,7 +842,7 @@ export function ObjetivoDetalle({
       {/* Reportar Cumplimiento */}
       <Modal open={modalActivo === 'reportar_cumplimiento'} onClose={() => setModalActivo(null)} title="Reportar Cumplimiento">
         <div className="space-y-4">
-          <p className="text-gray-400 text-sm">Describí qué hiciste para cumplir este objetivo.</p>
+          <p className="text-muted-foreground text-sm">Describí qué hiciste para cumplir este objetivo.</p>
           <Textarea
             label="Descripción del cumplimiento"
             value={textoModal}
@@ -864,7 +864,7 @@ export function ObjetivoDetalle({
       {/* Rechazar Cumplimiento */}
       <Modal open={modalActivo === 'rechazar_cumplimiento'} onClose={() => setModalActivo(null)} title="Rechazar Cumplimiento">
         <div className="space-y-4">
-          <p className="text-gray-400 text-sm">Indicá el motivo del rechazo. El objetivo volverá a "En curso".</p>
+          <p className="text-muted-foreground text-sm">Indicá el motivo del rechazo. El objetivo volverá a "En curso".</p>
           <Textarea
             label="Motivo de rechazo"
             value={textoModal}
@@ -890,7 +890,7 @@ export function ObjetivoDetalle({
       {/* Rechazar Objetivo */}
       <Modal open={modalActivo === 'rechazar_objetivo'} onClose={() => setModalActivo(null)} title="Rechazar Objetivo">
         <div className="space-y-4">
-          <p className="text-gray-400 text-sm">Indicá el motivo por el cual rechazás este objetivo.</p>
+          <p className="text-muted-foreground text-sm">Indicá el motivo por el cual rechazás este objetivo.</p>
           <Textarea
             label="Motivo"
             value={textoModal}
@@ -913,7 +913,7 @@ export function ObjetivoDetalle({
       {/* Solicitar Modificación */}
       <Modal open={modalActivo === 'solicitar_modificacion'} onClose={() => setModalActivo(null)} title="Solicitar Modificación">
         <div className="space-y-4">
-          <p className="text-gray-400 text-sm">Indicá la justificación y la propuesta de cambio.</p>
+          <p className="text-muted-foreground text-sm">Indicá la justificación y la propuesta de cambio.</p>
           <Textarea
             label="Justificación"
             value={textoModal}
@@ -949,24 +949,24 @@ export function ObjetivoDetalle({
           {ultimaModSolicitada?.notas ? (() => {
             const { justificacion, propuesta } = parsearNotasModificacion(ultimaModSolicitada.notas)
             return (
-              <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 space-y-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Solicitud del responsable</p>
+              <div className="bg-background border border-border rounded-lg p-4 space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Solicitud del responsable</p>
                 {justificacion && (
                   <div>
-                    <p className="text-xs text-gray-500 mb-1">Justificación</p>
-                    <p className="text-sm text-gray-200">{justificacion}</p>
+                    <p className="text-xs text-muted-foreground mb-1">Justificación</p>
+                    <p className="text-sm text-foreground">{justificacion}</p>
                   </div>
                 )}
                 {propuesta && (
                   <div>
-                    <p className="text-xs text-gray-500 mb-1">Propuesta</p>
-                    <p className="text-sm text-gray-200 bg-purple-950/30 border border-purple-800/30 rounded p-2">{propuesta}</p>
+                    <p className="text-xs text-muted-foreground mb-1">Propuesta</p>
+                    <p className="text-sm text-foreground bg-purple-950/30 border border-purple-800/30 rounded p-2">{propuesta}</p>
                   </div>
                 )}
               </div>
             )
           })() : (
-            <p className="text-gray-400 text-sm">No se encontró la solicitud de modificación en el historial.</p>
+            <p className="text-muted-foreground text-sm">No se encontró la solicitud de modificación en el historial.</p>
           )}
 
           {/* Textarea con texto final editable */}
@@ -1035,7 +1035,7 @@ export function ObjetivoDetalle({
       {/* Declarar Incumplido */}
       <Modal open={modalActivo === 'declarar_incumplido'} onClose={() => setModalActivo(null)} title="Declarar Incumplido">
         <div className="space-y-4">
-          <p className="text-gray-400 text-sm">Indicá el motivo. Opcionalmente podés reasignar a otro responsable.</p>
+          <p className="text-muted-foreground text-sm">Indicá el motivo. Opcionalmente podés reasignar a otro responsable.</p>
           <Textarea
             label="Motivo"
             value={textoModal}
@@ -1075,7 +1075,7 @@ export function ObjetivoDetalle({
       {/* Cancelar Objetivo */}
       <Modal open={modalActivo === 'cancelar'} onClose={() => setModalActivo(null)} title="Cancelar Objetivo">
         <div className="space-y-4">
-          <p className="text-gray-400 text-sm">¿Estás seguro de que querés cancelar este objetivo? Esta acción no se puede deshacer.</p>
+          <p className="text-muted-foreground text-sm">¿Estás seguro de que querés cancelar este objetivo? Esta acción no se puede deshacer.</p>
           <Textarea
             label="Motivo"
             value={textoModal}
@@ -1099,8 +1099,8 @@ export function ObjetivoDetalle({
       <Modal open={modalActivo === 'ver_rechazo'} onClose={() => setModalActivo(null)} title="Rechazo del objetivo">
         <div className="space-y-5">
           {/* Motivo del responsable (solo lectura) */}
-          <div className="bg-gray-900 border border-orange-800/40 rounded-lg p-4 space-y-2">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+          <div className="bg-background border border-orange-800/40 rounded-lg p-4 space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Rechazo reportado por {objetivo.responsableId && usuariosMap[objetivo.responsableId]
                 ? usuariosMap[objetivo.responsableId].nombre
                 : 'el responsable'}
@@ -1108,7 +1108,7 @@ export function ObjetivoDetalle({
             {ultimoRechazo?.notas ? (
               <p className="text-sm text-orange-200">{ultimoRechazo.notas}</p>
             ) : (
-              <p className="text-sm text-gray-500">Sin motivo registrado.</p>
+              <p className="text-sm text-muted-foreground">Sin motivo registrado.</p>
             )}
           </div>
 
@@ -1146,7 +1146,7 @@ export function ObjetivoDetalle({
       {/* Desatorar */}
       <Modal open={modalActivo === 'desatorar'} onClose={() => setModalActivo(null)} title="Desatoramiento">
         <div className="space-y-4">
-          <p className="text-gray-400 text-sm">Identificá la causa del paro y definí la acción correctiva.</p>
+          <p className="text-muted-foreground text-sm">Identificá la causa del paro y definí la acción correctiva.</p>
           <Select
             label="Causa del desatoramiento"
             value={causeDesatoramiento}

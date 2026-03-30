@@ -138,11 +138,11 @@ export default function NuevoObjetivoPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Nuevo Objetivo</h1>
-        <p className="text-gray-400 text-sm mt-1">Todo objetivo debe ser terminable, realizable y completable</p>
+        <h1 className="text-2xl font-bold text-foreground">Nuevo Objetivo</h1>
+        <p className="text-muted-foreground text-sm mt-1">Todo objetivo debe ser terminable, realizable y completable</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-gray-800 border border-gray-700 rounded-lg p-6 space-y-5">
+      <form onSubmit={handleSubmit} className="bg-card border border-border rounded-lg p-6 space-y-5">
         <Input
           label="Nombre del Objetivo *"
           value={form.nombre}
@@ -152,7 +152,7 @@ export default function NuevoObjetivoPage() {
         />
 
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Descripción de Doingness *</label>
+          <label className="text-muted-foreground text-xs font-medium mb-1 block">Descripción de Doingness *</label>
           <textarea
             value={form.descripcionDoingness}
             onChange={e => {
@@ -161,7 +161,7 @@ export default function NuevoObjetivoPage() {
             }}
             rows={4}
             placeholder={"¿Cuándo está HECHO este objetivo?\nDescribí la acción concreta y terminable."}
-            className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            className="bg-transparent border border-input text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 rounded-md px-3 py-2 text-sm w-full"
           />
           {doignessError && (
             <p className="text-red-400 text-xs mt-1">{doignessError}</p>
@@ -172,7 +172,7 @@ export default function NuevoObjetivoPage() {
               {erroresGemini.map((err, i) => (
                 <div key={i}>
                   <p className="text-red-300 text-xs font-medium">{err.principio}</p>
-                  <p className="text-gray-400 text-xs">{err.descripcion}</p>
+                  <p className="text-muted-foreground text-xs">{err.descripcion}</p>
                 </div>
               ))}
             </div>
@@ -180,12 +180,12 @@ export default function NuevoObjetivoPage() {
           {sugerenciaGemini && (
             <div className="mt-2 p-3 bg-yellow-900/30 border border-yellow-700/50 rounded-md space-y-2">
               <p className="text-yellow-300 text-xs font-semibold">💡 Gemini sugiere una versión más precisa</p>
-              <p className="text-gray-400 text-xs">Editá libremente. Podés usar el original, la sugerencia, o combinar ambos.</p>
+              <p className="text-muted-foreground text-xs">Editá libremente. Podés usar el original, la sugerencia, o combinar ambos.</p>
               <textarea
                 value={textSugerencia}
                 onChange={e => setTextSugerencia(e.target.value)}
                 rows={6}
-                className="w-full bg-gray-700 border border-yellow-700/50 rounded-md px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-sm"
+                className="bg-transparent border border-yellow-700/50 text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 rounded-md px-3 py-2 text-sm w-full"
               />
               <div className="flex gap-2">
                 <button
@@ -205,7 +205,7 @@ export default function NuevoObjetivoPage() {
                     setSugerenciaGemini(null)
                     doSave(form.descripcionDoingness)
                   }}
-                  className="px-3 py-1.5 text-xs bg-gray-600 hover:bg-gray-500 text-gray-200 rounded-md transition-colors"
+                  className="px-3 py-1.5 text-xs bg-muted hover:bg-accent text-foreground rounded-md transition-colors"
                 >
                   Ignorar sugerencia
                 </button>
@@ -217,13 +217,13 @@ export default function NuevoObjetivoPage() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <label className="block text-sm font-medium text-gray-300">Tipo</label>
+              <label className="text-muted-foreground text-xs font-medium">Tipo</label>
               <Tooltip texto={TOOLTIP_TIPOS[form.tipo] ?? 'Seleccioná un tipo para ver su definición.'} />
             </div>
             <select
               value={form.tipo}
               onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}
-              className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              className="bg-transparent border border-input text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 rounded-md px-3 py-2 text-sm w-full"
             >
               <option>Primario</option>
               <option>Vital</option>
@@ -250,8 +250,8 @@ export default function NuevoObjetivoPage() {
         <div className="grid grid-cols-2 gap-4">
           {programaIdParam ? (
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Programa</label>
-              <div className="w-full bg-gray-700/50 border border-gray-600 rounded-md px-3 py-2 text-gray-400 text-sm">
+              <label className="text-muted-foreground text-xs font-medium mb-1 block">Programa</label>
+              <div className="w-full bg-muted/50 border border-border rounded-md px-3 py-2 text-muted-foreground text-sm">
                 {programas.find(p => p.id === programaIdParam)?.nombre ?? programaIdParam}
               </div>
             </div>
@@ -280,7 +280,7 @@ export default function NuevoObjetivoPage() {
               ))}
             </Select>
             {form.responsableId && form.responsableId !== userId && (
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Este objetivo se asignará en estado &apos;Asignado&apos;. El responsable deberá aceptarlo antes de poder iniciarlo.
               </p>
             )}
@@ -290,19 +290,19 @@ export default function NuevoObjetivoPage() {
         {usuarios.filter(u => u.rol === 'Ejecutivo').length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <label className="block text-sm font-medium text-gray-300">Aprobador (opcional)</label>
+              <label className="text-muted-foreground text-xs font-medium">Aprobador (opcional)</label>
             </div>
             <select
               value={form.aprobadorId}
               onChange={e => setForm(f => ({ ...f, aprobadorId: e.target.value }))}
-              className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              className="bg-transparent border border-input text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 rounded-md px-3 py-2 text-sm w-full"
             >
               <option value="">Sin asignar (usa el del programa)</option>
               {usuarios.filter(u => u.rol === 'Ejecutivo').map(u => (
                 <option key={u.id} value={u.id}>{u.nombre}</option>
               ))}
             </select>
-            <p className="text-xs text-gray-500 mt-1">Si no se asigna, se usa el aprobador del programa.</p>
+            <p className="text-xs text-muted-foreground mt-1">Si no se asigna, se usa el aprobador del programa.</p>
           </div>
         )}
 
@@ -328,9 +328,9 @@ export default function NuevoObjetivoPage() {
             id="esRepetible"
             checked={form.esRepetible}
             onChange={e => setForm(f => ({ ...f, esRepetible: e.target.checked }))}
-            className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
+            className="w-4 h-4 rounded border-border bg-card text-blue-600 focus-visible:ring-2"
           />
-          <label htmlFor="esRepetible" className="text-sm text-gray-300">
+          <label htmlFor="esRepetible" className="text-sm text-muted-foreground">
             Es Repetible (al cumplirse vuelve a Pendiente)
           </label>
         </div>

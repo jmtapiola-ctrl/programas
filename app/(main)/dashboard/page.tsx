@@ -3,16 +3,17 @@ import { authOptions } from '@/lib/auth'
 import { getProgramas, getObjetivos, getObjetivosByResponsable, getPlanesDB, getUsuariosByIds } from '@/lib/airtable'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/Badge'
+
 import { AprobacionesSection } from '@/components/dashboard/AprobacionesSection'
 import { isVencido, getAprobadorEfectivo, sortObjetivos, puedeVerTodo, puedeCrearProgramas } from '@/lib/types'
 import type { Objetivo, Programa, EstadoObjetivo } from '@/lib/types'
 
 function StatCard({ label, value, sub, href }: { label: string; value: number | string; sub?: string; href?: string }) {
   const inner = (
-    <div className="bg-gray-800 border border-gray-700 rounded-lg p-5 hover:border-gray-600 transition-colors">
-      <p className="text-gray-400 text-sm">{label}</p>
-      <p className="text-3xl font-bold text-white mt-1">{value}</p>
-      {sub && <p className="text-gray-500 text-xs mt-1">{sub}</p>}
+    <div className="bg-card border border-border rounded-lg p-5 hover:border-border/80 transition-colors">
+      <p className="text-muted-foreground text-sm">{label}</p>
+      <p className="text-3xl font-bold text-foreground mt-1">{value}</p>
+      {sub && <p className="text-muted-foreground text-xs mt-1">{sub}</p>}
     </div>
   )
   if (href) return <Link href={href}>{inner}</Link>
@@ -56,22 +57,22 @@ export default async function DashboardPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-          <p className="text-gray-400 text-sm mt-1">Bienvenido, {session?.user?.name}</p>
+          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+          <p className="text-muted-foreground text-sm mt-1">Bienvenido, {session?.user?.name}</p>
         </div>
 
         {/* PB de hoy */}
         {pbHoy ? (
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">
-            <h2 className="font-semibold text-gray-100 mb-3">Tu Plan de Batalla de hoy</h2>
+          <div className="bg-card border border-border rounded-lg p-5">
+            <h2 className="font-semibold text-foreground mb-3">Tu Plan de Batalla de hoy</h2>
             <Link
               href={`/plan-de-batalla/${pbHoy.id}`}
               className="flex items-center justify-between py-2 hover:text-blue-400 transition-colors"
             >
-              <span className="text-gray-200 font-medium">{pbHoy.titulo}</span>
+              <span className="text-foreground font-medium">{pbHoy.titulo}</span>
               <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                 <Badge estadoPB={pbHoy.estado} />
-                <span className="text-gray-500 text-sm">{pbHoy.objetivosIncluidosIds.length} obj.</span>
+                <span className="text-muted-foreground text-sm">{pbHoy.objetivosIncluidosIds.length} obj.</span>
               </div>
             </Link>
           </div>
@@ -80,7 +81,7 @@ export default async function DashboardPage() {
             <p className="text-blue-300 font-medium mb-3">No tenés un Plan de Batalla para hoy</p>
             <Link
               href="/plan-de-batalla/nuevo"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-foreground rounded-md text-sm font-medium transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -91,28 +92,28 @@ export default async function DashboardPage() {
         )}
 
         {/* Mis objetivos activos */}
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">
+        <div className="bg-card border border-border rounded-lg p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-100">Mis Objetivos Activos</h2>
-            <span className="text-sm text-gray-400">{misActivos.length} objetivos</span>
+            <h2 className="font-semibold text-foreground">Mis Objetivos Activos</h2>
+            <span className="text-sm text-muted-foreground">{misActivos.length} objetivos</span>
           </div>
           {misActivos.length === 0 ? (
-            <p className="text-gray-500 text-sm">Sin objetivos activos asignados.</p>
+            <p className="text-muted-foreground text-sm">Sin objetivos activos asignados.</p>
           ) : (
             <div className="space-y-2">
               {misActivos.slice(0, 10).map(o => (
-                <Link key={o.id} href={`/objetivos/${o.id}`} className="flex items-center justify-between py-2 border-b border-gray-700 last:border-0 hover:text-blue-400 transition-colors">
-                  <span className="text-sm text-gray-200 line-clamp-1 flex-1 mr-2">{o.nombre}</span>
+                <Link key={o.id} href={`/objetivos/${o.id}`} className="flex items-center justify-between py-2 border-b border-border last:border-0 hover:text-blue-400 transition-colors">
+                  <span className="text-sm text-foreground line-clamp-1 flex-1 mr-2">{o.nombre}</span>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     <Badge tipo={o.tipo} />
                     <Badge estadoObjetivo={o.estado} />
                     {isVencido(o) && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-600 text-white">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-600 text-foreground">
                         Vencido
                       </span>
                     )}
                     {o.fechaLimite && (
-                      <span className="text-xs text-gray-500">{o.fechaLimite}</span>
+                      <span className="text-xs text-muted-foreground">{o.fechaLimite}</span>
                     )}
                   </div>
                 </Link>
@@ -191,8 +192,8 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-        <p className="text-gray-400 text-sm mt-1">Bienvenido, {session?.user?.name}</p>
+        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+        <p className="text-muted-foreground text-sm mt-1">Bienvenido, {session?.user?.name}</p>
       </div>
 
       {/* Alerta críticos */}
@@ -245,15 +246,15 @@ export default async function DashboardPage() {
 
       {/* Pendientes de mi aprobación */}
       {pendientesAprobacion.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">
-          <h2 className="font-semibold text-gray-100 mb-3">Pendientes de mi aprobación</h2>
+        <div className="bg-card border border-border rounded-lg p-5">
+          <h2 className="font-semibold text-foreground mb-3">Pendientes de mi aprobación</h2>
           <div className="space-y-2">
             {pendientesAprobacion.slice(0, 8).map(o => (
-              <Link key={o.id} href={`/objetivos/${o.id}`} className="flex items-center justify-between py-2 border-b border-gray-700 last:border-0 hover:text-blue-400 transition-colors">
+              <Link key={o.id} href={`/objetivos/${o.id}`} className="flex items-center justify-between py-2 border-b border-border last:border-0 hover:text-blue-400 transition-colors">
                 <div className="flex-1 min-w-0">
-                  <span className="text-sm text-gray-200 line-clamp-1">{o.nombre}</span>
+                  <span className="text-sm text-foreground line-clamp-1">{o.nombre}</span>
                   {usuariosMap[o.responsableId] && (
-                    <span className="text-xs text-gray-500 block">{usuariosMap[o.responsableId].nombre}</span>
+                    <span className="text-xs text-muted-foreground block">{usuariosMap[o.responsableId].nombre}</span>
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
@@ -268,8 +269,8 @@ export default async function DashboardPage() {
 
       {/* Programas en riesgo */}
       {programasEnRiesgo.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">
-          <h2 className="font-semibold text-gray-100 mb-3 flex items-center gap-2">
+        <div className="bg-card border border-border rounded-lg p-5">
+          <h2 className="font-semibold text-foreground mb-3 flex items-center gap-2">
             <svg className="w-4 h-4 text-orange-400" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
             </svg>
@@ -283,8 +284,8 @@ export default async function DashboardPage() {
                 (estadosProblema.includes(o.estado) || isVencido(o))
               )
               return (
-                <Link key={p.id} href={`/programas/${p.id}`} className="flex items-center justify-between py-2 border-b border-gray-700 last:border-0 hover:text-blue-400 transition-colors">
-                  <span className="text-sm text-gray-200">{p.nombre}</span>
+                <Link key={p.id} href={`/programas/${p.id}`} className="flex items-center justify-between py-2 border-b border-border last:border-0 hover:text-blue-400 transition-colors">
+                  <span className="text-sm text-foreground">{p.nombre}</span>
                   <span className="text-xs text-orange-400 flex-shrink-0 ml-2">{objProblema.length} problema{objProblema.length !== 1 ? 's' : ''}</span>
                 </Link>
               )
@@ -295,20 +296,20 @@ export default async function DashboardPage() {
 
       {/* Próximos a vencer */}
       {proximosVencer.length > 0 && (
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">
-          <h2 className="font-semibold text-gray-100 mb-3">Próximos a vencer (7 días)</h2>
+        <div className="bg-card border border-border rounded-lg p-5">
+          <h2 className="font-semibold text-foreground mb-3">Próximos a vencer (7 días)</h2>
           <div className="space-y-2">
             {proximosVencer.map(o => (
-              <Link key={o.id} href={`/objetivos/${o.id}`} className="flex items-center justify-between py-2 border-b border-gray-700 last:border-0 hover:text-blue-400 transition-colors">
+              <Link key={o.id} href={`/objetivos/${o.id}`} className="flex items-center justify-between py-2 border-b border-border last:border-0 hover:text-blue-400 transition-colors">
                 <div className="flex-1 min-w-0">
-                  <span className="text-sm text-gray-200 line-clamp-1">{o.nombre}</span>
+                  <span className="text-sm text-foreground line-clamp-1">{o.nombre}</span>
                   {usuariosMap[o.responsableId] && (
-                    <span className="text-xs text-gray-500 block">{usuariosMap[o.responsableId].nombre}</span>
+                    <span className="text-xs text-muted-foreground block">{usuariosMap[o.responsableId].nombre}</span>
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
                   <Badge estadoObjetivo={o.estado} />
-                  <span className="text-xs text-gray-400">{o.fechaLimite}</span>
+                  <span className="text-xs text-muted-foreground">{o.fechaLimite}</span>
                 </div>
               </Link>
             ))}
@@ -318,18 +319,18 @@ export default async function DashboardPage() {
 
       {/* Programas activos */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">
+        <div className="bg-card border border-border rounded-lg p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-100">Programas Activos</h2>
+            <h2 className="font-semibold text-foreground">Programas Activos</h2>
             <Link href="/programas" className="text-sm text-blue-400 hover:text-blue-300">Ver todos</Link>
           </div>
           {programasActivos.length === 0 ? (
-            <p className="text-gray-500 text-sm">Sin programas activos.</p>
+            <p className="text-muted-foreground text-sm">Sin programas activos.</p>
           ) : (
             <div className="space-y-2">
               {programasActivos.slice(0, 5).map(p => (
-                <Link key={p.id} href={`/programas/${p.id}`} className="flex items-center justify-between py-2 border-b border-gray-700 last:border-0 hover:text-blue-400 transition-colors">
-                  <span className="text-sm text-gray-200">{p.nombre}</span>
+                <Link key={p.id} href={`/programas/${p.id}`} className="flex items-center justify-between py-2 border-b border-border last:border-0 hover:text-blue-400 transition-colors">
+                  <span className="text-sm text-foreground">{p.nombre}</span>
                   <Badge estadoPrograma={p.estado} />
                 </Link>
               ))}
@@ -345,22 +346,22 @@ export default async function DashboardPage() {
           )}
         </div>
 
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">
+        <div className="bg-card border border-border rounded-lg p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-100">Objetivos En Curso</h2>
+            <h2 className="font-semibold text-foreground">Objetivos En Curso</h2>
             <Link href="/plan-de-batalla" className="text-sm text-blue-400 hover:text-blue-300">Plan de batalla</Link>
           </div>
           {objetivosEnCurso.length === 0 ? (
-            <p className="text-gray-500 text-sm">Sin objetivos en curso.</p>
+            <p className="text-muted-foreground text-sm">Sin objetivos en curso.</p>
           ) : (
             <div className="space-y-2">
               {objetivosEnCurso.slice(0, 5).map(o => (
-                <Link key={o.id} href={`/objetivos/${o.id}`} className="flex items-center justify-between py-2 border-b border-gray-700 last:border-0 hover:text-blue-400 transition-colors">
-                  <span className="text-sm text-gray-200 line-clamp-1 flex-1 mr-2">{o.nombre}</span>
+                <Link key={o.id} href={`/objetivos/${o.id}`} className="flex items-center justify-between py-2 border-b border-border last:border-0 hover:text-blue-400 transition-colors">
+                  <span className="text-sm text-foreground line-clamp-1 flex-1 mr-2">{o.nombre}</span>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     <Badge tipo={o.tipo} />
                     {isVencido(o) && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-600 text-white">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-600 text-foreground">
                         Vencido
                       </span>
                     )}

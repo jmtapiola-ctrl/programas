@@ -75,11 +75,11 @@ export default function NuevoProgramaPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Nuevo Programa</h1>
-        <p className="text-gray-400 text-sm mt-1">Creá un nuevo programa de objetivos</p>
+        <h1 className="text-2xl font-bold text-foreground">Nuevo Programa</h1>
+        <p className="text-muted-foreground text-sm mt-1">Creá un nuevo programa de objetivos</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-gray-800 border border-gray-700 rounded-lg p-6 space-y-5">
+      <form onSubmit={handleSubmit} className="bg-card border border-border rounded-lg p-6 space-y-5">
         <Input
           label="Nombre del Programa *"
           value={form.nombre}
@@ -90,7 +90,7 @@ export default function NuevoProgramaPage() {
 
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <label className="block text-sm font-medium text-gray-300">Situación</label>
+            <label className="text-muted-foreground text-xs font-medium">Situación</label>
             <Tooltip texto="El programa debe manejar situaciones verdaderas: las situaciones que reducen la producción y la prosperidad." />
           </div>
           <textarea
@@ -98,13 +98,13 @@ export default function NuevoProgramaPage() {
             onChange={e => setForm(f => ({ ...f, situacion: e.target.value }))}
             rows={3}
             placeholder="¿Qué situación real justifica este programa? ¿Qué problema concreto resuelve?"
-            className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            className="bg-transparent border border-input text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 rounded-md px-3 py-2 text-sm w-full"
           />
         </div>
 
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <label className="block text-sm font-medium text-gray-300">Propósito</label>
+            <label className="text-muted-foreground text-xs font-medium">Propósito</label>
             <Tooltip texto="Los propósitos tienen que ejecutarse. Son algo que HACER." />
           </div>
           <textarea
@@ -112,14 +112,14 @@ export default function NuevoProgramaPage() {
             onChange={e => setForm(f => ({ ...f, proposito: e.target.value }))}
             rows={3}
             placeholder="Los propósitos tienen que ejecutarse. Son algo que HACER."
-            className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            className="bg-transparent border border-input text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 rounded-md px-3 py-2 text-sm w-full"
           />
-          <p className="text-xs text-gray-500 mt-1">Los propósitos tienen que ejecutarse. Son algo que HACER.</p>
+          <p className="text-xs text-muted-foreground mt-1">Los propósitos tienen que ejecutarse. Son algo que HACER.</p>
         </div>
 
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <label className="block text-sm font-medium text-gray-300">Objetivo Mayor</label>
+            <label className="text-muted-foreground text-xs font-medium">Objetivo Mayor</label>
             <Tooltip texto={'El propósito general deseable que se acomete. Esto es muy general, como "llegar a ser auditor".'} />
           </div>
           <textarea
@@ -127,7 +127,7 @@ export default function NuevoProgramaPage() {
             onChange={e => setForm(f => ({ ...f, objetivoMayor: e.target.value }))}
             rows={3}
             placeholder="El gran objetivo que este programa debe lograr..."
-            className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            className="bg-transparent border border-input text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 rounded-md px-3 py-2 text-sm w-full"
           />
         </div>
 
@@ -164,20 +164,20 @@ export default function NuevoProgramaPage() {
 
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <label className="block text-sm font-medium text-gray-300">Aprobador</label>
+            <label className="text-muted-foreground text-xs font-medium">Aprobador</label>
             <Tooltip texto="Usuario que aprueba los cumplimientos de los objetivos de este programa." />
           </div>
           <select
             value={form.aprobadorId}
             onChange={e => setForm(f => ({ ...f, aprobadorId: e.target.value }))}
-            className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            className="bg-transparent border border-input text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 rounded-md px-3 py-2 text-sm w-full"
           >
             <option value="">Sin asignar</option>
             {usuarios.filter(u => u.rol === 'Ejecutivo').map(u => (
               <option key={u.id} value={u.id}>{u.nombre}</option>
             ))}
           </select>
-          <p className="text-xs text-gray-500 mt-1">Usuario que aprueba los cumplimientos de los objetivos de este programa.</p>
+          <p className="text-xs text-muted-foreground mt-1">Usuario que aprueba los cumplimientos de los objetivos de este programa.</p>
         </div>
 
         <div className="grid grid-cols-2 gap-4">

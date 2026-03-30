@@ -29,14 +29,14 @@ export default async function PlanesDBPage() {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-white">Planes de Batalla</h1>
+            <h1 className="text-2xl font-bold text-foreground">Planes de Batalla</h1>
             <Tooltip texto="Una lista de objetivos para el día o la semana siguiente, que ayudan al avance de la planificación estratégica, y se ocupan de las acciones inmediatas y de los puntos fuera que la estorban." />
           </div>
-          <p className="text-gray-400 text-sm mt-1">{planes.length} plan{planes.length !== 1 ? 'es' : ''}</p>
+          <p className="text-muted-foreground text-sm mt-1">{planes.length} plan{planes.length !== 1 ? 'es' : ''}</p>
         </div>
         <Link
           href="/plan-de-batalla/nuevo"
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-foreground rounded-md text-sm font-medium transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -46,7 +46,7 @@ export default async function PlanesDBPage() {
       </div>
 
       {planes.length === 0 ? (
-        <div className="text-center py-16 text-gray-500">
+        <div className="text-center py-16 text-muted-foreground">
           <svg className="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
@@ -60,19 +60,19 @@ export default async function PlanesDBPage() {
               <Link
                 key={pb.id}
                 href={`/plan-de-batalla/${pb.id}`}
-                className="flex items-center justify-between bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-lg p-4 transition-all"
+                className="flex items-center justify-between bg-card border border-border hover:border-border/80 rounded-lg p-4 transition-all"
               >
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <Badge estadoPB={pb.estado} />
-                    <span className="text-xs text-gray-500">{pb.periodo} · {pb.fecha ?? '—'}</span>
+                    <span className="text-xs text-muted-foreground">{pb.periodo} · {pb.fecha ?? '—'}</span>
                   </div>
-                  <p className="text-gray-100 font-medium">{pb.titulo}</p>
+                  <p className="text-foreground font-medium">{pb.titulo}</p>
                   {responsables.length > 0 && (
-                    <p className="text-gray-400 text-xs mt-0.5">{responsables.map((r: any) => r.nombre).join(', ')}</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">{responsables.map((r: any) => r.nombre).join(', ')}</p>
                   )}
                 </div>
-                <div className="text-gray-500 text-sm flex-shrink-0">
+                <div className="text-muted-foreground text-sm flex-shrink-0">
                   {pb.objetivosIncluidosIds.length} obj.
                 </div>
               </Link>

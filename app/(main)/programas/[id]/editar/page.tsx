@@ -122,24 +122,24 @@ export default function EditarProgramaPage({ params }: { params: Promise<{ id: s
   }
 
   if (loadingData) {
-    return <div className="text-gray-400 py-8">Cargando...</div>
+    return <div className="text-muted-foreground py-8">Cargando...</div>
   }
 
   return (
     <div className="max-w-2xl space-y-6">
-      <nav className="text-sm text-gray-500 flex items-center gap-2">
-        <Link href="/programas" className="hover:text-gray-300">Programas</Link>
+      <nav className="text-sm text-muted-foreground flex items-center gap-2">
+        <Link href="/programas" className="hover:text-foreground">Programas</Link>
         <span>/</span>
-        <Link href={`/programas/${id}`} className="hover:text-gray-300">{form.nombre || id}</Link>
+        <Link href={`/programas/${id}`} className="hover:text-foreground">{form.nombre || id}</Link>
         <span>/</span>
-        <span className="text-gray-300">Editar</span>
+        <span className="text-foreground">Editar</span>
       </nav>
 
       <div>
-        <h1 className="text-2xl font-bold text-white">Editar Programa</h1>
+        <h1 className="text-2xl font-bold text-foreground">Editar Programa</h1>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-gray-800 border border-gray-700 rounded-lg p-6 space-y-5">
+      <form onSubmit={handleSubmit} className="bg-card border border-border rounded-lg p-6 space-y-5">
         <Input
           label="Nombre del Programa *"
           value={form.nombre}
@@ -150,7 +150,7 @@ export default function EditarProgramaPage({ params }: { params: Promise<{ id: s
 
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <label className="block text-sm font-medium text-gray-300">Situación</label>
+            <label className="text-muted-foreground text-xs font-medium">Situación</label>
             <Tooltip texto="El programa debe manejar situaciones verdaderas: las situaciones que reducen la producción y la prosperidad." />
           </div>
           <textarea
@@ -158,13 +158,13 @@ export default function EditarProgramaPage({ params }: { params: Promise<{ id: s
             onChange={e => setForm(f => ({ ...f, situacion: e.target.value }))}
             rows={3}
             placeholder="¿Qué situación real justifica este programa? ¿Qué problema concreto resuelve?"
-            className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            className="bg-transparent border border-input text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 rounded-md px-3 py-2 text-sm w-full"
           />
         </div>
 
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <label className="block text-sm font-medium text-gray-300">Propósito</label>
+            <label className="text-muted-foreground text-xs font-medium">Propósito</label>
             <Tooltip texto="Los propósitos tienen que ejecutarse. Son algo que HACER." />
           </div>
           <textarea
@@ -175,14 +175,14 @@ export default function EditarProgramaPage({ params }: { params: Promise<{ id: s
             }}
             rows={3}
             placeholder="Los propósitos tienen que ejecutarse. Son algo que HACER."
-            className={`w-full bg-gray-700 border rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm ${propositoError ? 'border-red-500' : 'border-gray-600'}`}
+            className={`bg-transparent border text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 rounded-md px-3 py-2 text-sm w-full ${propositoError ? 'border-red-500' : 'border-input'}`}
           />
           {propositoError && <p className="text-red-400 text-xs mt-1">{propositoError}</p>}
         </div>
 
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <label className="block text-sm font-medium text-gray-300">Objetivo Mayor</label>
+            <label className="text-muted-foreground text-xs font-medium">Objetivo Mayor</label>
             <Tooltip texto={'El propósito general deseable que se acomete. Esto es muy general, como "llegar a ser auditor".'} />
           </div>
           <textarea
@@ -190,7 +190,7 @@ export default function EditarProgramaPage({ params }: { params: Promise<{ id: s
             onChange={e => setForm(f => ({ ...f, objetivoMayor: e.target.value }))}
             rows={3}
             placeholder="El gran objetivo que este programa debe lograr..."
-            className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            className="bg-transparent border border-input text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 rounded-md px-3 py-2 text-sm w-full"
           />
         </div>
 
@@ -243,13 +243,13 @@ export default function EditarProgramaPage({ params }: { params: Promise<{ id: s
 
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <label className="block text-sm font-medium text-gray-300">Aprobador</label>
+            <label className="text-muted-foreground text-xs font-medium">Aprobador</label>
             <Tooltip texto="Usuario que aprueba los cumplimientos de los objetivos de este programa." />
           </div>
           <select
             value={form.aprobadorId}
             onChange={e => setForm(f => ({ ...f, aprobadorId: e.target.value }))}
-            className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            className="bg-transparent border border-input text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 rounded-md px-3 py-2 text-sm w-full"
           >
             <option value="">Sin asignar</option>
             {usuarios.filter(u => u.rol === 'Ejecutivo').map(u => (
