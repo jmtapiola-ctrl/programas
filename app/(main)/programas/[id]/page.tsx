@@ -5,11 +5,9 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/Badge'
 import { Tooltip } from '@/components/ui/Tooltip'
-import { ObjetivoCard } from '@/components/objetivos/ObjetivoCard'
+import { ObjetivosOrdenables } from '@/components/programas/ObjetivosOrdenables'
 import { sortObjetivos, puedeVerTodo, esOficialDelPrograma } from '@/lib/types'
-import type { TipoObjetivo, Usuario, Rol } from '@/lib/types'
-
-const TIPO_GRUPOS: TipoObjetivo[] = ['Condicional', 'Primario', 'Vital', 'Operativo', 'Producción', 'Mayor']
+import type { Usuario, Rol } from '@/lib/types'
 const ESTADOS_PROBLEMA = ['Incumplido', 'Rechazado', 'Modificación solicitada'] as const
 
 export default async function ProgramaDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -213,31 +211,7 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
       </div>
 
       {/* Objetivos por tipo */}
-      {TIPO_GRUPOS.map(tipo => {
-        const grupo = sortedObjetivos.filter(o => o.tipo === tipo)
-        if (grupo.length === 0) return null
-        return (
-          <div key={tipo}>
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-              <Badge tipo={tipo} />
-              <span>({grupo.length})</span>
-            </h2>
-            <div className="space-y-2">
-              {grupo.map(obj => (
-                <ObjetivoCard
-                  key={obj.id}
-                  objetivo={obj}
-                  responsable={usuariosMap[obj.responsableId]}
-                  cumplimientosRecientes={0}
-                  showTipo={false}
-                />
-              ))}
-            </div>
-          </div>
-        )
-      })}
-
-      {objetivos.length === 0 && (
+      {objetivos.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <p>Este programa no tiene objetivos aún.</p>
           {puedeAgregarObjetivo && (
@@ -246,6 +220,12 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
             </Link>
           )}
         </div>
+      ) : (
+        <ObjetivosOrdenables
+          objetivosIniciales={sortedObjetivos}
+          usuariosMap={usuariosMap}
+          puedeReordenar={isEjecutivo || esOficial}
+        />
       )}
     </div>
   )

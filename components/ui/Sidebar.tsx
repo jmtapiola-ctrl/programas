@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import {
   LayoutDashboard,
+  Inbox,
   ClipboardList,
   Swords,
   BarChart2,
@@ -24,11 +25,13 @@ function NavItem({
   label,
   icon: Icon,
   active,
+  badge,
 }: {
   href: string
   label: string
   icon: React.ElementType
   active: boolean
+  badge?: number
 }) {
   return (
     <Link
@@ -41,12 +44,17 @@ function NavItem({
       )}
     >
       <Icon className="h-4 w-4 flex-shrink-0" strokeWidth={1.75} />
-      {label}
+      <span className="flex-1">{label}</span>
+      {badge != null && badge > 0 && (
+        <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
     </Link>
   )
 }
 
-export function Sidebar() {
+export function Sidebar({ inboxCount = 0 }: { inboxCount?: number }) {
   const pathname = usePathname()
   const { data: session } = useSession()
   const role = (session?.user as any)?.role as string | undefined
@@ -80,6 +88,13 @@ export function Sidebar() {
             active={isActive(href, exact)}
           />
         ))}
+        <NavItem
+          href="/inbox"
+          label="Inbox"
+          icon={Inbox}
+          active={isActive('/inbox')}
+          badge={inboxCount}
+        />
 
         {puedeVerInformes && (
           <NavItem

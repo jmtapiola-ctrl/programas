@@ -398,6 +398,44 @@ export async function getLogObjetivo(objetivoId: string): Promise<LogEvento[]> {
   return records.map(mapLogEvento).filter(e => e.objetivoIds.includes(objetivoId))
 }
 
+export async function getAllLogEventos(): Promise<LogEvento[]> {
+  const params = 'sort[0][field]=fld2MTbzWmFkLoohR&sort[0][direction]=desc'
+  const records = await fetchAll(TABLA_LOG, params)
+  return records.map(mapLogEvento)
+}
+
+// Simplified count for badge (no log event check — state-based only)
+export async function getInboxCount(usuarioId: string, rol: string): Promise<number> {
+  const objetivos = await getObjetivos()
+  const rolNorm = rol.toLowerCase()
+
+  if (rolNorm === 'operador' || rolNorm === 'staff') {
+    return objetivos.filter(
+      (o) => o.responsableId === usuarioId && o.estado === 'Asignado'
+    ).length
+  }
+
+  if (rolNorm === 'ejecutivo') {
+    const relevantes = ['Completado pendiente', 'Modificación solicitada', 'Rechazado']
+    return objetivos.filter(
+      (o) => relevantes.includes(o.estado) && o.aprobadorId === usuarioId
+    ).length
+  }
+
+  if (rolNorm === 'program manager') {
+    const programasConProblemas = new Set<string>()
+    for (const obj of objetivos) {
+      if ((obj.tipo === 'Primario' || obj.tipo === 'Vital') && obj.estado === 'Incumplido') {
+        const progId = obj.programaIds[0]
+        if (progId) programasConProblemas.add(progId)
+      }
+    }
+    return programasConProblemas.size
+  }
+
+  return 0
+}
+
 export async function crearLogEvento({
   objetivoId,
   tipoEvento,
