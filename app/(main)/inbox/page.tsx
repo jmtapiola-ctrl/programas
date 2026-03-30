@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   MessageCircle,
   MessageSquare,
+  MessageCircleCheck,
   GitBranch,
   XCircle,
   RotateCcw,
@@ -19,9 +20,12 @@ import type { InboxItem } from '@/lib/inbox'
 const TIPO_ICON: Record<InboxItem['tipo'], React.ElementType> = {
   asignacion_pendiente: UserCheck,
   cumplimiento_pendiente: CheckCircle2,
+  cumplimiento_rechazado: XCircle,
   clarificacion_solicitada: MessageCircle,
-  clarificacion_respondida: MessageSquare,
+  clarificacion_respondida: MessageCircleCheck,
   modificacion_pendiente: GitBranch,
+  modificacion_rechazada: GitBranch,
+  modificacion_aprobada: GitBranch,
   rechazo_pendiente: XCircle,
   rechazo_rechazado: RotateCcw,
   primario_caido: AlertTriangle,
@@ -32,14 +36,33 @@ const TIPO_ICON: Record<InboxItem['tipo'], React.ElementType> = {
 const TIPO_LABEL: Record<InboxItem['tipo'], string> = {
   asignacion_pendiente: 'Asignación pendiente',
   cumplimiento_pendiente: 'Cumplimiento pendiente',
+  cumplimiento_rechazado: 'Cumplimiento rechazado',
   clarificacion_solicitada: 'Clarificación solicitada',
   clarificacion_respondida: 'Clarificación respondida',
   modificacion_pendiente: 'Modificación pendiente',
+  modificacion_rechazada: 'Modificación rechazada',
+  modificacion_aprobada: 'Modificación aprobada',
   rechazo_pendiente: 'Rechazo pendiente',
   rechazo_rechazado: 'Rechazo rechazado',
   primario_caido: 'Primario caído',
   vencido: 'Vencido',
   sin_movimiento: 'Sin movimiento',
+}
+
+const TIPO_COLOR_ICON: Record<InboxItem['tipo'], string> = {
+  asignacion_pendiente: 'text-red-400',
+  cumplimiento_pendiente: 'text-yellow-400',
+  cumplimiento_rechazado: 'text-red-400',
+  clarificacion_solicitada: 'text-red-400',
+  clarificacion_respondida: 'text-blue-400',
+  modificacion_pendiente: 'text-yellow-400',
+  modificacion_rechazada: 'text-red-400',
+  modificacion_aprobada: 'text-green-400',
+  rechazo_pendiente: 'text-red-400',
+  rechazo_rechazado: 'text-orange-400',
+  primario_caido: 'text-yellow-400',
+  vencido: 'text-muted-foreground',
+  sin_movimiento: 'text-muted-foreground',
 }
 
 const TIPO_COLOR: Record<InboxItem['prioridad'], string> = {
@@ -60,16 +83,17 @@ function formatFecha(fecha?: string): string {
 
 function InboxCard({ item }: { item: InboxItem }) {
   const Icon = TIPO_ICON[item.tipo]
-  const color = TIPO_COLOR[item.prioridad]
+  const iconColor = TIPO_COLOR_ICON[item.tipo]
+  const labelColor = TIPO_COLOR[item.prioridad]
 
   return (
     <div className="bg-card border border-border rounded-lg p-4 hover:border-border/80 transition-colors">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 min-w-0">
-          <Icon className={`h-4 w-4 flex-shrink-0 mt-0.5 ${color}`} strokeWidth={1.75} />
+          <Icon className={`h-4 w-4 flex-shrink-0 mt-0.5 ${iconColor}`} strokeWidth={1.75} />
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-0.5">
-              <span className={`text-[11px] font-semibold uppercase tracking-wider ${color}`}>
+              <span className={`text-[11px] font-semibold uppercase tracking-wider ${labelColor}`}>
                 {TIPO_LABEL[item.tipo]}
               </span>
             </div>

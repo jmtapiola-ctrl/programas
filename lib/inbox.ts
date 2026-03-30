@@ -6,9 +6,12 @@ export interface InboxItem {
   id: string
   tipo:
     | 'cumplimiento_pendiente'
+    | 'cumplimiento_rechazado'
     | 'clarificacion_solicitada'
     | 'clarificacion_respondida'
     | 'modificacion_pendiente'
+    | 'modificacion_rechazada'
+    | 'modificacion_aprobada'
     | 'rechazo_pendiente'
     | 'asignacion_pendiente'
     | 'rechazo_rechazado'
@@ -99,33 +102,6 @@ export async function calcularInbox(
         })
       }
 
-      if (ultimoLog?.tipoEvento === 'Clarificación Respondida') {
-        items.push({
-          id: `${obj.id}_clarificacion_respondida`,
-          tipo: 'clarificacion_respondida',
-          prioridad: 'media',
-          objetivoId: obj.id,
-          objetivoNombre: obj.nombre,
-          programaNombre: progNombre,
-          descripcion: 'El ejecutivo respondió tu solicitud de clarificación.',
-          fechaEvento: ultimoLog.fechaYHora,
-          accionUrl: `/objetivos/${obj.id}`,
-        })
-      }
-
-      if (ultimoLog?.tipoEvento === 'Rechazo Rechazado') {
-        items.push({
-          id: `${obj.id}_rechazo_rechazado`,
-          tipo: 'rechazo_rechazado',
-          prioridad: 'media',
-          objetivoId: obj.id,
-          objetivoNombre: obj.nombre,
-          programaNombre: progNombre,
-          descripcion: 'El ejecutivo rechazó tu rechazo. Revisá el objetivo.',
-          fechaEvento: ultimoLog.fechaYHora,
-          accionUrl: `/objetivos/${obj.id}`,
-        })
-      }
     }
   }
 
@@ -310,6 +286,113 @@ export async function calcularInbox(
             }
           }
         }
+      }
+    }
+  }
+
+  // ─── EVENTOS QUE LE LLEGAN AL RESPONSABLE (todos los roles) ──────────────────
+  const estadosTerminales = ['Completado', 'Cancelado', 'Incumplido']
+  for (const obj of objetivos) {
+    if (obj.responsableId !== userId) continue
+    if (estadosTerminales.includes(obj.estado)) continue
+
+    const logs = logPorObjetivo[obj.id] ?? []
+    const ultimoLog = logs[0]
+    if (!ultimoLog) continue
+
+    const progNombre = getProgramaNombre(obj)
+    const fechaEvt = ultimoLog.fechaYHora
+
+    // 1. Cumplimiento rechazado por el aprobador
+    if (ultimoLog.tipoEvento === 'Cumplimiento Rechazado por Aprobador') {
+      const existe = items.some((i) => i.id === `${obj.id}_cumplimiento_rechazado`)
+      if (!existe) {
+        items.push({
+          id: `${obj.id}_cumplimiento_rechazado`,
+          tipo: 'cumplimiento_rechazado',
+          prioridad: 'alta',
+          objetivoId: obj.id,
+          objetivoNombre: obj.nombre,
+          programaNombre: progNombre,
+          descripcion: 'Tu cumplimiento fue rechazado. Revisá el motivo y volvé a reportar.',
+          fechaEvento: fechaEvt,
+          accionUrl: `/objetivos/${obj.id}`,
+        })
+      }
+    }
+
+    // 2. Rechazo rechazado por el ejecutivo
+    if (ultimoLog.tipoEvento === 'Rechazo Rechazado') {
+      const existe = items.some((i) => i.id === `${obj.id}_rechazo_rechazado`)
+      if (!existe) {
+        items.push({
+          id: `${obj.id}_rechazo_rechazado`,
+          tipo: 'rechazo_rechazado',
+          prioridad: 'alta',
+          objetivoId: obj.id,
+          objetivoNombre: obj.nombre,
+          programaNombre: progNombre,
+          descripcion: 'Tu solicitud de rechazo no fue aceptada. El objetivo continúa en curso.',
+          fechaEvento: fechaEvt,
+          accionUrl: `/objetivos/${obj.id}`,
+        })
+      }
+    }
+
+    // 3. Modificación rechazada
+    if (ultimoLog.tipoEvento === 'Modificación Rechazada') {
+      const existe = items.some((i) => i.id === `${obj.id}_modificacion_rechazada`)
+      if (!existe) {
+        items.push({
+          id: `${obj.id}_modificacion_rechazada`,
+          tipo: 'modificacion_rechazada',
+          prioridad: 'alta',
+          objetivoId: obj.id,
+          objetivoNombre: obj.nombre,
+          programaNombre: progNombre,
+          descripcion: 'Tu solicitud de modificación fue rechazada. Revisá el motivo.',
+          fechaEvento: fechaEvt,
+          accionUrl: `/objetivos/${obj.id}`,
+        })
+      }
+    }
+
+    // 4. Modificación aprobada
+    if (ultimoLog.tipoEvento === 'Modificación Aprobada') {
+      const existe = items.some((i) => i.id === `${obj.id}_modificacion_aprobada`)
+      if (!existe) {
+        items.push({
+          id: `${obj.id}_modificacion_aprobada`,
+          tipo: 'modificacion_aprobada',
+          prioridad: 'media',
+          objetivoId: obj.id,
+          objetivoNombre: obj.nombre,
+          programaNombre: progNombre,
+          descripcion: 'Tu solicitud de modificación fue aprobada. El doingness fue actualizado.',
+          fechaEvento: fechaEvt,
+          accionUrl: `/objetivos/${obj.id}`,
+        })
+      }
+    }
+
+    // 5. Clarificación respondida (buscar el último evento de clarificación)
+    const ultimaClari = logs.find(
+      (e) => e.tipoEvento === 'Clarificación Respondida' || e.tipoEvento === 'Clarificación Solicitada'
+    )
+    if (ultimaClari?.tipoEvento === 'Clarificación Respondida') {
+      const existe = items.some((i) => i.id === `${obj.id}_clarificacion_respondida`)
+      if (!existe) {
+        items.push({
+          id: `${obj.id}_clarificacion_respondida`,
+          tipo: 'clarificacion_respondida',
+          prioridad: 'alta',
+          objetivoId: obj.id,
+          objetivoNombre: obj.nombre,
+          programaNombre: progNombre,
+          descripcion: 'Recibiste una respuesta a tu clarificación. Ya podés proceder con el objetivo.',
+          fechaEvento: ultimaClari.fechaYHora,
+          accionUrl: `/objetivos/${obj.id}`,
+        })
       }
     }
   }
