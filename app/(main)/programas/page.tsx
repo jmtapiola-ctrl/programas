@@ -6,6 +6,7 @@ import { ProgramaCard } from '@/components/programas/ProgramaCard'
 import Link from 'next/link'
 import { puedeVerTodo, puedeCrearProgramas } from '@/lib/types'
 import type { Usuario, Objetivo } from '@/lib/types'
+import { NuevoProgramaButton } from '@/components/programas/NuevoProgramaButton'
 
 const ORDEN_ESTADO_PROGRAMA: Record<string, number> = {
   'Activo': 0, 'Borrador': 1, 'Completado': 2, 'Archivado': 3
@@ -50,6 +51,10 @@ export default async function ProgramasPage() {
     (ORDEN_ESTADO_PROGRAMA[a.estado] ?? 9) - (ORDEN_ESTADO_PROGRAMA[b.estado] ?? 9)
   )
 
+  // Split into borradores and active/rest
+  const borradores = programasOrdenados.filter(p => p.estado === 'Borrador')
+  const activos = programasOrdenados.filter(p => p.estado !== 'Borrador')
+
   // Build map of objetivos problemáticos por programa
   const conAlertas = new Set<string>()
   for (const obj of todosObjetivos) {
@@ -67,22 +72,37 @@ export default async function ProgramasPage() {
           <h1 className="text-2xl font-bold text-foreground">Programas</h1>
           <p className="text-muted-foreground text-sm mt-1">{programas.length} programa{programas.length !== 1 ? 's' : ''}</p>
         </div>
-        {puedeCrear && (
-          <Link
-            href="/programas/nuevo"
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-foreground rounded-md text-sm font-medium transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Nuevo Programa
-          </Link>
-        )}
+        {puedeCrear && <NuevoProgramaButton />}
       </div>
 
       {error && (
         <div className="bg-red-900/30 border border-red-700 rounded p-3 text-sm text-red-300">
           Error al cargar: {error}
+        </div>
+      )}
+
+      {/* Borradores section */}
+      {puedeCrear && borradores.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+            <span>📝</span> Borradores ({borradores.length})
+          </h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {borradores.map(p => (
+              <div key={p.id} className="bg-card border border-dashed border-border rounded-lg p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-foreground">{p.nombre}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Borrador · {p.objetivoIds.length} objetivo{p.objetivoIds.length !== 1 ? 's' : ''}</p>
+                </div>
+                <Link
+                  href={`/programas/nuevo/wizard?programaId=${p.id}`}
+                  className="px-3 py-1.5 text-xs font-medium bg-muted hover:bg-accent text-foreground rounded-md transition-colors whitespace-nowrap"
+                >
+                  Continuar wizard →
+                </Link>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -93,9 +113,9 @@ export default async function ProgramasPage() {
           </svg>
           <p>No hay programas asignados.</p>
         </div>
-      ) : (
+      ) : activos.length > 0 ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {programasOrdenados.map(p => (
+          {activos.map(p => (
             <ProgramaCard
               key={p.id}
               programa={p}
@@ -105,7 +125,7 @@ export default async function ProgramasPage() {
             />
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
