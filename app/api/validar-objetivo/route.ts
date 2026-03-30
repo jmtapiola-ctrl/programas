@@ -29,30 +29,62 @@ PRINCIPIOS A VERIFICAR:
    ERROR SI: el doingness usa verbos de proceso sin resultado final ("empezar", "mejorar", "supervisar", "gestionar", "apoyar", "coordinar", "trabajar en"), o si no se puede verificar si está hecho o no.
 
 2. UNA SOLA ACCIÓN
-   El objetivo debe tener UNA acción principal, no una cadena de pasos.
-   FALLO: "Llamar al cliente Y enviar propuesta Y esperar respuesta"
-   APROBADO: "Enviar propuesta al cliente Acme" (una sola acción con resultado claro)
-   ERROR SI: hay más de una acción independiente conectada por "y", "luego", "además", "también", "después".
-   EXCEPCIÓN: "enviar X y recibir confirmación" es UNA acción si la confirmación es el criterio de completitud.
+   El objetivo debe tener UN SOLO PROPÓSITO, no múltiples propósitos independientes. Está permitido que la descripción mencione pasos físicamente inseparables que forman parte de una misma acción coherente.
+
+   Es un ERROR cuando hay propósitos claramente independientes:
+   - "Contratar dos vendedores Y diseñar el proceso de onboarding"
+   - "Hacer el informe Y presentarlo Y conseguir la firma"
+
+   NO es un error cuando los pasos son inseparables o cuando el segundo paso es la verificación/registro del primero:
+   - "Agarrar el trampolín y saltar 5 minutos"
+   - "Imprimir el documento y archivarlo"
+   - "Enviar el email y confirmar recepción"
+   - "Saltar 5 minutos y registrar el resultado" → registrar es la verificación, no una acción independiente
+   - "Ejecutar X y anotar/registrar/verificar si funcionó" → el registro es parte del mismo ciclo
+
+   La pregunta clave: ¿El segundo paso es un resultado independiente o simplemente cierra/verifica el primero?
 
 3. TERMINABLE Y COMPLETABLE
-   Debe existir un momento claro en que el objetivo esté 100% terminado y no haya más que hacer.
-   FALLO: "Saltar" (¿cuándo terminó?), "Mejorar ventas" (¿cuánto es suficiente?), "Supervisar equipo" (nunca termina)
-   APROBADO: "Completar el reporte de ventas de marzo y enviarlo al director"
-   ERROR SI: el objetivo describe un estado continuo, una actividad sin fin, o un proceso sin punto de llegada.
+   El objetivo debe tener un punto de finalización claro. Evaluá ÚNICAMENTE el doingness, no el propósito implícito.
+
+   Si el doingness tiene una duración definida (ej: "5 minutos", "3 veces", "hasta completar los 10 registros"), es terminable.
+
+   Es un ERROR solo cuando el doingness describe un estado continuo SIN ningún punto de parada:
+   - "Mantener relaciones con el cliente" → sin punto de parada
+   - "Supervisar al equipo" → continuo, sin fin definido
+   - "Gestionar el proceso" → sin punto de parada
+
+   NO es un error cuando hay una duración, cantidad o resultado concreto aunque sea simple:
+   - "Saltar 5 minutos" → terminable en 5 minutos ✓
+   - "Completar 50 registros" → terminable al completarlos ✓
 
 4. CICLO COMENZAR-CAMBIAR-PARAR
-   El doingness debe tener un inicio claro, una ejecución concreta, y un PARAR definido.
-   FALLO: "Empezar a saltar" (no tiene parar), "Seguir mejorando el proceso" (no tiene parar)
-   APROBADO: "Presentar el plan de ventas Q2 en la reunión del lunes"
-   ERROR SI: el objetivo usa "empezar a", "seguir", "continuar", "mantener" — estos indican que el ciclo no tiene cierre.
+   Verificá que haya un punto de inicio y un punto de parada identificables en el DOINGNESS, no en el propósito.
+
+   Si el doingness tiene una duración, cantidad o condición de finalización explícita, el ciclo está completo. Frases como "para asegurarte de X" o "para verificar Y" son el PROPÓSITO del objetivo, no el doingness — no las uses para evaluar el ciclo.
+
+   Es un ERROR solo si no hay ningún punto de parada identificable en la acción misma:
+   - "Hablar con el cliente" → ¿cuándo termina?
+   - "Revisar el proceso" → sin fin definido
+
+   NO es un error:
+   - "Saltar 5 minutos" → para en 5 minutos ✓
+   - "Enviar el informe antes del viernes" → para al enviarlo ✓
 
 5. FACTIBILIDAD POR UNA SOLA PERSONA
-   El objetivo debe poder ser ejecutado y completado por una sola persona sin depender de acciones de terceros no controlables.
-   FALLO: "Lograr que el equipo mejore su rendimiento" (depende de otros), "Conseguir 10 nuevos clientes" (resultado no 100% controlable)
-   APROBADO: "Enviar 10 propuestas comerciales a la lista de prospectos del CRM"
-   EXCEPCIÓN: Si la acción principal es controlable (enviar, entregar, presentar) y "recibir confirmación/respuesta" es solo el criterio de completitud, NO es un error de factibilidad. El responsable controla la acción; la confirmación valida que se completó.
-   ERROR SI: el resultado final depende PRINCIPALMENTE de la voluntad o acción de otras personas fuera del control del responsable.
+   El doingness debe ser ejecutable por una persona. Evaluá la ACCIÓN, no el resultado implícito.
+
+   Si la acción en sí es ejecutable por una persona, es factible, aunque el resultado no esté 100% garantizado.
+
+   Es un ERROR solo cuando la acción en sí es imposible o demasiado vaga para ejecutar:
+   - "Mover la montaña" → imposible
+   - "Mejorar la economía" → fuera del alcance de una persona
+
+   NO es un error:
+   - "Saltar en el trampolín 5 minutos" → una persona puede hacerlo ✓
+   - "Enviar el informe" → una persona puede hacerlo ✓
+
+IMPORTANTE: El objetivo puede tener un propósito implícito ("para verificar X", "para asegurarte de Y"). Ignorá ese propósito al evaluar los principios — evaluá ÚNICAMENTE la acción descrita en el doingness.
 
 Si el objetivo cumple todos los principios: { "valido": true, "errores": [] }
 Si tiene errores: { "valido": false, "errores": [...] }

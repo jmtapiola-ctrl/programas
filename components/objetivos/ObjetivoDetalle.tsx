@@ -434,6 +434,17 @@ export function ObjetivoDetalle({
             onChange={e => setEditForm(f => ({ ...f, descripcionDoingness: e.target.value }))}
             rows={4}
           />
+          {erroresGemini.length > 0 && (
+            <div className="p-3 bg-red-900/30 border border-red-700/50 rounded-md space-y-2">
+              <p className="text-red-300 text-xs font-semibold">El objetivo no cumple los principios de la Serie:</p>
+              {erroresGemini.map((err, i) => (
+                <div key={i}>
+                  <p className="text-red-300 text-xs font-medium">{err.principio}</p>
+                  <p className="text-gray-400 text-xs">{err.descripcion}</p>
+                </div>
+              ))}
+            </div>
+          )}
           <Input
             label="Fecha Límite"
             type="date"
@@ -476,17 +487,6 @@ export function ObjetivoDetalle({
             onChange={e => setEditForm(f => ({ ...f, notas: e.target.value }))}
             rows={3}
           />
-          {erroresGemini.length > 0 && (
-            <div className="p-3 bg-red-900/30 border border-red-700/50 rounded-md space-y-2">
-              <p className="text-red-300 text-xs font-semibold">El objetivo no cumple los principios de la Serie:</p>
-              {erroresGemini.map((err, i) => (
-                <div key={i}>
-                  <p className="text-red-300 text-xs font-medium">{err.principio}</p>
-                  <p className="text-gray-400 text-xs">{err.descripcion}</p>
-                </div>
-              ))}
-            </div>
-          )}
           {error && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3 pt-1">
             <Button loading={pending} onClick={guardarEdicion}>
