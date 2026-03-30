@@ -13,6 +13,7 @@ export default function NuevoProgramaPage() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [form, setForm] = useState({
     nombre: '',
+    situacion: '',
     proposito: '',
     descripcion: '',
     objetivoMayor: '',
@@ -48,6 +49,7 @@ export default function NuevoProgramaPage() {
       'Nombre': form.nombre,
       'Estado': form.estado,
     }
+    if (form.situacion) fields['Situacion'] = form.situacion
     if (form.proposito) fields['Proposito'] = form.proposito
     if (form.descripcion) fields['Descripcion'] = form.descripcion
     if (form.objetivoMayor) fields['Objetivo Mayor'] = form.objetivoMayor
@@ -85,6 +87,20 @@ export default function NuevoProgramaPage() {
           placeholder="Ej: Expansión Q1 2026"
           required
         />
+
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <label className="block text-sm font-medium text-gray-300">Situación</label>
+            <Tooltip texto="El programa debe manejar situaciones verdaderas: las situaciones que reducen la producción y la prosperidad." />
+          </div>
+          <textarea
+            value={form.situacion}
+            onChange={e => setForm(f => ({ ...f, situacion: e.target.value }))}
+            rows={3}
+            placeholder="¿Qué situación real justifica este programa? ¿Qué problema concreto resuelve?"
+            className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          />
+        </div>
 
         <div>
           <div className="flex items-center gap-2 mb-1">

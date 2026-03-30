@@ -16,8 +16,11 @@ export default function EditarProgramaPage({ params }: { params: Promise<{ id: s
   const [loading, setLoading] = useState(false)
   const [loadingData, setLoadingData] = useState(true)
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
+  const [propositoError, setPropositoError] = useState('')
+  const [objetivosSinFecha, setObjetivosSinFecha] = useState<{ id: string; nombre: string }[]>([])
   const [form, setForm] = useState({
     nombre: '',
+    situacion: '',
     proposito: '',
     descripcion: '',
     objetivoMayor: '',
@@ -36,7 +39,8 @@ export default function EditarProgramaPage({ params }: { params: Promise<{ id: s
     Promise.all([
       fetch(`/api/airtable/tbld952MAM0ApHqT0/${id}`).then(r => r.json()),
       fetch('/api/airtable/tblXhgSBuh0f1BNPV').then(r => r.json()),
-    ]).then(([progData, usersData]) => {
+      fetch('/api/airtable/tbl9ljCeFDMeCsbAT').then(r => r.json()),
+    ]).then(([progData, usersData, objsData]) => {
       const f = progData.fields ?? {}
 
       // Program Manager cannot edit; redirect back
@@ -48,6 +52,7 @@ export default function EditarProgramaPage({ params }: { params: Promise<{ id: s
 
       setForm({
         nombre: f['Nombre'] ?? '',
+        situacion: f['Situacion'] ?? '',
         proposito: f['Proposito'] ?? '',
         descripcion: f['Descripcion'] ?? '',
         objetivoMayor: f['Objetivo Mayor'] ?? '',
@@ -67,17 +72,33 @@ export default function EditarProgramaPage({ params }: { params: Promise<{ id: s
         activo: r.fields['Activo'] ?? false,
       }))
       setUsuarios(users.filter(u => u.activo))
+
+      // Objetivos del programa sin fecha límite (para advertencia al activar)
+      const programaObjetivoIds: string[] = f['Objetivos'] ?? []
+      const sinFecha = (objsData.records ?? [])
+        .filter((r: any) => programaObjetivoIds.includes(r.id) && !r.fields['Fecha Limite'])
+        .map((r: any) => ({ id: r.id, nombre: r.fields['Nombre'] ?? r.id }))
+      setObjetivosSinFecha(sinFecha)
+
       setLoadingData(false)
     }).catch(() => setLoadingData(false))
   }, [id, session, router])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setPropositoError('')
+
+    if (form.estado === 'Activo' && !form.proposito.trim()) {
+      setPropositoError('Un programa sin propósito no puede activarse. Completá el campo Propósito antes de activar el programa.')
+      return
+    }
+
     setLoading(true)
 
     const fields: Record<string, any> = {
       'Nombre': form.nombre,
       'Estado': form.estado,
+      'Situacion': form.situacion,
       'Proposito': form.proposito,
       'Descripcion': form.descripcion,
       'Objetivo Mayor': form.objetivoMayor,
@@ -129,16 +150,34 @@ export default function EditarProgramaPage({ params }: { params: Promise<{ id: s
 
         <div>
           <div className="flex items-center gap-2 mb-1">
+            <label className="block text-sm font-medium text-gray-300">Situación</label>
+            <Tooltip texto="El programa debe manejar situaciones verdaderas: las situaciones que reducen la producción y la prosperidad." />
+          </div>
+          <textarea
+            value={form.situacion}
+            onChange={e => setForm(f => ({ ...f, situacion: e.target.value }))}
+            rows={3}
+            placeholder="¿Qué situación real justifica este programa? ¿Qué problema concreto resuelve?"
+            className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center gap-2 mb-1">
             <label className="block text-sm font-medium text-gray-300">Propósito</label>
             <Tooltip texto="Los propósitos tienen que ejecutarse. Son algo que HACER." />
           </div>
           <textarea
             value={form.proposito}
-            onChange={e => setForm(f => ({ ...f, proposito: e.target.value }))}
+            onChange={e => {
+              setForm(f => ({ ...f, proposito: e.target.value }))
+              if (e.target.value.trim()) setPropositoError('')
+            }}
             rows={3}
             placeholder="Los propósitos tienen que ejecutarse. Son algo que HACER."
-            className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            className={`w-full bg-gray-700 border rounded-md px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm ${propositoError ? 'border-red-500' : 'border-gray-600'}`}
           />
+          {propositoError && <p className="text-red-400 text-xs mt-1">{propositoError}</p>}
         </div>
 
         <div>
@@ -163,16 +202,32 @@ export default function EditarProgramaPage({ params }: { params: Promise<{ id: s
         />
 
         <div className="grid grid-cols-2 gap-4">
-          <Select
-            label="Estado"
-            value={form.estado}
-            onChange={e => setForm(f => ({ ...f, estado: e.target.value as any }))}
-          >
-            <option>Borrador</option>
-            <option>Activo</option>
-            <option>Completado</option>
-            <option>Archivado</option>
-          </Select>
+          <div>
+            <Select
+              label="Estado"
+              value={form.estado}
+              onChange={e => setForm(f => ({ ...f, estado: e.target.value as any }))}
+            >
+              <option>Borrador</option>
+              <option>Activo</option>
+              <option>Completado</option>
+              <option>Archivado</option>
+            </Select>
+            {form.estado === 'Activo' && objetivosSinFecha.length > 0 && (
+              <div className="mt-2 p-3 bg-yellow-900/30 border border-yellow-700/50 rounded-md">
+                <p className="text-yellow-300 text-xs font-medium mb-1">
+                  ⚠ Hay {objetivosSinFecha.length} objetivo{objetivosSinFecha.length > 1 ? 's' : ''} sin fecha límite. Un objetivo sin fecha no tiene un ciclo claro de comenzar-cambiar-parar.
+                </p>
+                <ul className="text-yellow-400/80 text-xs space-y-0.5">
+                  {objetivosSinFecha.map(o => (
+                    <li key={o.id}>
+                      <a href={`/objetivos/${o.id}`} className="hover:underline">{o.nombre}</a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
 
           <Select
             label="Responsable"

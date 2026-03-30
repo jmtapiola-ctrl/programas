@@ -63,6 +63,7 @@ export function ObjetivoDetalle({
   const [respuestaRechazo, setRespuestaRechazo] = useState('')
   // Edit mode state
   const [modoEdicion, setModoEdicion] = useState(false)
+  const [erroresGemini, setErroresGemini] = useState<{ principio: string; descripcion: string }[]>([])
   const [editForm, setEditForm] = useState({
     nombre: objetivo.nombre,
     tipo: objetivo.tipo as string,
@@ -157,6 +158,7 @@ export function ObjetivoDetalle({
       notas: objetivo.notas ?? '',
     })
     setError(null)
+    setErroresGemini([])
     setModoEdicion(true)
   }
 
@@ -165,6 +167,21 @@ export function ObjetivoDetalle({
     if (!editForm.descripcionDoingness.trim()) { setError('La descripción no puede estar vacía'); return }
     setPending(true)
     setError(null)
+    setErroresGemini([])
+    // Validar con Gemini antes de guardar
+    try {
+      const validRes = await fetch('/api/validar-objetivo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: editForm.nombre, descripcionDoingness: editForm.descripcionDoingness, tipo: editForm.tipo }),
+      })
+      const validData = await validRes.json()
+      if (!validData.valido) {
+        setErroresGemini(validData.errores ?? [])
+        setPending(false)
+        return
+      }
+    } catch {}
     try {
       const res = await fetch(`/api/objetivos/${objetivo.id}/accion`, {
         method: 'POST',
@@ -459,10 +476,23 @@ export function ObjetivoDetalle({
             onChange={e => setEditForm(f => ({ ...f, notas: e.target.value }))}
             rows={3}
           />
+          {erroresGemini.length > 0 && (
+            <div className="p-3 bg-red-900/30 border border-red-700/50 rounded-md space-y-2">
+              <p className="text-red-300 text-xs font-semibold">El objetivo no cumple los principios de la Serie:</p>
+              {erroresGemini.map((err, i) => (
+                <div key={i}>
+                  <p className="text-red-300 text-xs font-medium">{err.principio}</p>
+                  <p className="text-gray-400 text-xs">{err.descripcion}</p>
+                </div>
+              ))}
+            </div>
+          )}
           {error && <p className="text-red-400 text-sm">{error}</p>}
           <div className="flex gap-3 pt-1">
-            <Button loading={pending} onClick={guardarEdicion}>Guardar cambios</Button>
-            <Button variant="secondary" onClick={() => { setModoEdicion(false); setError(null) }}>Cancelar</Button>
+            <Button loading={pending} onClick={guardarEdicion}>
+              {pending ? 'Validando objetivo...' : 'Guardar cambios'}
+            </Button>
+            <Button variant="secondary" onClick={() => { setModoEdicion(false); setError(null); setErroresGemini([]) }}>Cancelar</Button>
           </div>
         </div>
       ) : (

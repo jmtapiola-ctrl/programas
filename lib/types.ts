@@ -13,6 +13,7 @@ export type EstadoPrograma = 'Borrador' | 'Activo' | 'Completado' | 'Archivado'
 export interface Programa {
   id: string
   nombre: string
+  situacion?: string
   descripcion?: string
   proposito?: string
   objetivoMayor?: string

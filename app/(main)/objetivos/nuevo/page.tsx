@@ -17,9 +17,11 @@ export default function NuevoObjetivoPage() {
   const userId = (session?.user as any)?.id as string | undefined
 
   const [loading, setLoading] = useState(false)
+  const [validando, setValidando] = useState(false)
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [programas, setProgramas] = useState<Programa[]>([])
   const [doignessError, setDoignessError] = useState('')
+  const [erroresGemini, setErroresGemini] = useState<{ principio: string; descripcion: string }[]>([])
   const [form, setForm] = useState({
     nombre: '',
     tipo: 'Operativo',
@@ -73,6 +75,25 @@ export default function NuevoObjetivoPage() {
       return
     }
     setDoignessError('')
+
+    // Validar con Gemini antes de guardar
+    setValidando(true)
+    try {
+      const validRes = await fetch('/api/validar-objetivo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: form.nombre, descripcionDoingness: form.descripcionDoingness, tipo: form.tipo }),
+      })
+      const validData = await validRes.json()
+      if (!validData.valido) {
+        setErroresGemini(validData.errores ?? [])
+        setValidando(false)
+        return
+      }
+    } catch {}
+    setErroresGemini([])
+    setValidando(false)
+
     setLoading(true)
 
     const estadoFinal = (form.responsableId && form.responsableId !== userId) ? 'Asignado' : 'No iniciado'
@@ -134,6 +155,17 @@ export default function NuevoObjetivoPage() {
           />
           {doignessError && (
             <p className="text-red-400 text-xs mt-1">{doignessError}</p>
+          )}
+          {erroresGemini.length > 0 && (
+            <div className="mt-2 p-3 bg-red-900/30 border border-red-700/50 rounded-md space-y-2">
+              <p className="text-red-300 text-xs font-semibold">El objetivo no cumple los principios de la Serie:</p>
+              {erroresGemini.map((err, i) => (
+                <div key={i}>
+                  <p className="text-red-300 text-xs font-medium">{err.principio}</p>
+                  <p className="text-gray-400 text-xs">{err.descripcion}</p>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
@@ -266,7 +298,9 @@ export default function NuevoObjetivoPage() {
         />
 
         <div className="flex gap-3 pt-2">
-          <Button type="submit" loading={loading}>Crear Objetivo</Button>
+          <Button type="submit" loading={loading || validando}>
+            {validando ? 'Validando objetivo...' : 'Crear Objetivo'}
+          </Button>
           <Button
             type="button"
             variant="secondary"

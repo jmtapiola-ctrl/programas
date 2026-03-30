@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Tooltip } from '@/components/ui/Tooltip'
 import { ObjetivoCard } from '@/components/objetivos/ObjetivoCard'
 import { sortObjetivos, puedeVerTodo, esOficialDelPrograma } from '@/lib/types'
-import type { TipoObjetivo, Usuario } from '@/lib/types'
+import type { TipoObjetivo, Usuario, Rol } from '@/lib/types'
 
 const TIPO_GRUPOS: TipoObjetivo[] = ['Primario', 'Vital', 'Condicional', 'Operativo', 'Producción', 'Mayor']
 const ESTADOS_PROBLEMA = ['Incumplido', 'Rechazado', 'Modificación solicitada'] as const
@@ -40,6 +40,24 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
   const esOficial = userId != null && esOficialDelPrograma(userId, programa)
   const puedeAgregarObjetivo = isEjecutivo || esOficial
   const puedeEditar = isEjecutivo || esOficial
+  const puedeVerScore = puedeVerTodo(rol as Rol) || esOficial
+
+  // Score de calidad del programa (máx 6)
+  const scoreItems = [
+    { label: 'Tiene Situación definida', ok: !!programa.situacion },
+    { label: 'Tiene Propósito definido', ok: !!programa.proposito },
+    { label: 'Tiene Objetivo Mayor definido', ok: !!programa.objetivoMayor },
+    { label: 'Tiene Aprobador asignado', ok: !!programa.aprobadorId },
+    { label: 'Todos los objetivos tienen Responsable', ok: objetivos.length > 0 && objetivos.every(o => !!o.responsableId) },
+    { label: 'Hay al menos un objetivo Condicional', ok: objetivos.some(o => o.tipo === 'Condicional') },
+  ]
+  const score = scoreItems.filter(i => i.ok).length
+  const scoreColor = score === 6
+    ? 'bg-green-900/40 border-green-600 text-green-300'
+    : score >= 4
+    ? 'bg-yellow-900/40 border-yellow-600 text-yellow-300'
+    : 'bg-red-900/40 border-red-700 text-red-300'
+  const scoreLabel = score === 6 ? 'Programa completo ✓' : `${score}/6 completo`
 
   const problematicos = sortedObjetivos.filter(o =>
     (o.tipo === 'Primario' || o.tipo === 'Vital') &&
@@ -61,6 +79,22 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
         <div>
           <div className="flex items-center gap-3 mb-1">
             <Badge estadoPrograma={programa.estado} />
+            {puedeVerScore && (
+              <div className="relative group cursor-help inline-flex">
+                <span className={`text-xs font-medium px-2 py-0.5 rounded border ${scoreColor}`}>
+                  {scoreLabel}
+                </span>
+                <div className="absolute left-0 top-full mt-1 z-50 w-64 bg-gray-900 border border-gray-600 rounded-lg p-3 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
+                  <p className="font-semibold text-gray-200 mb-2 text-xs">Calidad del programa</p>
+                  {scoreItems.map((item, i) => (
+                    <p key={i} className={`flex items-center gap-1.5 text-xs py-0.5 ${item.ok ? 'text-green-400' : 'text-gray-500'}`}>
+                      <span>{item.ok ? '✓' : '✗'}</span>
+                      <span>{item.label}</span>
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <h1 className="text-2xl font-bold text-white">{programa.nombre}</h1>
           {responsables.length > 0 && (
@@ -112,6 +146,21 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
 
       {/* Info */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {programa.situacion ? (
+          <div className="md:col-span-3 bg-orange-900/20 border border-orange-800/40 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <p className="text-xs text-orange-400 font-medium uppercase tracking-wider">Situación</p>
+            </div>
+            <p className="text-gray-200">{programa.situacion}</p>
+          </div>
+        ) : puedeEditar ? (
+          <div className="md:col-span-3 bg-gray-800/50 border border-gray-700 border-dashed rounded-lg p-4 flex items-center justify-between">
+            <p className="text-gray-500 text-sm">Sin situación definida</p>
+            <Link href={`/programas/${id}/editar`} className="text-blue-400 hover:text-blue-300 text-sm">
+              Editar programa →
+            </Link>
+          </div>
+        ) : null}
         {programa.proposito ? (
           <div className="md:col-span-3 bg-blue-900/20 border border-blue-800/40 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-1">

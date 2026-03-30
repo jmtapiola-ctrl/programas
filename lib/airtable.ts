@@ -89,6 +89,7 @@ function mapPrograma(r: any): Programa {
   return {
     id: r.id,
     nombre: r.fields['Nombre'] ?? '',
+    situacion: r.fields['Situacion'],
     descripcion: r.fields['Descripcion'],
     proposito: r.fields['Proposito'],
     objetivoMayor: r.fields['Objetivo Mayor'],
@@ -222,6 +223,7 @@ export async function getPrograma(id: string): Promise<Programa> {
 export async function createPrograma(data: Partial<Programa>): Promise<Programa> {
   const fields: Record<string, any> = {}
   if (data.nombre) fields['Nombre'] = data.nombre
+  if (data.situacion) fields['Situacion'] = data.situacion
   if (data.descripcion) fields['Descripcion'] = data.descripcion
   if (data.proposito) fields['Proposito'] = data.proposito
   if (data.objetivoMayor) fields['Objetivo Mayor'] = data.objetivoMayor
@@ -238,6 +240,7 @@ export async function createPrograma(data: Partial<Programa>): Promise<Programa>
 export async function updatePrograma(id: string, data: Partial<Programa>): Promise<Programa> {
   const fields: Record<string, any> = {}
   if (data.nombre !== undefined) fields['Nombre'] = data.nombre
+  if (data.situacion !== undefined) fields['Situacion'] = data.situacion
   if (data.descripcion !== undefined) fields['Descripcion'] = data.descripcion
   if (data.proposito !== undefined) fields['Proposito'] = data.proposito
   if (data.objetivoMayor !== undefined) fields['Objetivo Mayor'] = data.objetivoMayor

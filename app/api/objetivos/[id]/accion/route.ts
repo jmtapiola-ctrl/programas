@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import {
-  getObjetivo, updateObjetivo, getPrograma,
+  getObjetivo, getObjetivos, updateObjetivo, getPrograma,
   createCumplimiento, updateCumplimiento, crearLogEvento,
   getLogObjetivo, getUsuarios,
 } from '@/lib/airtable'
@@ -73,6 +73,18 @@ export async function POST(
       case 'reportar_cumplimiento': {
         if (objetivo.estado !== 'En curso') return NextResponse.json({ error: 'Estado inválido' }, { status: 400 })
         if (!esResponsable) return NextResponse.json({ error: 'Solo el responsable puede reportar cumplimiento' }, { status: 403 })
+        // Bloqueo: si hay Primario/Vital caído en el mismo programa, no se puede reportar
+        if (objetivo.tipo !== 'Primario' && objetivo.tipo !== 'Vital' && objetivo.programaIds[0]) {
+          const objetivosPrograma = await getObjetivos(objetivo.programaIds[0])
+          const primarioCaido = objetivosPrograma.find(o =>
+            (o.tipo === 'Primario' || o.tipo === 'Vital') &&
+            (o.estado === 'Incumplido' || o.estado === 'Rechazado') &&
+            o.id !== id
+          )
+          if (primarioCaido) return NextResponse.json({
+            error: `Hay un Objetivo Primario o Vital caído en este programa. No se puede reportar cumplimiento de otros objetivos hasta que se resuelva: ${primarioCaido.nombre}`
+          }, { status: 400 })
+        }
         if (!datos?.descripcion?.trim()) return NextResponse.json({ error: 'Se requiere descripción del cumplimiento' }, { status: 400 })
         const hoy = new Date().toISOString().split('T')[0]
         await createCumplimiento({
@@ -95,6 +107,18 @@ export async function POST(
         if (objetivo.estado !== 'Completado pendiente') return NextResponse.json({ error: 'Estado inválido' }, { status: 400 })
         if (!esAprobador) return NextResponse.json({ error: 'Solo el aprobador puede aprobar' }, { status: 403 })
         if (esResponsable) return NextResponse.json({ error: 'El responsable no puede aprobar sus propios cumplimientos' }, { status: 403 })
+        // Bloqueo: si hay Primario/Vital caído en el mismo programa
+        if (objetivo.tipo !== 'Primario' && objetivo.tipo !== 'Vital' && objetivo.programaIds[0]) {
+          const objetivosPrograma = await getObjetivos(objetivo.programaIds[0])
+          const primarioCaido = objetivosPrograma.find(o =>
+            (o.tipo === 'Primario' || o.tipo === 'Vital') &&
+            (o.estado === 'Incumplido' || o.estado === 'Rechazado') &&
+            o.id !== id
+          )
+          if (primarioCaido) return NextResponse.json({
+            error: `Hay un Objetivo Primario o Vital caído en este programa. No se puede aprobar cumplimiento de otros objetivos hasta que se resuelva: ${primarioCaido.nombre}`
+          }, { status: 400 })
+        }
         if (!datos?.cumplimientoId) return NextResponse.json({ error: 'Se requiere cumplimientoId' }, { status: 400 })
         await updateCumplimiento(datos.cumplimientoId, { aprobado: true, aprobadoPorId: usuarioId })
         const nuevoEstado = objetivo.esRepetible ? 'En curso' : 'Completado'
