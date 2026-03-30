@@ -64,6 +64,8 @@ export function ObjetivoDetalle({
   // Edit mode state
   const [modoEdicion, setModoEdicion] = useState(false)
   const [erroresGemini, setErroresGemini] = useState<{ principio: string; descripcion: string }[]>([])
+  const [sugerenciaGemini, setSugerenciaGemini] = useState<string | null>(null)
+  const [textSugerencia, setTextSugerencia] = useState('')
   const [editForm, setEditForm] = useState({
     nombre: objetivo.nombre,
     tipo: objetivo.tipo as string,
@@ -162,6 +164,24 @@ export function ObjetivoDetalle({
     setModoEdicion(true)
   }
 
+  async function doGuardar(descripcionFinal: string) {
+    try {
+      const res = await fetch(`/api/objetivos/${objetivo.id}/accion`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'editar_objetivo', datos: { ...editForm, descripcionDoingness: descripcionFinal } }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Error desconocido'); return }
+      setModoEdicion(false)
+      startTransition(() => { router.refresh() })
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setPending(false)
+    }
+  }
+
   async function guardarEdicion() {
     if (!editForm.nombre.trim()) { setError('El nombre no puede estar vacío'); return }
     if (!editForm.descripcionDoingness.trim()) { setError('La descripción no puede estar vacía'); return }
@@ -181,22 +201,16 @@ export function ObjetivoDetalle({
         setPending(false)
         return
       }
+      // CASO B: válido con sugerencia
+      if (validData.sugerencia) {
+        setSugerenciaGemini(validData.sugerencia)
+        setTextSugerencia(`${editForm.descripcionDoingness}\n----\n${validData.sugerencia}`)
+        setPending(false)
+        return
+      }
     } catch {}
-    try {
-      const res = await fetch(`/api/objetivos/${objetivo.id}/accion`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accion: 'editar_objetivo', datos: editForm }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Error desconocido'); return }
-      setModoEdicion(false)
-      startTransition(() => { router.refresh() })
-    } catch (e: any) {
-      setError(e.message)
-    } finally {
-      setPending(false)
-    }
+    // CASO C: válido sin sugerencia → guardar directo
+    await doGuardar(editForm.descripcionDoingness)
   }
 
   // Historia: log + cumplimientos ordenados cronológicamente
@@ -443,6 +457,43 @@ export function ObjetivoDetalle({
                   <p className="text-gray-400 text-xs">{err.descripcion}</p>
                 </div>
               ))}
+            </div>
+          )}
+          {sugerenciaGemini && (
+            <div className="p-3 bg-yellow-900/30 border border-yellow-700/50 rounded-md space-y-2">
+              <p className="text-yellow-300 text-xs font-semibold">💡 Gemini sugiere una versión más precisa</p>
+              <p className="text-gray-400 text-xs">Editá libremente. Podés usar el original, la sugerencia, o combinar ambos.</p>
+              <textarea
+                value={textSugerencia}
+                onChange={e => setTextSugerencia(e.target.value)}
+                rows={6}
+                className="w-full bg-gray-700 border border-yellow-700/50 rounded-md px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-sm"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditForm(f => ({ ...f, descripcionDoingness: textSugerencia }))
+                    setSugerenciaGemini(null)
+                    setPending(true)
+                    doGuardar(textSugerencia)
+                  }}
+                  className="px-3 py-1.5 text-xs bg-yellow-700 hover:bg-yellow-600 text-white rounded-md transition-colors"
+                >
+                  Usar este texto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSugerenciaGemini(null)
+                    setPending(true)
+                    doGuardar(editForm.descripcionDoingness)
+                  }}
+                  className="px-3 py-1.5 text-xs bg-gray-600 hover:bg-gray-500 text-gray-200 rounded-md transition-colors"
+                >
+                  Ignorar sugerencia
+                </button>
+              </div>
             </div>
           )}
           <Input

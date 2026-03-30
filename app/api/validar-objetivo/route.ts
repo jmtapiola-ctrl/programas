@@ -17,7 +17,8 @@ La pregunta central que debés hacerte para cada principio es:
 Verificá cada principio y devolvé el resultado en JSON:
 {
   "valido": boolean,
-  "errores": [{ "principio": string, "descripcion": string }]
+  "errores": [{ "principio": string, "descripcion": string }],
+  "sugerencia": string | null
 }
 
 PRINCIPIOS A VERIFICAR:
@@ -89,7 +90,27 @@ IMPORTANTE: El objetivo puede tener un propósito implícito ("para verificar X"
 Si el objetivo cumple todos los principios: { "valido": true, "errores": [] }
 Si tiene errores: { "valido": false, "errores": [...] }
 
-IMPORTANTE: Sé MUY conciso. Máximo 1 oración por descripción de error. El JSON total no debe superar los 500 caracteres.
+SUGERENCIA DE MEJORA:
+Si el objetivo es válido pero el doingness podría ser más preciso o más claro, generá una versión mejorada en el campo "sugerencia".
+
+Criterios para generar sugerencia:
+- El resultado verificable no está explícito (se puede deducir pero no está escrito)
+- El punto de parada podría estar más definido
+- La acción podría describirse con más precisión sin cambiar el sentido
+
+Si el objetivo ya es preciso y claro, devolvé sugerencia: null.
+Si generás una sugerencia, debe mantener el mismo propósito y alcance del original — solo mejorar la precisión del doingness.
+La sugerencia debe ser concisa, en el mismo idioma del original.
+NO generar sugerencia si hay errores — sugerencia debe ser null cuando valido es false.
+
+Ejemplos:
+  Original: "Agarrar el trampolín y saltar por 5 minutos para asegurarte que el trampolín no se rompa"
+  Sugerencia: "Saltar en el trampolín durante 5 minutos y registrar si resistió sin daños visibles"
+
+  Original: "Enviar el informe Q1 al cliente antes del viernes y recibir confirmación de recepción"
+  Sugerencia: null
+
+IMPORTANTE: Sé MUY conciso. Máximo 1 oración por descripción de error.
 NO inventes errores si el objetivo genuinamente es válido y claro.`
 
   const promptCompleto = `${systemPrompt}\n\n${userPrompt}`
@@ -111,6 +132,6 @@ NO inventes errores si el objetivo genuinamente es válido y claro.`
     const resultado = JSON.parse(texto.replace(/```json|```/g, '').trim())
     return NextResponse.json(resultado)
   } catch {
-    return NextResponse.json({ valido: true, errores: [] })
+    return NextResponse.json({ valido: true, errores: [], sugerencia: null })
   }
 }

@@ -22,6 +22,8 @@ export default function NuevoObjetivoPage() {
   const [programas, setProgramas] = useState<Programa[]>([])
   const [doignessError, setDoignessError] = useState('')
   const [erroresGemini, setErroresGemini] = useState<{ principio: string; descripcion: string }[]>([])
+  const [sugerenciaGemini, setSugerenciaGemini] = useState<string | null>(null)
+  const [textSugerencia, setTextSugerencia] = useState('')
   const [form, setForm] = useState({
     nombre: '',
     tipo: 'Operativo',
@@ -67,6 +69,34 @@ export default function NuevoObjetivoPage() {
     }).catch(() => {})
   }, [])
 
+  async function doSave(descripcionFinal: string) {
+    setLoading(true)
+    const estadoFinal = (form.responsableId && form.responsableId !== userId) ? 'Asignado' : 'No iniciado'
+    const fields: Record<string, any> = {
+      'Nombre': form.nombre,
+      'Tipo': form.tipo,
+      'Estado': estadoFinal,
+      'Es Repetible': form.esRepetible,
+    }
+    if (form.programaId) fields['Programa'] = [form.programaId]
+    if (form.responsableId) fields['Responsable'] = [form.responsableId]
+    if (form.aprobadorId) fields['Aprobador'] = [form.aprobadorId]
+    if (form.fechaLimite) fields['Fecha Limite'] = form.fechaLimite
+    if (descripcionFinal) fields['Descripcion Doingness'] = descripcionFinal
+    if (form.orden) fields['Orden'] = parseInt(form.orden)
+    if (form.notas) fields['Notas'] = form.notas
+    const res = await fetch('/api/airtable/tbl9ljCeFDMeCsbAT', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+    })
+    setLoading(false)
+    if (res.ok) {
+      const data = await res.json()
+      router.push(`/objetivos/${data.id}`)
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
@@ -90,39 +120,19 @@ export default function NuevoObjetivoPage() {
         setValidando(false)
         return
       }
+      // CASO B: válido con sugerencia
+      if (validData.sugerencia) {
+        setSugerenciaGemini(validData.sugerencia)
+        setTextSugerencia(`${form.descripcionDoingness}\n----\n${validData.sugerencia}`)
+        setValidando(false)
+        return
+      }
     } catch {}
     setErroresGemini([])
     setValidando(false)
 
-    setLoading(true)
-
-    const estadoFinal = (form.responsableId && form.responsableId !== userId) ? 'Asignado' : 'No iniciado'
-
-    const fields: Record<string, any> = {
-      'Nombre': form.nombre,
-      'Tipo': form.tipo,
-      'Estado': estadoFinal,
-      'Es Repetible': form.esRepetible,
-    }
-    if (form.programaId) fields['Programa'] = [form.programaId]
-    if (form.responsableId) fields['Responsable'] = [form.responsableId]
-    if (form.aprobadorId) fields['Aprobador'] = [form.aprobadorId]
-    if (form.fechaLimite) fields['Fecha Limite'] = form.fechaLimite
-    if (form.descripcionDoingness) fields['Descripcion Doingness'] = form.descripcionDoingness
-    if (form.orden) fields['Orden'] = parseInt(form.orden)
-    if (form.notas) fields['Notas'] = form.notas
-
-    const res = await fetch('/api/airtable/tbl9ljCeFDMeCsbAT', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields }),
-    })
-
-    setLoading(false)
-    if (res.ok) {
-      const data = await res.json()
-      router.push(`/objetivos/${data.id}`)
-    }
+    // CASO C: válido sin sugerencia → guardar directo
+    await doSave(form.descripcionDoingness)
   }
 
   return (
@@ -165,6 +175,41 @@ export default function NuevoObjetivoPage() {
                   <p className="text-gray-400 text-xs">{err.descripcion}</p>
                 </div>
               ))}
+            </div>
+          )}
+          {sugerenciaGemini && (
+            <div className="mt-2 p-3 bg-yellow-900/30 border border-yellow-700/50 rounded-md space-y-2">
+              <p className="text-yellow-300 text-xs font-semibold">💡 Gemini sugiere una versión más precisa</p>
+              <p className="text-gray-400 text-xs">Editá libremente. Podés usar el original, la sugerencia, o combinar ambos.</p>
+              <textarea
+                value={textSugerencia}
+                onChange={e => setTextSugerencia(e.target.value)}
+                rows={6}
+                className="w-full bg-gray-700 border border-yellow-700/50 rounded-md px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-sm"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForm(f => ({ ...f, descripcionDoingness: textSugerencia }))
+                    setSugerenciaGemini(null)
+                    doSave(textSugerencia)
+                  }}
+                  className="px-3 py-1.5 text-xs bg-yellow-700 hover:bg-yellow-600 text-white rounded-md transition-colors"
+                >
+                  Usar este texto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSugerenciaGemini(null)
+                    doSave(form.descripcionDoingness)
+                  }}
+                  className="px-3 py-1.5 text-xs bg-gray-600 hover:bg-gray-500 text-gray-200 rounded-md transition-colors"
+                >
+                  Ignorar sugerencia
+                </button>
+              </div>
             </div>
           )}
         </div>
