@@ -38,6 +38,12 @@ export async function calcularInbox(
   ])
 
   const programasMap = Object.fromEntries(programas.map((p) => [p.id, p]))
+  const programasArchivadosIds = new Set(programas.filter(p => p.estado === 'Archivado').map(p => p.id))
+
+  // Excluir objetivos cuyos programas están archivados
+  const objetivosActivos = objetivos.filter(o =>
+    !o.programaIds.some(pid => programasArchivadosIds.has(pid))
+  )
 
   // Group log events by objetivoId, sorted desc by date
   const logPorObjetivo: Record<string, LogEvento[]> = {}
@@ -82,7 +88,7 @@ export async function calcularInbox(
 
   // ─── OPERADOR ──────────────────────────────────────────────────────────────
   if (esOperador) {
-    for (const obj of objetivos) {
+    for (const obj of objetivosActivos) {
       if (obj.responsableId !== userId) continue
       const logs = logPorObjetivo[obj.id] ?? []
       const ultimoLog = logs[0]
@@ -107,7 +113,7 @@ export async function calcularInbox(
 
   // ─── EJECUTIVO ─────────────────────────────────────────────────────────────
   if (esEjecutivo) {
-    for (const obj of objetivos) {
+    for (const obj of objetivosActivos) {
       const aprobadorEfectivo = getAprobador(obj)
       if (aprobadorEfectivo !== userId) continue
 
@@ -129,7 +135,12 @@ export async function calcularInbox(
         })
       }
 
-      if (ultimoLog?.tipoEvento === 'Clarificación Solicitada') {
+      // Check last clarification-specific event (not overall last event)
+      const logsClari = logs.filter(
+        e => e.tipoEvento === 'Clarificación Solicitada' || e.tipoEvento === 'Clarificación Respondida'
+      )
+      // logs is already sorted desc (newest first), so logsClari[0] is the most recent clarification event
+      if (logsClari[0]?.tipoEvento === 'Clarificación Solicitada') {
         items.push({
           id: `${obj.id}_clarificacion_solicitada`,
           tipo: 'clarificacion_solicitada',
@@ -138,7 +149,7 @@ export async function calcularInbox(
           objetivoNombre: obj.nombre,
           programaNombre: progNombre,
           descripcion: 'El responsable solicita una clarificación sobre este objetivo.',
-          fechaEvento: ultimoLog.fechaYHora,
+          fechaEvento: logsClari[0].fechaYHora,
           accionUrl: `/objetivos/${obj.id}`,
         })
       }
@@ -175,7 +186,7 @@ export async function calcularInbox(
 
   // ─── PROGRAM MANAGER ───────────────────────────────────────────────────────
   if (esPM) {
-    for (const obj of objetivos) {
+    for (const obj of objetivosActivos) {
       if (isVencido(obj)) {
         items.push({
           id: `${obj.id}_vencido`,
@@ -192,7 +203,7 @@ export async function calcularInbox(
     }
 
     const programasConProblemas = new Set<string>()
-    for (const obj of objetivos) {
+    for (const obj of objetivosActivos) {
       if (
         (obj.tipo === 'Primario' || obj.tipo === 'Vital') &&
         obj.estado === 'Incumplido'
@@ -216,7 +227,7 @@ export async function calcularInbox(
       }
     }
 
-    for (const obj of objetivos) {
+    for (const obj of objetivosActivos) {
       if (obj.estado !== 'En curso' || !obj.fechaLimite) continue
       if (new Date(obj.fechaLimite) > in7Days) continue
       const logs = logPorObjetivo[obj.id] ?? []
@@ -241,7 +252,7 @@ export async function calcularInbox(
 
   // ─── EN RADAR (todos los roles) ─────────────────────────────────────────────
   if (!esPM) {
-    for (const obj of objetivos) {
+    for (const obj of objetivosActivos) {
       if (obj.responsableId !== userId) continue
 
       if (isVencido(obj)) {
@@ -292,7 +303,7 @@ export async function calcularInbox(
 
   // ─── EVENTOS QUE LE LLEGAN AL RESPONSABLE (todos los roles) ──────────────────
   const estadosTerminales = ['Completado', 'Cancelado', 'Incumplido']
-  for (const obj of objetivos) {
+  for (const obj of objetivosActivos) {
     if (obj.responsableId !== userId) continue
     if (estadosTerminales.includes(obj.estado)) continue
 

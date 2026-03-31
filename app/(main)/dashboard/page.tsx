@@ -136,22 +136,25 @@ export default async function DashboardPage() {
     ])
   } catch {}
 
+  const programasArchivadosIds = new Set(programas.filter(p => p.estado === 'Archivado').map(p => p.id))
   const programasActivos = programas.filter(p => p.estado === 'Activo')
-  const objetivosEnCurso = todosObjetivos.filter(o => o.estado === 'En curso')
-  const objetivosVencidos = todosObjetivos.filter(o => isVencido(o))
+  const objetivosActivos = todosObjetivos.filter(o => !o.programaIds.some(pid => programasArchivadosIds.has(pid)))
+  const objetivosEnCurso = objetivosActivos.filter(o => o.estado === 'En curso')
+  const objetivosVencidos = objetivosActivos.filter(o => isVencido(o))
 
   // Pendientes de mi aprobación (estado Completado pendiente donde soy aprobador efectivo)
-  const pendientesAprobacion = todosObjetivos.filter(o => {
+  const pendientesAprobacion = objetivosActivos.filter(o => {
     if (o.estado !== 'Completado pendiente') return false
     const prog = programas.find(p => o.programaIds.includes(p.id))
     const aprobEfectivo = prog ? getAprobadorEfectivo(o, prog) : o.aprobadorId
     return aprobEfectivo === userId
   })
 
-  // Programas en riesgo: tienen objetivos incumplidos/rechazados/vencidos
+  // Programas en riesgo: tienen objetivos incumplidos/rechazados/vencidos (excluir archivados)
   const estadosProblema = ['Incumplido', 'Rechazado', 'Modificación solicitada']
   const programasEnRiesgo = programas.filter(p =>
-    todosObjetivos.some(o =>
+    p.estado !== 'Archivado' &&
+    objetivosActivos.some(o =>
       o.programaIds.includes(p.id) &&
       (estadosProblema.includes(o.estado) || isVencido(o))
     )
@@ -161,7 +164,7 @@ export default async function DashboardPage() {
   const en7dias = new Date()
   en7dias.setDate(en7dias.getDate() + 7)
   const en7diasStr = en7dias.toISOString().split('T')[0]
-  const proximosVencer = todosObjetivos
+  const proximosVencer = objetivosActivos
     .filter(o =>
       (o.estado === 'En curso' || o.estado === 'No iniciado') &&
       o.fechaLimite && o.fechaLimite >= hoy && o.fechaLimite <= en7diasStr
@@ -170,7 +173,7 @@ export default async function DashboardPage() {
     .slice(0, 5)
 
   // Alerta críticos
-  const criticos = todosObjetivos.filter(o =>
+  const criticos = objetivosActivos.filter(o =>
     (o.tipo === 'Primario' || o.tipo === 'Vital') && o.estado === 'Incumplido'
   )
 
@@ -187,7 +190,7 @@ export default async function DashboardPage() {
 
   // Mapa de objetivos para AprobacionesSection (legacy cumplimientos mode not used here)
   const objetivosMap: Record<string, Objetivo> = {}
-  for (const o of todosObjetivos) { objetivosMap[o.id] = o }
+  for (const o of objetivosActivos) { objetivosMap[o.id] = o }
 
   return (
     <div className="space-y-6">
@@ -225,7 +228,7 @@ export default async function DashboardPage() {
         <StatCard
           label="Programas Activos"
           value={programasActivos.length}
-          sub={`${programas.length} total`}
+          sub={`${programas.filter(p => p.estado !== 'Archivado').length} sin archivar`}
           href="/programas"
         />
         <StatCard
@@ -279,7 +282,7 @@ export default async function DashboardPage() {
           </h2>
           <div className="space-y-2">
             {programasEnRiesgo.slice(0, 6).map(p => {
-              const objProblema = todosObjetivos.filter(o =>
+              const objProblema = objetivosActivos.filter(o =>
                 o.programaIds.includes(p.id) &&
                 (estadosProblema.includes(o.estado) || isVencido(o))
               )

@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { puedeVerTodo, puedeCrearProgramas } from '@/lib/types'
 import type { Usuario, Objetivo } from '@/lib/types'
 import { NuevoProgramaButton } from '@/components/programas/NuevoProgramaButton'
+import { ArchivadosSection } from '@/components/programas/ArchivadosSection'
 
 const ORDEN_ESTADO_PROGRAMA: Record<string, number> = {
   'Activo': 0, 'Borrador': 1, 'Completado': 2, 'Archivado': 3
@@ -51,16 +52,19 @@ export default async function ProgramasPage() {
     (ORDEN_ESTADO_PROGRAMA[a.estado] ?? 9) - (ORDEN_ESTADO_PROGRAMA[b.estado] ?? 9)
   )
 
-  // Split into borradores and active/rest
+  // Split into borradores, active/rest, and archived
   const borradores = programasOrdenados.filter(p => p.estado === 'Borrador')
-  const activos = programasOrdenados.filter(p => p.estado !== 'Borrador')
+  const archivados = programasOrdenados.filter(p => p.estado === 'Archivado')
+  const activos = programasOrdenados.filter(p => p.estado !== 'Borrador' && p.estado !== 'Archivado')
 
-  // Build map of objetivos problemáticos por programa
+  const archivadosIds = new Set(archivados.map(p => p.id))
+
+  // Build map of objetivos problemáticos por programa (excluir archivados)
   const conAlertas = new Set<string>()
   for (const obj of todosObjetivos) {
     if (ESTADOS_PROBLEMA.includes(obj.estado)) {
       for (const pid of obj.programaIds) {
-        conAlertas.add(pid)
+        if (!archivadosIds.has(pid)) conAlertas.add(pid)
       }
     }
   }
@@ -70,7 +74,7 @@ export default async function ProgramasPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Programas</h1>
-          <p className="text-muted-foreground text-sm mt-1">{programas.length} programa{programas.length !== 1 ? 's' : ''}</p>
+          <p className="text-muted-foreground text-sm mt-1">{programas.filter(p => p.estado !== 'Archivado').length} programa{programas.filter(p => p.estado !== 'Archivado').length !== 1 ? 's' : ''}</p>
         </div>
         {puedeCrear && <NuevoProgramaButton />}
       </div>
@@ -126,6 +130,9 @@ export default async function ProgramasPage() {
           ))}
         </div>
       ) : null}
+
+      {/* Sección archivados */}
+      <ArchivadosSection programas={archivados} usuariosMap={usuariosMap} />
     </div>
   )
 }

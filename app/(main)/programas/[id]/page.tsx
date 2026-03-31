@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Badge } from '@/components/ui/Badge'
 import { Tooltip } from '@/components/ui/Tooltip'
 import { ObjetivosOrdenables } from '@/components/programas/ObjetivosOrdenables'
+import { ArchivarButton } from '@/components/programas/ArchivarButton'
 import { sortObjetivos, puedeVerTodo, esOficialDelPrograma } from '@/lib/types'
 import type { Usuario, Rol } from '@/lib/types'
 const ESTADOS_PROBLEMA = ['Incumplido', 'Rechazado', 'Modificación solicitada'] as const
@@ -102,8 +103,8 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
             <p className="text-muted-foreground text-xs mt-0.5">Aprobador: {aprobador.nombre}</p>
           )}
         </div>
-        <div className="flex gap-2 flex-shrink-0">
-          {puedeEditar && (
+        <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
+          {puedeEditar && programa.estado !== 'Archivado' && (
             <Link
               href={`/programas/${id}/editar`}
               className="px-3 py-1.5 text-sm bg-muted hover:bg-accent text-foreground border border-border rounded-md transition-colors"
@@ -111,7 +112,7 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
               Editar
             </Link>
           )}
-          {puedeAgregarObjetivo && (
+          {puedeAgregarObjetivo && programa.estado !== 'Archivado' && (
             <Link
               href={`/objetivos/nuevo?programaId=${id}`}
               className="px-3 py-1.5 text-sm bg-muted hover:bg-accent text-foreground border border-border rounded-md transition-colors"
@@ -119,8 +120,19 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
               + Objetivo
             </Link>
           )}
+          {puedeEditar && (
+            <ArchivarButton programaId={id} estadoActual={programa.estado} />
+          )}
         </div>
       </div>
+
+      {/* Banner de programa archivado */}
+      {programa.estado === 'Archivado' && (
+        <div className="rounded-lg border border-border bg-muted/50 p-4 text-sm text-muted-foreground flex items-center justify-between gap-4">
+          <span>🗄 Este programa está archivado. No aparece en el dashboard ni en el inbox.</span>
+          <ArchivarButton programaId={id} estadoActual={programa.estado} />
+        </div>
+      )}
 
       {/* Banner de alerta de problemas */}
       {problematicos.length > 0 && (
