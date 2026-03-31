@@ -31,6 +31,30 @@ Ejemplos de "problema" bien escrito:
   ✓ "Describe dos acciones distintas — mejor separarlo."
   ✗ "El doingness usa un verbo de proceso sin especificar un resultado observable" ← muy técnico y largo
 
+EJEMPLOS DE OBJETIVOS QUE DEBEN FALLAR:
+
+❌ "Buscar una persona que haga de controlador diario"
+   problema: "Falta especificar cuándo está hecho: ¿persona confirmada, contratada, o asignada?"
+   reescritura: "Identificar y confirmar una persona como controlador diario antes del [fecha]"
+
+❌ "Mejorar las ventas del equipo"
+   problema: "No tiene resultado concreto ni fecha."
+   reescritura: "Incrementar las ventas del equipo a $X para el [fecha]"
+
+❌ "Supervisar al equipo de ventas"
+   problema: "Es una responsabilidad continua, no un objetivo terminable."
+   reescritura: "Realizar reunión semanal de seguimiento con el equipo de ventas todos los lunes a las 9hs"
+
+❌ "Diseñar un método de control diario"
+   problema: "Falta el entregable concreto del diseño."
+   reescritura: "Redactar y aprobar con JMT el método de control diario en un documento antes del [fecha]"
+
+EJEMPLOS DE OBJETIVOS QUE DEBEN PASAR:
+
+✓ "Enviar el informe Q1 al cliente Acme por email antes del viernes 4 y registrar confirmación de recepción"
+✓ "Realizar 3 llamadas de seguimiento a prospectos esta semana y registrar el resultado de cada una"
+✓ "Completar los 50 registros en la planilla compartida y notificar al responsable"
+
 Devolvé exactamente este JSON:
 {
   "valido": boolean,
@@ -49,7 +73,7 @@ Devolvé exactamente este JSON:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: promptCompleto }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
+          generationConfig: { temperature: 0, maxOutputTokens: 1024 },
         }),
       }
     )
