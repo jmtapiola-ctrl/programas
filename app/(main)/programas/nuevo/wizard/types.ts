@@ -12,7 +12,8 @@ export interface ObjetivoWizard {
   notas?: string
   validacionGemini?: {
     valido: boolean
-    errores: { principio: string; descripcion: string }[]
+    problema: string | null
+    reescritura: string | null
     sugerencia: string | null
   }
 }

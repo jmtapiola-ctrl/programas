@@ -20,10 +20,8 @@ interface PanelProps {
   usuarios: Usuario[]
   validating: boolean
   sugerenciaIgnorada: boolean
-  sugerenciaTexto: string
-  onSugerenciaTextoChange: (t: string) => void
   onIgnorarSugerencia: () => void
-  onUsarSugerencia: () => void
+  onAplicarTexto: (texto: string) => void
   onChange: (cambios: Partial<ObjetivoWizard>) => void
   onValidate: () => void
   onClose: () => void
@@ -33,8 +31,7 @@ function GeminiIcon({ v, validating }: { v?: ObjetivoWizard['validacionGemini'];
   if (validating) return <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin" />
   if (!v) return <span className="text-muted-foreground/30 text-base leading-none select-none">·</span>
   if (!v.valido) {
-    const msg = v.errores.map(e => e.descripcion).join(' · ')
-    return <span title={msg}><XCircle className="h-3.5 w-3.5 text-red-400" /></span>
+    return <span title={v.problema ?? ''}><XCircle className="h-3.5 w-3.5 text-red-400" /></span>
   }
   if (v.sugerencia) {
     return <span title={`Sugerencia: ${v.sugerencia}`}><Lightbulb className="h-3.5 w-3.5 text-yellow-400" /></span>
@@ -44,12 +41,12 @@ function GeminiIcon({ v, validating }: { v?: ObjetivoWizard['validacionGemini'];
 
 function PanelDetalle({
   obj, index, usuarios,
-  validating, sugerenciaIgnorada, sugerenciaTexto,
-  onSugerenciaTextoChange, onIgnorarSugerencia, onUsarSugerencia,
+  validating, sugerenciaIgnorada,
+  onIgnorarSugerencia, onAplicarTexto,
   onChange, onValidate, onClose,
 }: PanelProps) {
-  const tieneErrores = obj.validacionGemini && !obj.validacionGemini.valido
-  const mostrarSugerencia = !!(obj.validacionGemini?.sugerencia && !sugerenciaIgnorada)
+  const tieneError = obj.validacionGemini && !obj.validacionGemini.valido
+  const mostrarSugerencia = !!(obj.validacionGemini?.valido && obj.validacionGemini.sugerencia && !sugerenciaIgnorada)
 
   const labelCls = 'block text-xs font-medium text-muted-foreground mb-1'
   const inputCls = 'w-full bg-muted/20 border border-border rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-colors'
@@ -106,46 +103,59 @@ function PanelDetalle({
           )}
         </div>
 
-        {/* Gemini: errors */}
-        {tieneErrores && (
-          <div className="rounded-md border border-red-500/30 bg-red-900/10 px-3 py-2.5 space-y-1.5">
-            <p className="text-xs font-medium text-red-300">Este objetivo no cumple los principios:</p>
-            <ul className="space-y-1">
-              {obj.validacionGemini!.errores.map((e, i) => (
-                <li key={i} className="text-xs text-red-300/80">
-                  <span className="font-medium">{e.principio}:</span> {e.descripcion}
-                </li>
-              ))}
-            </ul>
+        {/* Gemini: error */}
+        {tieneError && obj.validacionGemini!.problema && (
+          <div className="rounded-md border border-red-500/30 bg-red-900/10 px-3 py-2.5 space-y-2">
+            <p className="text-xs text-red-300 flex items-start gap-1.5">
+              <XCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+              {obj.validacionGemini!.problema}
+            </p>
+            {obj.validacionGemini!.reescritura && (
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-xs text-muted-foreground italic">
+                  "{obj.validacionGemini!.reescritura}"
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onAplicarTexto(obj.validacionGemini!.reescritura!)}
+                  className="text-xs font-medium text-red-300 hover:text-red-200 whitespace-nowrap transition-colors flex-shrink-0"
+                >
+                  Usar →
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {/* Gemini: suggestion */}
         {mostrarSugerencia && (
           <div className="rounded-md border border-yellow-600/30 bg-yellow-900/10 px-3 py-2.5 space-y-2">
-            <p className="text-xs font-medium text-yellow-300">Sugerencia de mejora:</p>
-            <textarea
-              className={cn(inputCls, 'resize-none text-xs')}
-              rows={5}
-              value={sugerenciaTexto}
-              onChange={e => onSugerenciaTextoChange(e.target.value)}
-            />
-            <div className="flex gap-2">
+            <p className="text-xs text-yellow-300 flex items-center gap-1.5">
+              <Lightbulb className="h-3.5 w-3.5 flex-shrink-0" />
+              Se puede mejorar:
+            </p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-xs text-muted-foreground italic">
+                "{obj.validacionGemini!.sugerencia}"
+              </p>
               <button
                 type="button"
-                onClick={onUsarSugerencia}
-                className="px-2.5 py-1 text-xs font-medium bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-200 rounded transition-colors"
+                onClick={() => {
+                  onAplicarTexto(obj.validacionGemini!.sugerencia!)
+                  onIgnorarSugerencia()
+                }}
+                className="text-xs font-medium text-yellow-300 hover:text-yellow-200 whitespace-nowrap transition-colors flex-shrink-0"
               >
-                Usar este texto
-              </button>
-              <button
-                type="button"
-                onClick={onIgnorarSugerencia}
-                className="px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Ignorar
+                Usar →
               </button>
             </div>
+            <button
+              type="button"
+              onClick={onIgnorarSugerencia}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Ignorar
+            </button>
           </div>
         )}
 
@@ -233,7 +243,6 @@ function PanelDetalle({
 export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaObjetivo, onChange }: Props) {
   const [selectedTempId, setSelectedTempId] = useState<string | null>(null)
   const [sugerenciaIgnorada, setSugerenciaIgnorada] = useState<Set<string>>(new Set())
-  const [sugerenciaTexto, setSugerenciaTexto] = useState<Record<string, string>>({})
   const [validatingIds, setValidatingIds] = useState<Set<string>>(new Set())
   const validatingRef = useRef<Set<string>>(new Set())
 
@@ -287,10 +296,6 @@ export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaO
       const data = await res.json()
       actualizarObjetivo(tempId, { validacionGemini: data })
       if (data.sugerencia) {
-        setSugerenciaTexto(prev => ({
-          ...prev,
-          [tempId]: `${obj.descripcionDoingness}\n----\n${data.sugerencia}`,
-        }))
         setSugerenciaIgnorada(prev => {
           const next = new Set(prev)
           next.delete(tempId)
@@ -342,13 +347,9 @@ export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaO
     usuarios,
     validating: validatingIds.has(selectedObjetivo.tempId),
     sugerenciaIgnorada: sugerenciaIgnorada.has(selectedObjetivo.tempId),
-    sugerenciaTexto: sugerenciaTexto[selectedObjetivo.tempId] ?? '',
-    onSugerenciaTextoChange: (t) => setSugerenciaTexto(prev => ({ ...prev, [selectedObjetivo.tempId]: t })),
     onIgnorarSugerencia: () => setSugerenciaIgnorada(prev => new Set([...prev, selectedObjetivo.tempId])),
-    onUsarSugerencia: () => {
-      const texto = sugerenciaTexto[selectedObjetivo.tempId] ?? ''
+    onAplicarTexto: (texto) => {
       actualizarObjetivo(selectedObjetivo.tempId, { descripcionDoingness: texto, validacionGemini: undefined })
-      setSugerenciaIgnorada(prev => new Set([...prev, selectedObjetivo.tempId]))
     },
     onChange: (cambios) => actualizarObjetivo(selectedObjetivo.tempId, cambios),
     onValidate: () => validateDoingness(selectedObjetivo.tempId),

@@ -21,9 +21,9 @@ export default function NuevoObjetivoPage() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [programas, setProgramas] = useState<Programa[]>([])
   const [doignessError, setDoignessError] = useState('')
-  const [erroresGemini, setErroresGemini] = useState<{ principio: string; descripcion: string }[]>([])
+  const [problemaGemini, setProblemaGemini] = useState<string | null>(null)
+  const [reescrituraGemini, setReescrituraGemini] = useState<string | null>(null)
   const [sugerenciaGemini, setSugerenciaGemini] = useState<string | null>(null)
-  const [textSugerencia, setTextSugerencia] = useState('')
   const [form, setForm] = useState({
     nombre: '',
     tipo: 'Operativo',
@@ -106,7 +106,14 @@ export default function NuevoObjetivoPage() {
     }
     setDoignessError('')
 
-    // Validar con Gemini antes de guardar
+    // Si ya hay feedback visible, el usuario eligió guardar igual
+    if (problemaGemini || sugerenciaGemini) {
+      await doSave(form.descripcionDoingness)
+      return
+    }
+    setProblemaGemini(null)
+    setReescrituraGemini(null)
+    setSugerenciaGemini(null)
     setValidando(true)
     try {
       const validRes = await fetch('/api/validar-objetivo', {
@@ -115,23 +122,19 @@ export default function NuevoObjetivoPage() {
         body: JSON.stringify({ nombre: form.nombre, descripcionDoingness: form.descripcionDoingness, tipo: form.tipo }),
       })
       const validData = await validRes.json()
-      if (!validData.valido) {
-        setErroresGemini(validData.errores ?? [])
+      if (!validData.valido && validData.problema) {
+        setProblemaGemini(validData.problema)
+        setReescrituraGemini(validData.reescritura ?? null)
         setValidando(false)
         return
       }
-      // CASO B: válido con sugerencia
       if (validData.sugerencia) {
         setSugerenciaGemini(validData.sugerencia)
-        setTextSugerencia(`${form.descripcionDoingness}\n----\n${validData.sugerencia}`)
         setValidando(false)
         return
       }
     } catch {}
-    setErroresGemini([])
     setValidando(false)
-
-    // CASO C: válido sin sugerencia → guardar directo
     await doSave(form.descripcionDoingness)
   }
 
@@ -166,50 +169,59 @@ export default function NuevoObjetivoPage() {
           {doignessError && (
             <p className="text-red-400 text-xs mt-1">{doignessError}</p>
           )}
-          {erroresGemini.length > 0 && (
-            <div className="mt-2 p-3 bg-red-900/30 border border-red-700/50 rounded-md space-y-2">
-              <p className="text-red-300 text-xs font-semibold">El objetivo no cumple los principios de la Serie:</p>
-              {erroresGemini.map((err, i) => (
-                <div key={i}>
-                  <p className="text-red-300 text-xs font-medium">{err.principio}</p>
-                  <p className="text-muted-foreground text-xs">{err.descripcion}</p>
+          {problemaGemini && (
+            <div className="mt-2 p-3 bg-red-900/20 border border-red-700/40 rounded-md space-y-2">
+              <p className="text-red-300 text-xs flex items-start gap-1.5">
+                <span className="flex-shrink-0">✗</span>
+                {problemaGemini}
+              </p>
+              {reescrituraGemini && (
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-muted-foreground text-xs italic">"{reescrituraGemini}"</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm(f => ({ ...f, descripcionDoingness: reescrituraGemini }))
+                      setProblemaGemini(null)
+                      setReescrituraGemini(null)
+                    }}
+                    className="text-xs font-medium text-red-300 hover:text-red-200 whitespace-nowrap transition-colors flex-shrink-0"
+                  >
+                    Usar →
+                  </button>
                 </div>
-              ))}
+              )}
             </div>
           )}
           {sugerenciaGemini && (
-            <div className="mt-2 p-3 bg-yellow-900/30 border border-yellow-700/50 rounded-md space-y-2">
-              <p className="text-yellow-300 text-xs font-semibold">💡 Gemini sugiere una versión más precisa</p>
-              <p className="text-muted-foreground text-xs">Editá libremente. Podés usar el original, la sugerencia, o combinar ambos.</p>
-              <textarea
-                value={textSugerencia}
-                onChange={e => setTextSugerencia(e.target.value)}
-                rows={6}
-                className="bg-transparent border border-yellow-700/50 text-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 rounded-md px-3 py-2 text-sm w-full"
-              />
-              <div className="flex gap-2">
+            <div className="mt-2 p-3 bg-yellow-900/20 border border-yellow-700/40 rounded-md space-y-2">
+              <p className="text-yellow-300 text-xs flex items-center gap-1.5">
+                <span>💡</span> Se puede mejorar:
+              </p>
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-muted-foreground text-xs italic">"{sugerenciaGemini}"</p>
                 <button
                   type="button"
                   onClick={() => {
-                    setForm(f => ({ ...f, descripcionDoingness: textSugerencia }))
+                    setForm(f => ({ ...f, descripcionDoingness: sugerenciaGemini }))
                     setSugerenciaGemini(null)
-                    doSave(textSugerencia)
+                    doSave(sugerenciaGemini)
                   }}
-                  className="px-3 py-1.5 text-xs bg-yellow-700 hover:bg-yellow-600 text-white rounded-md transition-colors"
+                  className="text-xs font-medium text-yellow-300 hover:text-yellow-200 whitespace-nowrap transition-colors flex-shrink-0"
                 >
-                  Usar este texto
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSugerenciaGemini(null)
-                    doSave(form.descripcionDoingness)
-                  }}
-                  className="px-3 py-1.5 text-xs bg-muted hover:bg-accent text-foreground rounded-md transition-colors"
-                >
-                  Ignorar sugerencia
+                  Usar →
                 </button>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSugerenciaGemini(null)
+                  doSave(form.descripcionDoingness)
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Ignorar
+              </button>
             </div>
           )}
         </div>
