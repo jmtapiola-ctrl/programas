@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Tooltip } from '@/components/ui/Tooltip'
 import { ObjetivosOrdenables } from '@/components/programas/ObjetivosOrdenables'
 import { ArchivarButton } from '@/components/programas/ArchivarButton'
-import { ResumenEjecutivo } from '@/components/programas/ResumenEjecutivo'
+import { ModalResumenEjecutivo } from '@/components/programas/ModalResumenEjecutivo'
 import { sortObjetivos, puedeVerTodo, esOficialDelPrograma } from '@/lib/types'
 import type { Usuario, Rol } from '@/lib/types'
 
@@ -121,6 +121,12 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
         <div className="flex-shrink-0 flex flex-col items-end gap-3">
           {/* Botones */}
           <div className="flex gap-2 flex-wrap justify-end">
+            {puedeVerResumen && (
+              <ModalResumenEjecutivo
+                programaId={id}
+                resumenInicial={programa.resumenEjecutivo}
+              />
+            )}
             {puedeEditar && programa.estado !== 'Archivado' && (
               <Link
                 href={`/programas/${id}/editar`}
@@ -239,14 +245,6 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
           </div>
         )}
       </div>
-
-      {/* Resumen Ejecutivo con IA */}
-      {puedeVerResumen && (
-        <ResumenEjecutivo
-          programaId={id}
-          resumenInicial={programa.resumenEjecutivo}
-        />
-      )}
 
       {/* Encabezado de sección Objetivos */}
       <div className="flex items-center gap-2">

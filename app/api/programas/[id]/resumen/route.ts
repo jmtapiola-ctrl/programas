@@ -33,51 +33,83 @@ export async function POST(
 
   const usuariosMap = Object.fromEntries(usuarios.map(u => [u.id, u]))
 
-  // Ordenar objetivos por tipo
+  // Agrupar objetivos por tipo en el orden correcto
   const ordenados = [...objetivos].sort(
     (a, b) => (TIPO_ORDEN[a.tipo] ?? 99) - (TIPO_ORDEN[b.tipo] ?? 99)
   )
 
+  // Agrupar por tipo para el prompt
+  const tiposOrden = ['Primario', 'Vital', 'Condicional', 'Operativo', 'Producción', 'Mayor']
+  const porTipo: Record<string, Objetivo[]> = {}
+  for (const o of ordenados) {
+    if (!porTipo[o.tipo]) porTipo[o.tipo] = []
+    porTipo[o.tipo].push(o)
+  }
+  const objetivosPorTipo = tiposOrden
+    .filter(t => porTipo[t]?.length)
+    .map(t => [t, porTipo[t]] as [string, Objetivo[]])
+
   // Estadísticas
-  const total = ordenados.length
+  const totalObjetivos = ordenados.length
   const completados = ordenados.filter(o => o.estado === 'Completado').length
   const enCurso = ordenados.filter(o => o.estado === 'En curso').length
   const noIniciados = ordenados.filter(o => o.estado === 'No iniciado' || o.estado === 'Asignado').length
-  const conProblemas = ordenados.filter(o => o.estado === 'Rechazado' || o.estado === 'Incumplido').length
+  const conProblemas = ordenados.filter(o =>
+    o.estado === 'Rechazado' || o.estado === 'Incumplido' || o.estado === 'Cancelado'
+  ).length
 
-  // Formatear lista de objetivos
-  const listaObjetivos = ordenados.map((o: Objetivo) => {
-    const responsableNombre = usuariosMap[o.responsableId]?.nombre ?? 'Sin asignar'
-    const doingness = o.descripcionDoingness ? ` | Doingness: ${o.descripcionDoingness}` : ''
-    return `[${o.tipo}] ${o.nombre}: ${o.estado} | Responsable: ${responsableNombre}${doingness}`
-  }).join('\n')
+  // Lista de objetivos por tipo
+  const listaObjetivos = objetivosPorTipo.length > 0
+    ? objetivosPorTipo.map(([tipo, objs]) =>
+        `${tipo.toUpperCase()}:\n` +
+        objs.map((o: Objetivo) =>
+          `  - "${o.nombre}" | Estado: ${o.estado} | ` +
+          `Responsable: ${usuariosMap[o.responsableId]?.nombre ?? 'Sin asignar'} | ` +
+          `Doingness: ${o.descripcionDoingness ?? 'No definido'}`
+        ).join('\n')
+      ).join('\n\n')
+    : 'Sin objetivos cargados'
 
-  const systemPrompt = `Sos un analista de gestión organizacional experto en la metodología de programas de L. Ronald Hubbard (Serie de Objetivos). Tu función es generar resúmenes ejecutivos claros, directos y útiles de programas de acción. Respondé en español, en prosa fluida, sin bullets ni listas. Máximo 4 párrafos.`
+  const systemPrompt = `Sos un analista experto en gestión organizacional con profundo conocimiento de la Serie de Objetivos de L. Ronald Hubbard. Generás resúmenes ejecutivos ricos, detallados y útiles para ejecutivos que necesitan entender rápidamente el estado real de un programa. Escribís en español, en prosa fluida con párrafos bien desarrollados. Usás **negritas** en Markdown para destacar puntos clave. Cada párrafo debe tener al menos 3-4 oraciones. No usés bullets ni listas.`
 
-  const userPrompt = `Generá un resumen ejecutivo de este programa:
+  const userPrompt = `Generá un resumen ejecutivo completo y detallado de este programa.
 
-NOMBRE: ${programa.nombre}
-SITUACIÓN: ${programa.situacion ?? 'No definida'}
-PROPÓSITO: ${programa.proposito ?? 'No definido'}
-OBJETIVO MAYOR: ${programa.objetivoMayor ?? 'No definido'}
-PERÍODO: ${programa.fechaInicio ?? '?'} a ${programa.fechaObjetivo ?? '?'}
+NOMBRE DEL PROGRAMA: ${programa.nombre}
+PERÍODO: ${programa.fechaInicio ?? 'No definida'} → ${programa.fechaObjetivo ?? 'No definida'}
 
-OBJETIVOS (${total} en total):
-${listaObjetivos || 'Sin objetivos cargados'}
+SITUACIÓN (el problema que justifica el programa):
+${programa.situacion ?? 'No definida'}
 
-ESTADÍSTICAS:
-- Completados: ${completados}
+PROPÓSITO (por qué existe el programa):
+${programa.proposito ?? 'No definido'}
+
+OBJETIVO MAYOR (qué se logra al completarlo):
+${programa.objetivoMayor ?? 'No definido'}
+
+OBJETIVOS DEL PROGRAMA (${totalObjetivos} en total):
+${listaObjetivos}
+
+ESTADÍSTICAS DE AVANCE:
+- Completados: ${completados}/${totalObjetivos}
 - En curso: ${enCurso}
-- No iniciados: ${noIniciados}
-- Con problemas (Rechazado/Incumplido): ${conProblemas}
+- Sin iniciar: ${noIniciados}
+- Con problemas (Rechazado/Incumplido/Cancelado): ${conProblemas}
 
-Analizá:
-1. Qué situación real está intentando resolver este programa y si el enfoque es coherente con esa situación
-2. Cómo está estructurado el programa — qué tipos de objetivos tiene y si la secuencia lógica es correcta según la Serie (Condicionales → Primarios/Vitales → Operativos → Producción)
-3. En qué estado de avance se encuentra actualmente y cuáles son los puntos de atención más importantes
-4. Si hay riesgos o inconsistencias que el ejecutivo debería conocer (Primarios sin iniciar, Vitales caídos, objetivos vencidos, falta de responsables, etc.)
+Redactá 4 párrafos completos y bien desarrollados:
 
-Sé directo y útil. No uses frases genéricas. Basate únicamente en los datos del programa.`
+**Párrafo 1 — Situación y coherencia:**
+Describí el problema real que este programa intenta resolver. ¿La situación está bien identificada? ¿El propósito y el objetivo mayor son coherentes con esa situación? ¿El programa tiene sentido como respuesta al problema planteado?
+
+**Párrafo 2 — Estructura del programa:**
+Analizá cómo está armado el programa según la Serie de Objetivos de LRH. ¿Tiene todos los tipos de objetivos necesarios (Condicionales, Primarios/Vitales, Operativos, Producción)? ¿La secuencia es correcta? ¿Hay tipos que faltan o están sobredimensionados?
+
+**Párrafo 3 — Estado de avance actual:**
+¿Dónde está parado el programa hoy? ¿Qué se completó, qué está en curso, qué no arrancó? ¿Cuáles son los puntos de atención más importantes en este momento?
+
+**Párrafo 4 — Riesgos y recomendaciones:**
+¿Hay Primarios o Vitales sin iniciar que bloquean el resto? ¿Objetivos vencidos? ¿Responsables sin asignar? ¿La estructura del programa garantiza que se va a poder ejecutar? ¿Qué debería hacer el ejecutivo primero?
+
+Sé específico y directo. Mencioná nombres de objetivos concretos cuando sea relevante. No uses frases genéricas.`
 
   const promptCompleto = `${systemPrompt}\n\n${userPrompt}`
 
@@ -89,7 +121,7 @@ Sé directo y útil. No uses frases genéricas. Basate únicamente en los datos 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: promptCompleto }] }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 1024 },
+          generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
         }),
       }
     )
@@ -100,9 +132,7 @@ Sé directo y útil. No uses frases genéricas. Basate únicamente en los datos 
       return NextResponse.json({ error: 'Gemini no devolvió contenido' }, { status: 502 })
     }
 
-    // Guardar en Airtable
     await updatePrograma(id, { resumenEjecutivo: resumen })
-
     return NextResponse.json({ resumen })
   } catch (e: any) {
     return NextResponse.json({ error: e.message ?? 'Error al generar resumen' }, { status: 500 })
