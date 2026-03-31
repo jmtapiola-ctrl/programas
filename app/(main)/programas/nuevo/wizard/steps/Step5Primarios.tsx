@@ -56,7 +56,7 @@ export function Step5Primarios({ objetivos, onChange, usuarios, defaultFechaLimi
         </div>
       </div>
 
-      <TablaObjetivosWizard objetivos={objetivos} onChange={v => { onChange(v); setError('') }} usuarios={usuarios} defaultFechaLimite={defaultFechaLimite} />
+      <TablaObjetivosWizard tipo="Primario" objetivos={objetivos} onChange={v => { onChange(v); setError('') }} usuarios={usuarios} programaFechaObjetivo={defaultFechaLimite} />
 
       {error && (
         <div className="rounded-md border border-red-500/30 bg-red-900/20 px-4 py-3">

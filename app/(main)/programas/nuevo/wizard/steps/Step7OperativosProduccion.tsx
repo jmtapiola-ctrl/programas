@@ -45,7 +45,7 @@ export function Step7OperativosProduccion({ operativos, produccion, onChangeOper
             <p>· "Presentar el informe de avance al directorio el día 15"</p>
           </div>
         </div>
-        <TablaObjetivosWizard objetivos={operativos} onChange={onChangeOperativos} usuarios={usuarios} defaultFechaLimite={defaultFechaLimite} />
+        <TablaObjetivosWizard tipo="Operativo" objetivos={operativos} onChange={onChangeOperativos} usuarios={usuarios} programaFechaObjetivo={defaultFechaLimite} />
       </div>
 
       {/* Sección B: Producción */}
@@ -70,7 +70,7 @@ export function Step7OperativosProduccion({ operativos, produccion, onChangeOper
             <p>· "Alcanzar $X de facturación para el 30 de junio"</p>
           </div>
         </div>
-        <TablaObjetivosWizard objetivos={produccion} onChange={onChangeProduccion} usuarios={usuarios} defaultFechaLimite={defaultFechaLimite} />
+        <TablaObjetivosWizard tipo="Producción" objetivos={produccion} onChange={onChangeProduccion} usuarios={usuarios} programaFechaObjetivo={defaultFechaLimite} />
       </div>
 
       <div className="flex items-center gap-3 pt-2">

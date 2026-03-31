@@ -9,6 +9,7 @@ export interface ObjetivoWizard {
   aprobadorId: string
   fechaLimite: string
   esRepetible: boolean
+  notas?: string
   validacionGemini?: {
     valido: boolean
     errores: { principio: string; descripcion: string }[]

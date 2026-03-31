@@ -53,7 +53,7 @@ export function Step6Vitales({ objetivos, onChange, usuarios, defaultFechaLimite
         </div>
       </div>
 
-      <TablaObjetivosWizard objetivos={objetivos} onChange={onChange} usuarios={usuarios} defaultFechaLimite={defaultFechaLimite} />
+      <TablaObjetivosWizard tipo="Vital" objetivos={objetivos} onChange={onChange} usuarios={usuarios} programaFechaObjetivo={defaultFechaLimite} />
 
       {confirmSkip && objetivos.length === 0 && (
         <div className="rounded-md border border-yellow-600/40 bg-yellow-900/20 px-4 py-3 space-y-3">

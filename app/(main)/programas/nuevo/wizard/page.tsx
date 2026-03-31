@@ -15,7 +15,6 @@ import { Step6Vitales } from './steps/Step6Vitales'
 import { Step7OperativosProduccion } from './steps/Step7OperativosProduccion'
 import { StepRevision } from './steps/StepRevision'
 
-const TABLA_PROGRAMAS = 'tbld952MAM0ApHqT0'
 const TABLA_OBJETIVOS = 'tbl9ljCeFDMeCsbAT'
 
 const STEP_LABELS = [
@@ -108,20 +107,6 @@ async function airtableDelete(table: string, id: string) {
   await fetch(`/api/airtable/${table}?id=${id}`, { method: 'DELETE' })
 }
 
-function buildProgramaFields(state: WizardState): Record<string, any> {
-  const fields: Record<string, any> = {
-    'Nombre': state.nombre,
-    'Situacion': state.situacion,
-    'Proposito': state.proposito,
-    'Estado': 'Borrador',
-  }
-  if (state.objetivoMayor) fields['Objetivo Mayor'] = state.objetivoMayor
-  if (state.responsableId) fields['Responsable'] = [state.responsableId]
-  if (state.aprobadorId) fields['Aprobador'] = [state.aprobadorId]
-  if (state.fechaInicio) fields['Fecha Inicio'] = state.fechaInicio
-  if (state.fechaObjetivo) fields['Fecha Objetivo'] = state.fechaObjetivo
-  return fields
-}
 
 async function saveObjetivos(
   programaId: string,
@@ -150,6 +135,7 @@ async function saveObjetivos(
       if (obj.responsableId) fields['Responsable'] = [obj.responsableId]
       if (obj.aprobadorId) fields['Aprobador'] = [obj.aprobadorId]
       if (obj.fechaLimite) fields['Fecha Limite'] = obj.fechaLimite
+      if (obj.notas) fields['Notas'] = obj.notas
 
       if (obj.airtableId) {
         await airtablePatch(TABLA_OBJETIVOS, obj.airtableId, fields)
@@ -281,12 +267,37 @@ export default function WizardPage() {
   const handleNext3 = useCallback(async () => {
     setSaving(true)
     try {
-      const fields = buildProgramaFields(state)
+      const programaData = {
+        nombre: state.nombre,
+        situacion: state.situacion,
+        proposito: state.proposito,
+        objetivoMayor: state.objetivoMayor || undefined,
+        responsableIds: state.responsableId ? [state.responsableId] : [],
+        aprobadorId: state.aprobadorId || undefined,
+        fechaInicio: state.fechaInicio || undefined,
+        fechaObjetivo: state.fechaObjetivo || undefined,
+        estado: 'Borrador' as const,
+      }
       if (state.programaId) {
-        await airtablePatch(TABLA_PROGRAMAS, state.programaId, fields)
+        const res = await fetch(`/api/wizard-save-programa?id=${state.programaId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(programaData),
+        })
+        if (!res.ok) throw new Error(`Save failed: ${res.status}`)
         advance()
       } else {
-        const data = await airtablePost(TABLA_PROGRAMAS, fields)
+        const res = await fetch('/api/wizard-save-programa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(programaData),
+        })
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}))
+          console.error('wizard-save-programa error:', errBody)
+          throw new Error(`Save failed: ${res.status} — ${errBody.error ?? ''}`)
+        }
+        const data = await res.json()
         setState(s => ({ ...s, programaId: data.id, paso: 4 }))
       }
     } catch (e) {
@@ -347,7 +358,12 @@ export default function WizardPage() {
     if (!state.programaId) return
     setSaving(true)
     try {
-      await airtablePatch(TABLA_PROGRAMAS, state.programaId, { 'Estado': estadoFinal })
+      const res = await fetch(`/api/wizard-save-programa?id=${state.programaId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: estadoFinal }),
+      })
+      if (!res.ok) throw new Error(`Finalize failed: ${res.status}`)
       router.push(`/programas/${state.programaId}`)
     } catch (e) { console.error(e) } finally { setSaving(false) }
   }, [state.programaId, router])
