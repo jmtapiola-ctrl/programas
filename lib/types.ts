@@ -24,6 +24,7 @@ export interface Programa {
   fechaObjetivo?: string
   notas?: string
   objetivoIds: string[]
+  resumenEjecutivo?: string
 }
 
 export type TipoObjetivo =

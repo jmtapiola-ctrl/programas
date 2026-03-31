@@ -7,16 +7,23 @@ import { Badge } from '@/components/ui/Badge'
 import { Tooltip } from '@/components/ui/Tooltip'
 import { ObjetivosOrdenables } from '@/components/programas/ObjetivosOrdenables'
 import { ArchivarButton } from '@/components/programas/ArchivarButton'
+import { ResumenEjecutivo } from '@/components/programas/ResumenEjecutivo'
 import { sortObjetivos, puedeVerTodo, esOficialDelPrograma } from '@/lib/types'
 import type { Usuario, Rol } from '@/lib/types'
+
 const ESTADOS_PROBLEMA = ['Incumplido', 'Rechazado', 'Modificación solicitada'] as const
+
+function formatFecha(iso?: string): string {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return `${d}-${m}-${y.slice(2)}`
+}
 
 export default async function ProgramaDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const session = await getServerSession(authOptions)
   const rol = (session?.user as any)?.role as string
   const isEjecutivo = rol === 'Ejecutivo'
-  const isProgramManager = rol === 'Program Manager'
   const userId = (session?.user as any)?.id as string | undefined
 
   let programa: Awaited<ReturnType<typeof getPrograma>>
@@ -40,6 +47,7 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
   const puedeAgregarObjetivo = isEjecutivo || esOficial
   const puedeEditar = isEjecutivo || esOficial
   const puedeVerScore = puedeVerTodo(rol as Rol) || esOficial
+  const puedeVerResumen = puedeVerTodo(rol as Rol) || esOficial
 
   // Score de calidad del programa (máx 6)
   const scoreItems = [
@@ -64,6 +72,8 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
   )
   const hayIncumplido = problematicos.some(o => o.estado === 'Incumplido')
 
+  const completados = objetivos.filter(o => o.estado === 'Completado').length
+
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
@@ -73,10 +83,11 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
         <span className="text-foreground">{programa.nombre}</span>
       </nav>
 
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
+      {/* Header — dos columnas */}
+      <div className="flex items-start justify-between gap-6">
+        {/* Columna izquierda */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 mb-1 flex-wrap">
             <Badge estadoPrograma={programa.estado} />
             {puedeVerScore && (
               <div className="relative group cursor-help inline-flex">
@@ -97,31 +108,56 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
           </div>
           <h1 className="text-2xl font-bold text-foreground">{programa.nombre}</h1>
           {responsables.length > 0 && (
-            <p className="text-muted-foreground text-sm mt-1">Responsable: {responsables.map((r: any) => r.nombre).join(', ')}</p>
+            <p className="text-muted-foreground text-sm mt-1">
+              Responsable: {responsables.map((r: any) => r.nombre).join(', ')}
+            </p>
           )}
           {aprobador && (
             <p className="text-muted-foreground text-xs mt-0.5">Aprobador: {aprobador.nombre}</p>
           )}
         </div>
-        <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
-          {puedeEditar && programa.estado !== 'Archivado' && (
-            <Link
-              href={`/programas/${id}/editar`}
-              className="px-3 py-1.5 text-sm bg-muted hover:bg-accent text-foreground border border-border rounded-md transition-colors"
-            >
-              Editar
-            </Link>
-          )}
-          {puedeAgregarObjetivo && programa.estado !== 'Archivado' && (
-            <Link
-              href={`/objetivos/nuevo?programaId=${id}`}
-              className="px-3 py-1.5 text-sm bg-muted hover:bg-accent text-foreground border border-border rounded-md transition-colors"
-            >
-              + Objetivo
-            </Link>
-          )}
-          {puedeEditar && (
-            <ArchivarButton programaId={id} estadoActual={programa.estado} />
+
+        {/* Columna derecha */}
+        <div className="flex-shrink-0 flex flex-col items-end gap-3">
+          {/* Botones */}
+          <div className="flex gap-2 flex-wrap justify-end">
+            {puedeEditar && programa.estado !== 'Archivado' && (
+              <Link
+                href={`/programas/${id}/editar`}
+                className="px-3 py-1.5 text-sm bg-muted hover:bg-accent text-foreground border border-border rounded-md transition-colors"
+              >
+                Editar
+              </Link>
+            )}
+            {puedeAgregarObjetivo && programa.estado !== 'Archivado' && (
+              <Link
+                href={`/objetivos/nuevo?programaId=${id}`}
+                className="px-3 py-1.5 text-sm bg-muted hover:bg-accent text-foreground border border-border rounded-md transition-colors"
+              >
+                + Objetivo
+              </Link>
+            )}
+            {puedeEditar && (
+              <ArchivarButton programaId={id} estadoActual={programa.estado} />
+            )}
+          </div>
+
+          {/* Mini-card de fechas */}
+          {(programa.fechaInicio || programa.fechaObjetivo) && (
+            <div className="bg-card border border-border rounded-md px-3 py-2 text-xs space-y-1 min-w-[130px]">
+              {programa.fechaInicio && (
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-muted-foreground uppercase tracking-wider">Inicio</span>
+                  <span className="text-foreground font-mono">{formatFecha(programa.fechaInicio)}</span>
+                </div>
+              )}
+              {programa.fechaObjetivo && (
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-muted-foreground uppercase tracking-wider">Fin</span>
+                  <span className="text-foreground font-mono">{formatFecha(programa.fechaObjetivo)}</span>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -154,7 +190,7 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
         </div>
       )}
 
-      {/* Info */}
+      {/* Situación / Propósito / Objetivo Mayor / Descripción */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {programa.situacion ? (
           <div className="md:col-span-3 bg-orange-900/20 border border-orange-800/40 rounded-lg p-4">
@@ -197,29 +233,26 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
           </div>
         )}
         {programa.descripcion && (
-          <div className="md:col-span-2 bg-card border border-border rounded-lg p-4">
+          <div className="md:col-span-3 bg-card border border-border rounded-lg p-4">
             <p className="text-xs text-muted-foreground font-medium mb-1 uppercase tracking-wider">Descripción</p>
             <p className="text-muted-foreground text-sm">{programa.descripcion}</p>
           </div>
         )}
-        <div className="bg-card border border-border rounded-lg p-4 space-y-2">
-          {programa.fechaInicio && (
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Inicio</p>
-              <p className="text-muted-foreground text-sm">{programa.fechaInicio}</p>
-            </div>
-          )}
-          {programa.fechaObjetivo && (
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Fecha Objetivo</p>
-              <p className="text-muted-foreground text-sm">{programa.fechaObjetivo}</p>
-            </div>
-          )}
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Objetivos</p>
-            <p className="text-muted-foreground text-sm">{objetivos.length}</p>
-          </div>
-        </div>
+      </div>
+
+      {/* Resumen Ejecutivo con IA */}
+      {puedeVerResumen && (
+        <ResumenEjecutivo
+          programaId={id}
+          resumenInicial={programa.resumenEjecutivo}
+        />
+      )}
+
+      {/* Encabezado de sección Objetivos */}
+      <div className="flex items-center gap-2">
+        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+          Objetivos ({completados}/{objetivos.length} completados)
+        </p>
       </div>
 
       {/* Objetivos por tipo */}

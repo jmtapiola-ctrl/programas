@@ -100,6 +100,7 @@ function mapPrograma(r: any): Programa {
     fechaObjetivo: r.fields['Fecha Objetivo'],
     notas: r.fields['Notas'],
     objetivoIds: r.fields['Objetivos'] ?? [],
+    resumenEjecutivo: r.fields['Resumen Ejecutivo'] ?? undefined,
   }
 }
 
@@ -250,6 +251,7 @@ export async function updatePrograma(id: string, data: Partial<Programa>): Promi
   if (data.fechaInicio !== undefined) fields['Fecha Inicio'] = data.fechaInicio
   if (data.fechaObjetivo !== undefined) fields['Fecha Objetivo'] = data.fechaObjetivo
   if (data.notas !== undefined) fields['Notas'] = data.notas
+  if (data.resumenEjecutivo !== undefined) fields['Resumen Ejecutivo'] = data.resumenEjecutivo
   const r = await updateRecord(TABLA_PROGRAMAS, id, fields)
   return mapPrograma(r)
 }
