@@ -19,20 +19,20 @@ export function NuevoProgramaButton() {
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-full mt-1 z-20 w-48 bg-card border border-border rounded-lg shadow-xl overflow-hidden">
             <Link
+              href="/programas/nuevo/wizard"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 px-4 py-3 text-sm font-medium text-foreground hover:bg-accent transition-colors"
+            >
+              <Wand2 className="h-4 w-4 text-primary" />
+              ✦ Paso a paso
+            </Link>
+            <Link
               href="/programas/nuevo"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground hover:bg-accent transition-colors"
+              className="flex items-center gap-2.5 px-4 py-3 text-sm text-muted-foreground hover:bg-accent transition-colors border-t border-border"
             >
               <FileText className="h-4 w-4 text-muted-foreground" />
               Formulario rápido
-            </Link>
-            <Link
-              href="/programas/nuevo/wizard"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground hover:bg-accent transition-colors border-t border-border"
-            >
-              <Wand2 className="h-4 w-4 text-muted-foreground" />
-              Wizard guiado
             </Link>
           </div>
         </>

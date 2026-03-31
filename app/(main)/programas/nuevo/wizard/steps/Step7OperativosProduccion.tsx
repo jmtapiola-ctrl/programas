@@ -11,12 +11,14 @@ interface Props {
   onChangeProduccion: (obs: ObjetivoWizard[]) => void
   usuarios: Usuario[]
   defaultFechaLimite?: string
+  defaultResponsableId?: string
+  defaultAprobadorId?: string
   onNext: () => Promise<void>
   onBack: () => void
   saving?: boolean
 }
 
-export function Step7OperativosProduccion({ operativos, produccion, onChangeOperativos, onChangeProduccion, usuarios, defaultFechaLimite, onNext, onBack, saving }: Props) {
+export function Step7OperativosProduccion({ operativos, produccion, onChangeOperativos, onChangeProduccion, usuarios, defaultFechaLimite, defaultResponsableId, defaultAprobadorId, onNext, onBack, saving }: Props) {
   return (
     <div className="space-y-8">
       <div>
@@ -45,7 +47,7 @@ export function Step7OperativosProduccion({ operativos, produccion, onChangeOper
             <p>· "Presentar el informe de avance al directorio el día 15"</p>
           </div>
         </div>
-        <TablaObjetivosWizard tipo="Operativo" objetivos={operativos} onChange={onChangeOperativos} usuarios={usuarios} programaFechaObjetivo={defaultFechaLimite} />
+        <TablaObjetivosWizard tipo="Operativo" objetivos={operativos} onChange={onChangeOperativos} usuarios={usuarios} programaFechaObjetivo={defaultFechaLimite} defaultResponsableId={defaultResponsableId} defaultAprobadorId={defaultAprobadorId} />
       </div>
 
       {/* Sección B: Producción */}
@@ -70,7 +72,7 @@ export function Step7OperativosProduccion({ operativos, produccion, onChangeOper
             <p>· "Alcanzar $X de facturación para el 30 de junio"</p>
           </div>
         </div>
-        <TablaObjetivosWizard tipo="Producción" objetivos={produccion} onChange={onChangeProduccion} usuarios={usuarios} programaFechaObjetivo={defaultFechaLimite} />
+        <TablaObjetivosWizard tipo="Producción" objetivos={produccion} onChange={onChangeProduccion} usuarios={usuarios} programaFechaObjetivo={defaultFechaLimite} defaultResponsableId={defaultResponsableId} defaultAprobadorId={defaultAprobadorId} />
       </div>
 
       <div className="flex items-center gap-3 pt-2">

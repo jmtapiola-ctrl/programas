@@ -10,12 +10,14 @@ interface Props {
   onChange: (obs: ObjetivoWizard[]) => void
   usuarios: Usuario[]
   defaultFechaLimite?: string
+  defaultResponsableId?: string
+  defaultAprobadorId?: string
   onNext: () => Promise<void>
   onBack: () => void
   saving?: boolean
 }
 
-export function Step4Condicionales({ objetivos, onChange, usuarios, defaultFechaLimite, onNext, onBack, saving }: Props) {
+export function Step4Condicionales({ objetivos, onChange, usuarios, defaultFechaLimite, defaultResponsableId, defaultAprobadorId, onNext, onBack, saving }: Props) {
   const [confirmSkip, setConfirmSkip] = useState(false)
 
   async function handleContinuar() {
@@ -54,7 +56,7 @@ export function Step4Condicionales({ objetivos, onChange, usuarios, defaultFecha
         </div>
       </div>
 
-      <TablaObjetivosWizard tipo="Condicional" objetivos={objetivos} onChange={onChange} usuarios={usuarios} programaFechaObjetivo={defaultFechaLimite} />
+      <TablaObjetivosWizard tipo="Condicional" objetivos={objetivos} onChange={onChange} usuarios={usuarios} programaFechaObjetivo={defaultFechaLimite} defaultResponsableId={defaultResponsableId} defaultAprobadorId={defaultAprobadorId} />
 
       {confirmSkip && objetivos.length === 0 && (
         <div className="rounded-md border border-yellow-600/40 bg-yellow-900/20 px-4 py-3 space-y-3">

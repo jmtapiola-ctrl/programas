@@ -11,7 +11,15 @@ interface Props {
   objetivos: ObjetivoWizard[]
   usuarios: Usuario[]
   programaFechaObjetivo?: string
+  defaultResponsableId?: string
+  defaultAprobadorId?: string
   onChange: (objetivos: ObjetivoWizard[]) => void
+}
+
+function manana(): string {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  return d.toISOString().split('T')[0]
 }
 
 interface PanelProps {
@@ -50,6 +58,7 @@ function PanelDetalle({
 
   const labelCls = 'block text-xs font-medium text-muted-foreground mb-1'
   const inputCls = 'w-full bg-muted/20 border border-border rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-colors'
+  const selectCls = `${inputCls} bg-background [&>option]:bg-background [&>option]:text-foreground`
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -165,7 +174,7 @@ function PanelDetalle({
             Responsable <span className="text-red-400">*</span>
           </label>
           <select
-            className={cn(inputCls, 'cursor-pointer')}
+            className={cn(selectCls, 'cursor-pointer')}
             value={obj.responsableId}
             onChange={e => onChange({ responsableId: e.target.value })}
           >
@@ -178,7 +187,7 @@ function PanelDetalle({
         <div>
           <label className={labelCls}>Aprobador (opcional)</label>
           <select
-            className={cn(inputCls, 'cursor-pointer')}
+            className={cn(selectCls, 'cursor-pointer')}
             value={obj.aprobadorId}
             onChange={e => onChange({ aprobadorId: e.target.value })}
           >
@@ -240,7 +249,7 @@ function PanelDetalle({
   )
 }
 
-export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaObjetivo, onChange }: Props) {
+export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaObjetivo, defaultResponsableId, defaultAprobadorId, onChange }: Props) {
   const [selectedTempId, setSelectedTempId] = useState<string | null>(null)
   const [sugerenciaIgnorada, setSugerenciaIgnorada] = useState<Set<string>>(new Set())
   const [validatingIds, setValidatingIds] = useState<Set<string>>(new Set())
@@ -261,9 +270,9 @@ export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaO
       tempId: Math.random().toString(36).slice(2),
       nombre: '',
       descripcionDoingness: '',
-      responsableId: '',
-      aprobadorId: '',
-      fechaLimite: programaFechaObjetivo ?? '',
+      responsableId: defaultResponsableId ?? '',
+      aprobadorId: defaultAprobadorId ?? '',
+      fechaLimite: manana(),
       esRepetible: false,
       notas: '',
     }
@@ -326,9 +335,9 @@ export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaO
         tempId: Math.random().toString(36).slice(2),
         nombre: nombre.trim(),
         descripcionDoingness: doingness.trim(),
-        responsableId: responsable?.id ?? '',
-        aprobadorId: '',
-        fechaLimite: fecha.trim() || (programaFechaObjetivo ?? ''),
+        responsableId: responsable?.id ?? (defaultResponsableId ?? ''),
+        aprobadorId: defaultAprobadorId ?? '',
+        fechaLimite: fecha.trim() || manana(),
         esRepetible: false,
         notas: '',
       }
@@ -340,6 +349,7 @@ export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaO
   }
 
   const inputCls = 'w-full bg-transparent text-foreground text-sm placeholder:text-muted-foreground/40 outline-none focus:bg-accent/30 rounded px-1 py-0.5 transition-colors'
+  const selectCls = `${inputCls} bg-background [&>option]:bg-background [&>option]:text-foreground`
 
   const panelProps: PanelProps | null = selectedObjetivo ? {
     obj: selectedObjetivo,
@@ -404,7 +414,7 @@ export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaO
                     </td>
                     <td className="py-1.5 px-2" onClick={e => e.stopPropagation()}>
                       <select
-                        className={cn(inputCls, 'cursor-pointer')}
+                        className={cn(selectCls, 'cursor-pointer')}
                         value={obj.responsableId}
                         onChange={e => actualizarObjetivo(obj.tempId, { responsableId: e.target.value })}
                       >

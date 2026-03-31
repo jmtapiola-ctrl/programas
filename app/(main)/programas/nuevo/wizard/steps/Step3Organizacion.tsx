@@ -60,6 +60,7 @@ export function Step3Organizacion({
   }
 
   const inputCls = "w-full bg-transparent border border-input rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+  const selectCls = `${inputCls} bg-background [&>option]:bg-background [&>option]:text-foreground`
 
   return (
     <div className="space-y-6">
@@ -102,14 +103,14 @@ export function Step3Organizacion({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-xs font-medium text-muted-foreground block mb-1">Responsable *</label>
-            <select className={inputCls} value={responsableId} onChange={e => onChange({ responsableId: e.target.value })}>
+            <select className={selectCls} value={responsableId} onChange={e => onChange({ responsableId: e.target.value })}>
               <option value="">Seleccionar...</option>
               {activos.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
             </select>
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground block mb-1">Aprobador (opcional)</label>
-            <select className={inputCls} value={aprobadorId} onChange={e => onChange({ aprobadorId: e.target.value })}>
+            <select className={selectCls} value={aprobadorId} onChange={e => onChange({ aprobadorId: e.target.value })}>
               <option value="">Sin asignar</option>
               {activos.filter(u => u.rol === 'Ejecutivo').map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
             </select>
@@ -130,7 +131,7 @@ export function Step3Organizacion({
 
       {observaciones && (
         <div className="rounded-md border border-yellow-600/40 bg-yellow-900/20 px-4 py-3 space-y-1">
-          <p className="text-xs font-semibold text-yellow-400 uppercase tracking-wider">Observación de Gemini</p>
+          <p className="text-xs font-semibold text-yellow-400 uppercase tracking-wider">Observación</p>
           <p className="text-sm text-yellow-200/80">{observaciones}</p>
         </div>
       )}

@@ -156,7 +156,10 @@ export default function WizardPage() {
   const searchParams = useSearchParams()
   const programaIdParam = searchParams.get('programaId')
 
-  const [state, setState] = useState<WizardState>({ ...WIZARD_INITIAL_STATE })
+  const [state, setState] = useState<WizardState>(() => ({
+    ...WIZARD_INITIAL_STATE,
+    fechaInicio: new Date().toISOString().split('T')[0],
+  }))
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(!!programaIdParam)
@@ -438,6 +441,8 @@ export default function WizardPage() {
               onChange={obs => update({ objetivosCondicionales: obs })}
               usuarios={usuarios}
               defaultFechaLimite={state.fechaObjetivo}
+              defaultResponsableId={state.responsableId}
+              defaultAprobadorId={state.aprobadorId}
               onNext={handleNext4}
               onBack={goBack}
               saving={saving}
@@ -449,6 +454,8 @@ export default function WizardPage() {
               onChange={obs => update({ objetivosPrimarios: obs })}
               usuarios={usuarios}
               defaultFechaLimite={state.fechaObjetivo}
+              defaultResponsableId={state.responsableId}
+              defaultAprobadorId={state.aprobadorId}
               onNext={handleNext5}
               onBack={goBack}
               saving={saving}
@@ -460,6 +467,8 @@ export default function WizardPage() {
               onChange={obs => update({ objetivosVitales: obs })}
               usuarios={usuarios}
               defaultFechaLimite={state.fechaObjetivo}
+              defaultResponsableId={state.responsableId}
+              defaultAprobadorId={state.aprobadorId}
               onNext={handleNext6}
               onBack={goBack}
               saving={saving}
@@ -473,6 +482,8 @@ export default function WizardPage() {
               onChangeProduccion={obs => update({ objetivosProduccion: obs })}
               usuarios={usuarios}
               defaultFechaLimite={state.fechaObjetivo}
+              defaultResponsableId={state.responsableId}
+              defaultAprobadorId={state.aprobadorId}
               onNext={handleNext7}
               onBack={goBack}
               saving={saving}

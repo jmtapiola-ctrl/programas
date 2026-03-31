@@ -20,7 +20,7 @@ export default function NuevoProgramaPage() {
     estado: 'Borrador' as const,
     responsableId: '',
     aprobadorId: '',
-    fechaInicio: '',
+    fechaInicio: new Date().toISOString().split('T')[0],
     fechaObjetivo: '',
     notas: '',
   })

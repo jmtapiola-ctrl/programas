@@ -10,12 +10,14 @@ interface Props {
   onChange: (obs: ObjetivoWizard[]) => void
   usuarios: Usuario[]
   defaultFechaLimite?: string
+  defaultResponsableId?: string
+  defaultAprobadorId?: string
   onNext: () => Promise<void>
   onBack: () => void
   saving?: boolean
 }
 
-export function Step5Primarios({ objetivos, onChange, usuarios, defaultFechaLimite, onNext, onBack, saving }: Props) {
+export function Step5Primarios({ objetivos, onChange, usuarios, defaultFechaLimite, defaultResponsableId, defaultAprobadorId, onNext, onBack, saving }: Props) {
   const [error, setError] = useState('')
 
   async function handleContinuar() {
@@ -56,7 +58,7 @@ export function Step5Primarios({ objetivos, onChange, usuarios, defaultFechaLimi
         </div>
       </div>
 
-      <TablaObjetivosWizard tipo="Primario" objetivos={objetivos} onChange={v => { onChange(v); setError('') }} usuarios={usuarios} programaFechaObjetivo={defaultFechaLimite} />
+      <TablaObjetivosWizard tipo="Primario" objetivos={objetivos} onChange={v => { onChange(v); setError('') }} usuarios={usuarios} programaFechaObjetivo={defaultFechaLimite} defaultResponsableId={defaultResponsableId} defaultAprobadorId={defaultAprobadorId} />
 
       {error && (
         <div className="rounded-md border border-red-500/30 bg-red-900/20 px-4 py-3">
