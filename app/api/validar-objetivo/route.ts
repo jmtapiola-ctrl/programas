@@ -110,8 +110,18 @@ Ejemplos:
   Original: "Enviar el informe Q1 al cliente antes del viernes y recibir confirmación de recepción"
   Sugerencia: null
 
-IMPORTANTE: Sé MUY conciso. Máximo 1 oración por descripción de error.
-NO inventes errores si el objetivo genuinamente es válido y claro.`
+FORMATO DE LOS ERRORES:
+Cada descripción de error debe ser una pregunta o sugerencia concreta y accionable.
+NO uses lenguaje técnico como "verbo de proceso", "resultado observable", "punto de finalización", "ciclo de acción".
+En cambio, hacé preguntas directas que ayuden al usuario a saber exactamente qué cambiar:
+
+  En lugar de: "El doingness usa un verbo de proceso sin especificar un resultado observable y verificable"
+  Usá: "¿Cuál es el entregable concreto? ¿Un documento, un plan aprobado, una reunión realizada? Agregalo para que quede claro cuándo el objetivo está terminado."
+
+  En lugar de: "El doingness no tiene un punto de finalización claro"
+  Usá: "¿Cuándo exactamente está HECHO este objetivo? Agregá una condición de cierre clara: una fecha, una cantidad, una aprobación, un entregable."
+
+Máximo 2 oraciones por error. NO inventes errores si el objetivo genuinamente es válido y claro.`
 
   const promptCompleto = `${systemPrompt}\n\n${userPrompt}`
 
