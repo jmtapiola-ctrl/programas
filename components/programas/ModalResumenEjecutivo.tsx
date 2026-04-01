@@ -8,26 +8,39 @@ interface Props {
   onResumenGenerado?: (resumen: string) => void
 }
 
+function renderNegritas(texto: string): React.ReactNode {
+  const partes = texto.split(/\*\*(.*?)\*\*/g)
+  return partes.map((parte, i) =>
+    i % 2 === 1
+      ? <strong key={i} className="font-semibold text-foreground">{parte}</strong>
+      : parte
+  )
+}
+
 function renderMarkdown(texto: string): React.ReactNode[] {
-  // Dividir por doble salto de línea para párrafos
-  const parrafos = texto.split(/\n\n+/).filter(Boolean)
-  return parrafos.map((parrafo, pi) => {
-    // Dentro de cada párrafo, procesar **negritas**
-    const partes = parrafo.split(/(\*\*[^*]+\*\*)/)
-    const contenido = partes.map((parte, i) => {
-      if (parte.startsWith('**') && parte.endsWith('**')) {
-        return <strong key={i}>{parte.slice(2, -2)}</strong>
-      }
-      // Preservar saltos de línea simples
-      return parte.split('\n').reduce<React.ReactNode[]>((acc, line, li) => {
-        if (li > 0) acc.push(<br key={`br-${li}`} />)
-        acc.push(line)
-        return acc
-      }, [])
-    })
+  const secciones = texto.split(/\n(?=## )/)
+  return secciones.map((seccion, i) => {
+    const lineas = seccion.trim().split('\n')
+    const esTitulo = lineas[0].startsWith('## ')
+
+    if (esTitulo) {
+      const titulo = lineas[0].replace('## ', '').trim()
+      const contenido = lineas.slice(1).join('\n').trim()
+      return (
+        <div key={i} className="mb-6">
+          <h3 className="text-xs font-semibold text-purple-400 uppercase tracking-wider mb-2">
+            {titulo}
+          </h3>
+          <p className="text-sm text-foreground leading-relaxed">
+            {renderNegritas(contenido)}
+          </p>
+        </div>
+      )
+    }
+
     return (
-      <p key={pi} className="text-sm text-foreground leading-relaxed mb-4 last:mb-0">
-        {contenido}
+      <p key={i} className="text-sm text-foreground leading-relaxed mb-4">
+        {renderNegritas(seccion.trim())}
       </p>
     )
   })

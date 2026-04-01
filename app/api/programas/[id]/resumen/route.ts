@@ -70,7 +70,7 @@ export async function POST(
       ).join('\n\n')
     : 'Sin objetivos cargados'
 
-  const systemPrompt = `Sos un analista experto en gestión organizacional con profundo conocimiento de la Serie de Objetivos de L. Ronald Hubbard. Generás resúmenes ejecutivos ricos, detallados y útiles para ejecutivos que necesitan entender rápidamente el estado real de un programa. Escribís en español, en prosa fluida con párrafos bien desarrollados. Usás **negritas** en Markdown para destacar puntos clave. Cada párrafo debe tener al menos 3-4 oraciones. No usés bullets ni listas.`
+  const systemPrompt = `Sos un analista experto en gestión organizacional con profundo conocimiento de la Serie de Objetivos de L. Ronald Hubbard. Generás resúmenes ejecutivos ricos, detallados y útiles para ejecutivos que necesitan entender rápidamente el estado real de un programa. Escribís en español, en prosa fluida con párrafos bien desarrollados. Usás títulos de sección en Markdown con ## para cada párrafo, seguidos del contenido en prosa. Usás **negritas** para destacar puntos clave dentro del texto. Cada sección debe tener 3-4 oraciones bien desarrolladas. No usés bullets ni listas.`
 
   const userPrompt = `Generá un resumen ejecutivo completo y detallado de este programa.
 
@@ -95,18 +95,18 @@ ESTADÍSTICAS DE AVANCE:
 - Sin iniciar: ${noIniciados}
 - Con problemas (Rechazado/Incumplido/Cancelado): ${conProblemas}
 
-Redactá 4 párrafos completos y bien desarrollados:
+Estructurá el resumen con estas 4 secciones exactas, cada una con su título ## y su contenido en prosa:
 
-**Párrafo 1 — Situación y coherencia:**
+## Situación y coherencia
 Describí el problema real que este programa intenta resolver. ¿La situación está bien identificada? ¿El propósito y el objetivo mayor son coherentes con esa situación? ¿El programa tiene sentido como respuesta al problema planteado?
 
-**Párrafo 2 — Estructura del programa:**
+## Estructura del programa
 Analizá cómo está armado el programa según la Serie de Objetivos de LRH. ¿Tiene todos los tipos de objetivos necesarios (Condicionales, Primarios/Vitales, Operativos, Producción)? ¿La secuencia es correcta? ¿Hay tipos que faltan o están sobredimensionados?
 
-**Párrafo 3 — Estado de avance actual:**
+## Estado de avance
 ¿Dónde está parado el programa hoy? ¿Qué se completó, qué está en curso, qué no arrancó? ¿Cuáles son los puntos de atención más importantes en este momento?
 
-**Párrafo 4 — Riesgos y recomendaciones:**
+## Riesgos y recomendaciones
 ¿Hay Primarios o Vitales sin iniciar que bloquean el resto? ¿Objetivos vencidos? ¿Responsables sin asignar? ¿La estructura del programa garantiza que se va a poder ejecutar? ¿Qué debería hacer el ejecutivo primero?
 
 Sé específico y directo. Mencioná nombres de objetivos concretos cuando sea relevante. No uses frases genéricas.`
