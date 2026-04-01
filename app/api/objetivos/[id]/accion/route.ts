@@ -280,6 +280,7 @@ export async function POST(
           nombre: 'Nombre', tipo: 'Tipo', descripcionDoingness: 'Descripción',
           fechaLimite: 'Fecha Límite', responsableId: 'Responsable',
           aprobadorId: 'Aprobador', esRepetible: 'Repetible', notas: 'Notas',
+          modo: 'Modo',
         }
         const cambios: string[] = []
         for (const campo of Object.keys(CAMPO_LABEL)) {
@@ -298,6 +299,7 @@ export async function POST(
           aprobadorId: datos.aprobadorId || undefined,
           esRepetible: !!datos.esRepetible,
           notas: datos.notas || undefined,
+          modo: datos.modo || undefined,
         })
         if (cambios.length > 0) {
           await crearLogEvento({ objetivoId: id, tipoEvento: 'Objetivo Editado', usuarioId, notas: cambios.join('\n') })

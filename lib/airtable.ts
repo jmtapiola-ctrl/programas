@@ -119,6 +119,7 @@ function mapObjetivo(r: any): Objetivo {
     descripcionDoingness: r.fields['Descripcion Doingness'] ?? '',
     esRepetible: r.fields['Es Repetible'] ?? false,
     esCondicional: r.fields['Es Condicional'] as boolean ?? false,
+    modo: ((r.fields['Modo'] as any)?.name ?? 'Secuencial') as 'Secuencial' | 'Paralelo',
     orden: r.fields['Orden'],
     notas: r.fields['Notas'],
     pbIds: r.fields['PB'] ?? [],
@@ -323,6 +324,7 @@ export async function createObjetivo(
   if (data.descripcionDoingness) fields['Descripcion Doingness'] = data.descripcionDoingness
   if (data.esRepetible !== undefined) fields['Es Repetible'] = data.esRepetible
   if (data.esCondicional !== undefined) fields['Es Condicional'] = data.esCondicional
+  if (data.modo) fields['Modo'] = data.modo
   if (data.orden !== undefined) fields['Orden'] = data.orden
   if (data.notas) fields['Notas'] = data.notas
   if (data.tipo === 'Vital') {
@@ -348,6 +350,7 @@ export async function updateObjetivo(id: string, data: Partial<Objetivo>): Promi
   if (data.descripcionDoingness !== undefined) fields['Descripcion Doingness'] = data.descripcionDoingness
   if (data.esRepetible !== undefined) fields['Es Repetible'] = data.esRepetible
   if (data.esCondicional !== undefined) fields['Es Condicional'] = data.esCondicional
+  if (data.modo !== undefined) fields['Modo'] = data.modo
   if (data.orden !== undefined) fields['Orden'] = data.orden
   if (data.notas !== undefined) fields['Notas'] = data.notas
   const r = await updateRecord(TABLA_OBJETIVOS, id, fields)

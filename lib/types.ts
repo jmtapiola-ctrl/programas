@@ -60,6 +60,7 @@ export interface Objetivo {
   descripcionDoingness: string
   esRepetible: boolean
   esCondicional?: boolean
+  modo?: 'Secuencial' | 'Paralelo'
   orden?: number
   notas?: string
   pbIds: string[]

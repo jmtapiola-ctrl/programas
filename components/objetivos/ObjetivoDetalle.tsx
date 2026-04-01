@@ -75,6 +75,7 @@ export function ObjetivoDetalle({
     aprobadorId: objetivo.aprobadorId ?? programa?.aprobadorId ?? '',
     esRepetible: objetivo.esRepetible,
     notas: objetivo.notas ?? '',
+    modo: (objetivo.modo ?? 'Secuencial') as 'Secuencial' | 'Paralelo',
   })
   const [, startTransition] = useTransition()
   const router = useRouter()
@@ -160,6 +161,7 @@ export function ObjetivoDetalle({
       aprobadorId: objetivo.aprobadorId ?? programa?.aprobadorId ?? '',
       esRepetible: objetivo.esRepetible,
       notas: objetivo.notas ?? '',
+      modo: (objetivo.modo ?? 'Secuencial') as 'Secuencial' | 'Paralelo',
     })
     setError(null)
     setProblemaGemini(null)
@@ -550,6 +552,27 @@ export function ObjetivoDetalle({
             />
             <label htmlFor="esRepetible" className="text-sm text-muted-foreground">Es repetible</label>
           </div>
+          {editForm.tipo === 'Operativo' && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">Relación con el objetivo anterior</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditForm(f => ({ ...f, modo: 'Secuencial' }))}
+                  className={`flex-1 px-3 py-1.5 text-sm rounded-md border transition-colors ${editForm.modo !== 'Paralelo' ? 'bg-accent text-foreground border-border' : 'bg-transparent text-muted-foreground border-border/50 hover:bg-accent/50'}`}
+                >
+                  → Secuencial
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditForm(f => ({ ...f, modo: 'Paralelo' }))}
+                  className={`flex-1 px-3 py-1.5 text-sm rounded-md border transition-colors ${editForm.modo === 'Paralelo' ? 'bg-blue-900 text-blue-200 border-blue-700' : 'bg-transparent text-muted-foreground border-border/50 hover:bg-accent/50'}`}
+                >
+                  ≡ Paralelo
+                </button>
+              </div>
+            </div>
+          )}
           <Textarea
             label="Notas (opcional)"
             value={editForm.notas}

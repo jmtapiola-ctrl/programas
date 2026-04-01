@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { useState, useRef } from 'react'
 import { Trash2, CheckCircle2, XCircle, Lightbulb, Loader2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -189,6 +190,44 @@ function PanelDetalle({
                 </p>
               )}
             </div>
+          </div>
+        )}
+
+        {/* 3c. Modo (Operativos desde el segundo) */}
+        {tipo === 'Operativo' && index > 0 && (
+          <div>
+            <label className={labelCls}>Relación con el objetivo anterior</label>
+            <div className="flex gap-2 mt-1">
+              <button
+                type="button"
+                onClick={() => onChange({ modo: 'Secuencial' })}
+                className={cn(
+                  'flex-1 px-3 py-1.5 text-sm rounded-md border transition-colors',
+                  (!obj.modo || obj.modo === 'Secuencial')
+                    ? 'bg-accent text-foreground border-border'
+                    : 'bg-transparent text-muted-foreground border-border/50 hover:bg-accent/50'
+                )}
+              >
+                → Secuencial
+              </button>
+              <button
+                type="button"
+                onClick={() => onChange({ modo: 'Paralelo' })}
+                className={cn(
+                  'flex-1 px-3 py-1.5 text-sm rounded-md border transition-colors',
+                  obj.modo === 'Paralelo'
+                    ? 'bg-blue-900 text-blue-200 border-blue-700'
+                    : 'bg-transparent text-muted-foreground border-border/50 hover:bg-accent/50'
+                )}
+              >
+                ≡ Paralelo
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1.5">
+              {obj.modo === 'Paralelo'
+                ? 'Este objetivo se puede ejecutar al mismo tiempo que el anterior'
+                : 'Este objetivo empieza cuando el anterior esté completo'}
+            </p>
           </div>
         )}
 
@@ -424,66 +463,84 @@ export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaO
                 const isSelected = obj.tempId === selectedTempId
                 const isValidating = validatingIds.has(obj.tempId)
                 return (
-                  <tr
-                    key={obj.tempId}
-                    onClick={() => setSelectedTempId(obj.tempId)}
-                    className={cn(
-                      'border-b border-border/50 hover:bg-muted/20 transition-colors group cursor-pointer',
-                      isSelected && 'bg-accent/20 border-l-4 border-l-primary',
-                      tipo === 'Operativo' && obj.esCondicional && !isSelected && 'border-l-2 border-l-orange-500/50 border-l-dashed'
+                  <React.Fragment key={obj.tempId}>
+                    {i > 0 && tipo === 'Operativo' && (
+                      <tr className="pointer-events-none select-none">
+                        <td className="py-0 px-3 w-8">
+                          <div className="flex flex-col items-center leading-none text-center" style={{ minHeight: '20px' }}>
+                            {obj.modo === 'Paralelo' ? (
+                              <span className="text-blue-400 font-mono text-sm leading-none">║</span>
+                            ) : (
+                              <>
+                                <span className="text-muted-foreground text-xs leading-none">│</span>
+                                <span className="text-muted-foreground text-[9px] leading-none">▼</span>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                        <td colSpan={6} />
+                      </tr>
                     )}
-                  >
-                    <td className="py-1.5 px-3 text-muted-foreground text-xs">{i + 1}</td>
-                    <td className="py-1.5 px-2" onClick={e => e.stopPropagation()}>
-                      <input
-                        className={inputCls}
-                        placeholder="Nombre del objetivo..."
-                        value={obj.nombre}
-                        onChange={e => actualizarObjetivo(obj.tempId, { nombre: e.target.value })}
-                      />
-                    </td>
-                    <td className="py-1.5 px-2" onClick={e => e.stopPropagation()}>
-                      <select
-                        className={cn(selectCls, 'cursor-pointer')}
-                        value={obj.responsableId}
-                        onChange={e => actualizarObjetivo(obj.tempId, { responsableId: e.target.value })}
-                      >
-                        <option value="">Sin asignar</option>
-                        {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-                      </select>
-                    </td>
-                    <td className="py-1.5 px-2" onClick={e => e.stopPropagation()}>
-                      <input
-                        type="date"
-                        className={inputCls}
-                        value={obj.fechaLimite}
-                        onChange={e => actualizarObjetivo(obj.tempId, { fechaLimite: e.target.value })}
-                      />
-                    </td>
-                    {tipo === 'Operativo' && (
-                      <td className="py-1.5 px-1 text-center" onClick={e => e.stopPropagation()}>
+                    <tr
+                      onClick={() => setSelectedTempId(obj.tempId)}
+                      className={cn(
+                        'border-b border-border/50 hover:bg-muted/20 transition-colors group cursor-pointer',
+                        isSelected && 'bg-accent/20 border-l-4 border-l-primary',
+                        tipo === 'Operativo' && obj.esCondicional && !isSelected && 'border-l-2 border-l-orange-500/50 border-l-dashed'
+                      )}
+                    >
+                      <td className="py-1.5 px-3 text-muted-foreground text-xs">{i + 1}</td>
+                      <td className="py-1.5 px-2" onClick={e => e.stopPropagation()}>
                         <input
-                          type="checkbox"
-                          className="h-3.5 w-3.5 rounded border-border accent-orange-500"
-                          checked={obj.esCondicional ?? false}
-                          onChange={e => actualizarObjetivo(obj.tempId, { esCondicional: e.target.checked, validacionGemini: undefined })}
-                          title="Marcar como condicional"
+                          className={inputCls}
+                          placeholder="Nombre del objetivo..."
+                          value={obj.nombre}
+                          onChange={e => actualizarObjetivo(obj.tempId, { nombre: e.target.value })}
                         />
                       </td>
-                    )}
-                    <td className="py-1.5 px-1 text-center" onClick={e => e.stopPropagation()}>
-                      <GeminiIcon v={obj.validacionGemini} validating={isValidating} />
-                    </td>
-                    <td className="py-1.5 px-1" onClick={e => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        onClick={() => removeRow(obj.tempId)}
-                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-all"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </td>
-                  </tr>
+                      <td className="py-1.5 px-2" onClick={e => e.stopPropagation()}>
+                        <select
+                          className={cn(selectCls, 'cursor-pointer')}
+                          value={obj.responsableId}
+                          onChange={e => actualizarObjetivo(obj.tempId, { responsableId: e.target.value })}
+                        >
+                          <option value="">Sin asignar</option>
+                          {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+                        </select>
+                      </td>
+                      <td className="py-1.5 px-2" onClick={e => e.stopPropagation()}>
+                        <input
+                          type="date"
+                          className={inputCls}
+                          value={obj.fechaLimite}
+                          onChange={e => actualizarObjetivo(obj.tempId, { fechaLimite: e.target.value })}
+                        />
+                      </td>
+                      {tipo === 'Operativo' && (
+                        <td className="py-1.5 px-1 text-center" onClick={e => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            className="h-3.5 w-3.5 rounded border-border accent-orange-500"
+                            checked={obj.esCondicional ?? false}
+                            onChange={e => actualizarObjetivo(obj.tempId, { esCondicional: e.target.checked, validacionGemini: undefined })}
+                            title="Marcar como condicional"
+                          />
+                        </td>
+                      )}
+                      <td className="py-1.5 px-1 text-center" onClick={e => e.stopPropagation()}>
+                        <GeminiIcon v={obj.validacionGemini} validating={isValidating} />
+                      </td>
+                      <td className="py-1.5 px-1" onClick={e => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => removeRow(obj.tempId)}
+                          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-all"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  </React.Fragment>
                 )
               })}
             </tbody>

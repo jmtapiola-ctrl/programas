@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { useState, useCallback } from 'react'
 import {
   DndContext,
@@ -138,14 +139,29 @@ function GrupoOrdenable({
           items={objetivos.map((o) => o.id)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="space-y-2">
-            {objetivos.map((obj) => (
-              <SortableObjetivoItem
-                key={obj.id}
-                objetivo={obj}
-                responsable={usuariosMap[obj.responsableId]}
-                puedeReordenar={puedeReordenar}
-              />
+          <div className="space-y-0">
+            {objetivos.map((obj, i) => (
+              <React.Fragment key={obj.id}>
+                {i > 0 && tipo === 'Operativo' && (
+                  <div className="flex items-center pl-8 h-5">
+                    {obj.modo === 'Paralelo' ? (
+                      <span className="text-blue-400 font-mono text-sm leading-none">║</span>
+                    ) : (
+                      <div className="flex flex-col items-center leading-none gap-0">
+                        <span className="text-muted-foreground text-xs leading-none">│</span>
+                        <span className="text-muted-foreground text-[9px] leading-none">▼</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {i > 0 && tipo !== 'Operativo' && <div className="h-2" />}
+                <SortableObjetivoItem
+                  key={obj.id}
+                  objetivo={obj}
+                  responsable={usuariosMap[obj.responsableId]}
+                  puedeReordenar={puedeReordenar}
+                />
+              </React.Fragment>
             ))}
           </div>
         </SortableContext>

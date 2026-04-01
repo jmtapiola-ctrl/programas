@@ -138,6 +138,54 @@ Ejemplos de lo que SÍ hacer:
 
 Devolvé: { "objetivoMayorSugerido": string }`
 
+  } else if (paso === 'analizar_secuencia') {
+    systemPrompt = `Sos un experto en planificación de proyectos. Analizás secuencias de objetivos operativos para detectar gaps lógicos y pasos faltantes. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional.`
+    const ctx = typeof contexto === 'object' ? contexto : {}
+    const objetivosCtx: any[] = ctx.objetivos ?? []
+    const listaObjetivos = objetivosCtx.map((o: any, i: number) => {
+      const modoLabel = i === 0 ? '(inicio)' :
+        o.modo === 'Paralelo' ? '(paralelo con anterior)' :
+        '(después del anterior)'
+      return `${i + 1}. ${modoLabel} "${o.nombre}": ${o.doingness || '(sin descripción)'}`
+    }).join('\n')
+    userPrompt = `Analizá esta secuencia de objetivos operativos:
+
+Propósito: ${ctx.proposito ?? ''}
+Objetivo Mayor: ${ctx.objetivoMayor ?? ''}
+
+Secuencia (con relaciones entre objetivos):
+${listaObjetivos}
+
+Analizá tres cosas:
+
+1. LÓGICA DE SECUENCIA: ¿Cada objetivo secuencial tiene sentido después del anterior? ¿Los paralelos realmente se pueden ejecutar simultáneamente?
+
+2. GAPS OBVIOS: ¿Hay pasos que claramente faltan entre dos objetivos? Por ejemplo, si hay "Contratar cocinero" y luego "Empezar la dieta", falta "Comprar insumos". Detectá gaps de este tipo.
+
+3. OBJETIVOS INTERMEDIOS POSIBLES: ¿Hay transiciones donde probablemente se está omitiendo algo? Si la brecha entre dos objetivos es grande o poco clara, señalalo como posible omisión. Usar lenguaje de advertencia: "Puede estar faltando...", "Considerá si...".
+
+Respondé ÚNICAMENTE con este JSON sin markdown:
+{
+  "secuenciaOk": boolean,
+  "observaciones": "problema principal, máx 2 líneas. null si todo bien" | null,
+  "gapsDetectados": [
+    {
+      "entre": "nombre objetivo A y nombre objetivo B",
+      "descripcion": "qué paso falta claramente",
+      "despuesDeIndice": 0
+    }
+  ] | null,
+  "posiblesOmisiones": [
+    {
+      "entre": "nombre objetivo A y nombre objetivo B",
+      "advertencia": "Puede estar faltando... / Considerá si..."
+    }
+  ] | null,
+  "sugerenciasAdicionales": ["nombre corto de objetivo faltante"] | null
+}
+
+"despuesDeIndice" es el índice base 0 del objetivo ANTES del gap (ej: si falta algo entre obj 1 y 2, despuesDeIndice=0).`
+
   } else {
     return NextResponse.json({ observaciones: null, sugerencia: null })
   }
@@ -150,8 +198,8 @@ Devolvé: { "objetivoMayorSugerido": string }`
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
-          generationConfig: (paso === 'generar_objetivo_mayor' || paso === 'generar_nombre')
-            ? { temperature: 0.4, maxOutputTokens: 1024, thinkingConfig: { thinkingBudget: 0 } }
+          generationConfig: (paso === 'generar_objetivo_mayor' || paso === 'generar_nombre' || paso === 'analizar_secuencia')
+            ? { temperature: 0.3, maxOutputTokens: 1500, thinkingConfig: { thinkingBudget: 0 } }
             : { temperature: 0.1, maxOutputTokens: 512 },
         }),
       }
@@ -169,6 +217,16 @@ Devolvé: { "objetivoMayorSugerido": string }`
 
     if (paso === 'generar_objetivo_mayor') {
       return NextResponse.json({ objetivoMayorSugerido: result.objetivoMayorSugerido ?? '' })
+    }
+
+    if (paso === 'analizar_secuencia') {
+      return NextResponse.json({
+        secuenciaOk: result.secuenciaOk ?? true,
+        observaciones: result.observaciones ?? null,
+        gapsDetectados: result.gapsDetectados ?? null,
+        posiblesOmisiones: result.posiblesOmisiones ?? null,
+        sugerenciasAdicionales: result.sugerenciasAdicionales ?? null,
+      })
     }
 
     if (paso === 2) {
@@ -190,6 +248,9 @@ Devolvé: { "objetivoMayorSugerido": string }`
     }
     if (paso === 'generar_objetivo_mayor') {
       return NextResponse.json({ objetivoMayorSugerido: '' })
+    }
+    if (paso === 'analizar_secuencia') {
+      return NextResponse.json({ secuenciaOk: true, observaciones: null, gapsDetectados: null, posiblesOmisiones: null, sugerenciasAdicionales: null })
     }
     if (paso === 2) {
       return NextResponse.json({

@@ -10,6 +10,7 @@ export interface ObjetivoWizard {
   fechaLimite: string
   esRepetible: boolean
   esCondicional?: boolean
+  modo?: 'Secuencial' | 'Paralelo'
   notas?: string
   validacionGemini?: {
     valido: boolean

@@ -150,6 +150,7 @@ async function saveObjetivos(
         'Estado': isVital ? 'Completado' : 'No iniciado',
         'Es Repetible': false,
         'Es Condicional': isVital ? false : (obj.esCondicional ?? false),
+        'Modo': isVital ? 'Secuencial' : (obj.modo ?? 'Secuencial'),
         'Orden': i,
       }
       if (!isVital) {
@@ -233,6 +234,7 @@ export default function WizardPage() {
               fechaLimite: o.fechaLimite ?? '',
               esRepetible: o.esRepetible,
               esCondicional: o.esCondicional ?? false,
+              modo: o.modo ?? 'Secuencial',
             }))
 
         const prim = makeWizardObjetivos('Primario')
@@ -542,6 +544,8 @@ export default function WizardPage() {
               defaultFechaLimite={state.fechaObjetivo}
               defaultResponsableId={state.responsableId}
               defaultAprobadorId={state.aprobadorId}
+              proposito={state.proposito}
+              objetivoMayor={state.objetivoMayor}
               onNext={handleNext6}
               onBack={goBack}
               saving={saving}
