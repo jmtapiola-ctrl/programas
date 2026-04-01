@@ -48,7 +48,7 @@ export function Step6Vitales({ objetivos, onChange, onNext, onBack, saving }: Pr
     <div className="space-y-5">
       <div>
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Paso 5 de 8</p>
-        <h2 className="text-xl font-bold text-foreground">Principios Vitales</h2>
+        <h2 className="text-xl font-bold text-foreground">Objetivos Vitales</h2>
       </div>
 
       <blockquote className="border-l-2 border-yellow-500 pl-4 space-y-1">
@@ -80,7 +80,7 @@ export function Step6Vitales({ objetivos, onChange, onNext, onBack, saving }: Pr
               type="text"
               value={obj.nombre}
               onChange={e => updateNombre(obj.tempId, e.target.value)}
-              placeholder={`Principio vital ${i + 1}`}
+              placeholder={`Objetivo vital ${i + 1}`}
               className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               autoFocus={i === objetivos.length - 1 && !obj.nombre}
             />
@@ -99,7 +99,7 @@ export function Step6Vitales({ objetivos, onChange, onNext, onBack, saving }: Pr
           onClick={addVital}
           className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5 mt-1"
         >
-          <span className="text-yellow-500">◆</span> + Agregar principio vital
+          <span className="text-yellow-500">◆</span> + Agregar objetivo vital
         </button>
       </div>
 

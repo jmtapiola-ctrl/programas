@@ -252,7 +252,7 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
       {vitales.length > 0 && (
         <div className="rounded-lg border border-yellow-700/40 bg-yellow-900/10 p-4 space-y-2">
           <p className="text-xs font-semibold text-yellow-400 uppercase tracking-wider">
-            Principios Vitales ({vitales.length})
+            Objetivos Vitales ({vitales.length})
           </p>
           <p className="text-xs text-muted-foreground">Condiciones permanentes de funcionamiento. No son tareas — son lo que no puede omitirse.</p>
           <ul className="space-y-1 mt-2">
