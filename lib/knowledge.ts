@@ -20,6 +20,9 @@
 export const K_OBJETIVOS_VALIDOS = `
 PRINCIPIOS DE OBJETIVOS VÁLIDOS:
 
+IMPORTANTE: La fecha límite se registra en un campo separado (Fecha Límite),
+no en el nombre del objetivo. No rechazar un objetivo por no incluir fecha en su texto.
+
 1. TODO OBJETIVO DEBE TENER DOINGNESS CONCRETO
    Un objetivo sin doingness no es un objetivo.
    "Mantén relaciones amistosas con el entorno" — no es un objetivo en absoluto.
@@ -57,7 +60,10 @@ PRINCIPIOS DE OBJETIVOS VÁLIDOS:
      No requiere doingness ni fecha. Es una regla que aplica a todos.
    CONDICIONAL (dentro de Operativo): describe condición + acción concreta.
      El doingness comienza con "Si..." o describe claramente la condición previa.
-   OPERATIVO: acción concreta con dirección y fecha. Una acción por objetivo.
+   OPERATIVO: acción concreta con dirección clara. Una acción por objetivo.
+     La fecha límite se registra en el campo Fecha Límite del formulario —
+     no en el nombre del objetivo. Evaluar solo si el nombre describe una
+     acción concreta y terminable. No penalizar por falta de fecha en el nombre.
    PRODUCCIÓN: puede ser repetible, expresado como cuota con acción concreta
      y resultado medible. Puede cumplirse múltiples veces.
    MAYOR: aspiración general y amplia del programa. No requiere doingness concreto

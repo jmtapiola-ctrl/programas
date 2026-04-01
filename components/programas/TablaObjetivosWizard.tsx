@@ -31,10 +31,14 @@ interface PanelProps {
   validating: boolean
   sugerenciaIgnorada: boolean
   inline?: boolean
+  generatingNombre: boolean
+  nombreEsSugerido: boolean
   onIgnorarSugerencia: () => void
   onAplicarTexto: (texto: string) => void
   onChange: (cambios: Partial<ObjetivoWizard>) => void
   onValidate: () => void
+  onGenerateNombre: () => void
+  onNombreManualEdit: () => void
   onClose: () => void
 }
 
@@ -53,8 +57,9 @@ function GeminiIcon({ v, validating }: { v?: ObjetivoWizard['validacionGemini'];
 function PanelDetalle({
   obj, index, tipo, usuarios,
   validating, sugerenciaIgnorada, inline,
+  generatingNombre, nombreEsSugerido,
   onIgnorarSugerencia, onAplicarTexto,
-  onChange, onValidate, onClose,
+  onChange, onValidate, onGenerateNombre, onNombreManualEdit, onClose,
 }: PanelProps) {
   const tieneError = obj.validacionGemini && !obj.validacionGemini.valido
   const mostrarSugerencia = !!(obj.validacionGemini?.valido && obj.validacionGemini.sugerencia && !sugerenciaIgnorada)
@@ -83,21 +88,7 @@ function PanelDetalle({
         !inline && 'flex-1 overflow-y-auto'
       )}>
 
-        {/* 1. Nombre */}
-        <div>
-          <label className={labelCls}>
-            Nombre del objetivo <span className="text-red-400">*</span>
-          </label>
-          <input
-            type="text"
-            className={inputCls}
-            placeholder="Nombre del objetivo..."
-            value={obj.nombre}
-            onChange={e => onChange({ nombre: e.target.value })}
-          />
-        </div>
-
-        {/* 2. Doingness */}
+        {/* 1. Doingness — first, triggers name generation */}
         <div>
           <label className={labelCls}>
             ¿Cómo se hace? ¿Cuándo está hecho? <span className="text-red-400">*</span>
@@ -108,7 +99,10 @@ function PanelDetalle({
             placeholder="Describí la acción concreta y el resultado verificable. Ej: Enviar el informe de ventas del mes a todo el equipo antes del viernes 5 y recibir confirmación de lectura de cada uno."
             value={obj.descripcionDoingness}
             onChange={e => onChange({ descripcionDoingness: e.target.value, validacionGemini: undefined })}
-            onBlur={onValidate}
+            onBlur={() => {
+              onValidate()
+              onGenerateNombre()
+            }}
           />
           {validating && (
             <div className="flex items-center gap-1.5 mt-1.5">
@@ -174,30 +168,98 @@ function PanelDetalle({
           </div>
         )}
 
-        {/* 3b. Es condicional (solo Operativos) */}
-        {tipo === 'Operativo' && (
-          <div className="flex items-start gap-3">
+        {/* 2. Nombre — second, with ✨ badge when AI-suggested */}
+        <div>
+          <label className={labelCls}>
+            Nombre del objetivo <span className="text-red-400">*</span>
+            {generatingNombre && (
+              <span className="ml-2 text-[10px] text-muted-foreground inline-flex items-center gap-1">
+                <Loader2 className="h-2.5 w-2.5 animate-spin" /> generando...
+              </span>
+            )}
+            {!generatingNombre && nombreEsSugerido && (
+              <span className="ml-2 text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                ✨ Sugerido
+              </span>
+            )}
+          </label>
+          <input
+            type="text"
+            className={inputCls}
+            placeholder="Nombre del objetivo..."
+            value={obj.nombre}
+            onChange={e => {
+              onNombreManualEdit()
+              onChange({ nombre: e.target.value })
+            }}
+          />
+        </div>
+
+        {/* 3. Responsable + Aprobador + Fecha en 3 columnas */}
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className={labelCls}>Responsable <span className="text-red-400">*</span></label>
+            <select
+              className={cn(selectCls, 'cursor-pointer')}
+              value={obj.responsableId}
+              onChange={e => onChange({ responsableId: e.target.value })}
+            >
+              <option value="">Sin asignar</option>
+              {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>Aprobador</label>
+            <select
+              className={cn(selectCls, 'cursor-pointer')}
+              value={obj.aprobadorId}
+              onChange={e => onChange({ aprobadorId: e.target.value })}
+            >
+              <option value="">Sin aprobador</option>
+              {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>Fecha límite</label>
+            <input
+              type="date"
+              className={inputCls}
+              value={obj.fechaLimite}
+              onChange={e => onChange({ fechaLimite: e.target.value })}
+            />
+          </div>
+        </div>
+
+        {/* 4. Checkboxes en fila horizontal */}
+        <div className="flex items-center gap-6">
+          {tipo === 'Operativo' && (
+            <label className="flex items-center gap-2 text-sm cursor-pointer text-foreground">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-border accent-orange-500"
+                checked={obj.esCondicional ?? false}
+                onChange={e => onChange({ esCondicional: e.target.checked, validacionGemini: undefined })}
+              />
+              Es condicional
+            </label>
+          )}
+          <label className="flex items-center gap-2 text-sm cursor-pointer text-foreground">
             <input
               type="checkbox"
-              id={`condicional-${obj.tempId}`}
-              className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
-              checked={obj.esCondicional ?? false}
-              onChange={e => onChange({ esCondicional: e.target.checked, validacionGemini: undefined })}
+              className="h-4 w-4 rounded border-border accent-primary"
+              checked={obj.esRepetible}
+              onChange={e => onChange({ esRepetible: e.target.checked })}
             />
-            <div>
-              <label htmlFor={`condicional-${obj.tempId}`} className="text-sm text-foreground cursor-pointer">
-                Es condicional
-              </label>
-              {obj.esCondicional && (
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Este objetivo depende de una condición previa. El doingness debe empezar con "Si..." o describir la condición claramente.
-                </p>
-              )}
-            </div>
-          </div>
+            Objetivo repetible
+          </label>
+        </div>
+        {tipo === 'Operativo' && obj.esCondicional && (
+          <p className="text-xs text-muted-foreground -mt-2">
+            El doingness debe empezar con "Si..." o describir la condición previa claramente.
+          </p>
         )}
 
-        {/* 3c. Modo (Operativos desde el segundo) */}
+        {/* 5. Modo (Operativos desde el segundo) */}
         {tipo === 'Operativo' && index > 0 && (
           <div>
             <label className={labelCls}>Relación con el objetivo anterior</label>
@@ -235,65 +297,7 @@ function PanelDetalle({
           </div>
         )}
 
-        {/* 4. Responsable */}
-        <div>
-          <label className={labelCls}>
-            Responsable <span className="text-red-400">*</span>
-          </label>
-          <select
-            className={cn(selectCls, 'cursor-pointer')}
-            value={obj.responsableId}
-            onChange={e => onChange({ responsableId: e.target.value })}
-          >
-            <option value="">Sin asignar</option>
-            {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-          </select>
-        </div>
-
-        {/* 5. Aprobador */}
-        <div>
-          <label className={labelCls}>Aprobador (opcional)</label>
-          <select
-            className={cn(selectCls, 'cursor-pointer')}
-            value={obj.aprobadorId}
-            onChange={e => onChange({ aprobadorId: e.target.value })}
-          >
-            <option value="">Sin aprobador específico</option>
-            {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-          </select>
-        </div>
-
-        {/* 6. Fecha límite */}
-        <div>
-          <label className={labelCls}>Fecha límite</label>
-          <input
-            type="date"
-            className={inputCls}
-            value={obj.fechaLimite}
-            onChange={e => onChange({ fechaLimite: e.target.value })}
-          />
-        </div>
-
-        {/* 7. Es repetible */}
-        <div className="flex items-start gap-3">
-          <input
-            type="checkbox"
-            id={`repetible-${obj.tempId}`}
-            className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
-            checked={obj.esRepetible}
-            onChange={e => onChange({ esRepetible: e.target.checked })}
-          />
-          <div>
-            <label htmlFor={`repetible-${obj.tempId}`} className="text-sm text-foreground cursor-pointer">
-              Objetivo repetible
-            </label>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Los objetivos repetibles pueden cumplirse múltiples veces. Cada cumplimiento suma a las estadísticas.
-            </p>
-          </div>
-        </div>
-
-        {/* 8. Notas */}
+        {/* 6. Notas */}
         <div>
           <label className={labelCls}>Notas adicionales</label>
           <textarea
@@ -306,7 +310,7 @@ function PanelDetalle({
         </div>
       </div>
 
-      {/* Footer (only in side-panel mode) */}
+      {/* Footer (side-panel mode only) */}
       {!inline && (
         <div className="px-4 py-3 border-t border-border flex-shrink-0">
           <p className="text-[11px] text-muted-foreground/50">
@@ -322,11 +326,23 @@ export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaO
   const [selectedTempId, setSelectedTempId] = useState<string | null>(null)
   const [sugerenciaIgnorada, setSugerenciaIgnorada] = useState<Set<string>>(new Set())
   const [validatingIds, setValidatingIds] = useState<Set<string>>(new Set())
-  const validatingRef = useRef<Set<string>>(new Set())
+  const [generandoNombreIds, setGenerandoNombreIds] = useState<Set<string>>(new Set())
+  const [nombresSugeridos, setNombresSugeridosState] = useState<Set<string>>(new Set())
 
-  // Always-fresh ref to avoid stale closures in async validate
+  const validatingRef = useRef<Set<string>>(new Set())
+  const nombresSugeridosRef = useRef<Set<string>>(new Set())
+
+  // Always-fresh ref to avoid stale closures in async callbacks
   const objetivosRef = useRef(objetivos)
   objetivosRef.current = objetivos
+
+  function syncNombresSugeridos(fn: (prev: Set<string>) => Set<string>) {
+    setNombresSugeridosState(prev => {
+      const next = fn(prev)
+      nombresSugeridosRef.current = next
+      return next
+    })
+  }
 
   const selectedObjetivo = objetivos.find(o => o.tempId === selectedTempId) ?? null
 
@@ -352,6 +368,7 @@ export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaO
   function removeRow(tempId: string) {
     onChange(objetivosRef.current.filter(o => o.tempId !== tempId))
     if (selectedTempId === tempId) setSelectedTempId(null)
+    syncNombresSugeridos(prev => { const s = new Set(prev); s.delete(tempId); return s })
   }
 
   async function validateDoingness(tempId: string) {
@@ -384,6 +401,41 @@ export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaO
     } catch {}
     validatingRef.current.delete(tempId)
     setValidatingIds(prev => {
+      const next = new Set(prev)
+      next.delete(tempId)
+      return next
+    })
+  }
+
+  async function generateNombreObj(tempId: string) {
+    const obj = objetivosRef.current.find(o => o.tempId === tempId)
+    if (!obj || !obj.descripcionDoingness.trim()) return
+    // Only generate if nombre is empty or was previously AI-suggested
+    if (obj.nombre.trim() && !nombresSugeridosRef.current.has(tempId)) return
+
+    setGenerandoNombreIds(prev => new Set([...prev, tempId]))
+    try {
+      const res = await fetch('/api/wizard-validar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paso: 'generar_nombre_objetivo',
+          contenido: obj.descripcionDoingness,
+          contexto: { tipo },
+        }),
+      })
+      const data = await res.json()
+      const nombreSugerido: string = data.nombreSugerido ?? ''
+      if (nombreSugerido) {
+        const currentObj = objetivosRef.current.find(o => o.tempId === tempId)
+        // Only apply if nombre is still empty or still the previous suggestion
+        if (currentObj && (!currentObj.nombre.trim() || nombresSugeridosRef.current.has(tempId))) {
+          actualizarObjetivo(tempId, { nombre: nombreSugerido })
+          syncNombresSugeridos(prev => new Set([...prev, tempId]))
+        }
+      }
+    } catch {}
+    setGenerandoNombreIds(prev => {
       const next = new Set(prev)
       next.delete(tempId)
       return next
@@ -432,12 +484,14 @@ export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaO
       usuarios,
       validating: validatingIds.has(obj.tempId),
       sugerenciaIgnorada: sugerenciaIgnorada.has(obj.tempId),
+      generatingNombre: generandoNombreIds.has(obj.tempId),
+      nombreEsSugerido: nombresSugeridos.has(obj.tempId),
       onIgnorarSugerencia: () => setSugerenciaIgnorada(prev => new Set([...prev, obj.tempId])),
-      onAplicarTexto: (texto) => {
-        actualizarObjetivo(obj.tempId, { descripcionDoingness: texto, validacionGemini: undefined })
-      },
+      onAplicarTexto: (texto) => actualizarObjetivo(obj.tempId, { descripcionDoingness: texto, validacionGemini: undefined }),
       onChange: (cambios) => actualizarObjetivo(obj.tempId, cambios),
       onValidate: () => validateDoingness(obj.tempId),
+      onGenerateNombre: () => generateNombreObj(obj.tempId),
+      onNombreManualEdit: () => syncNombresSugeridos(prev => { const s = new Set(prev); s.delete(obj.tempId); return s }),
       onClose: () => setSelectedTempId(null),
     }
   }
@@ -506,7 +560,10 @@ export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaO
                       className={inputCls}
                       placeholder="Nombre del objetivo..."
                       value={obj.nombre}
-                      onChange={e => actualizarObjetivo(obj.tempId, { nombre: e.target.value })}
+                      onChange={e => {
+                        syncNombresSugeridos(prev => { const s = new Set(prev); s.delete(obj.tempId); return s })
+                        actualizarObjetivo(obj.tempId, { nombre: e.target.value })
+                      }}
                     />
                   </td>
                   <td className="py-1.5 px-2" onClick={e => e.stopPropagation()}>

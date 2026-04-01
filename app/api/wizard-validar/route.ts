@@ -217,6 +217,23 @@ Respondé ÚNICAMENTE con este JSON sin markdown:
 
 "despuesDeIndice" es el índice base 0 del objetivo ANTES del gap (ej: si falta algo entre obj 1 y 2, despuesDeIndice=0).`
 
+  } else if (paso === 'generar_nombre_objetivo') {
+    systemPrompt = `Generás nombres cortos y concretos para objetivos organizacionales basándote en su descripción. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional.`
+    const ctx = typeof contexto === 'object' ? contexto : {}
+    const tipoObj = ctx.tipo ?? ''
+    userPrompt = `Dado este doingness de un objetivo ${tipoObj}, generá un nombre corto (máximo 8 palabras) que lo describa.
+
+Doingness: ${contenido}
+
+El nombre debe:
+- Ser conciso y descriptivo
+- Empezar con verbo en infinitivo si es posible (Completar, Definir, Establecer, Contratar, etc.)
+- No incluir fechas ni responsables
+- Ser distinto al doingness — más corto y directo
+
+Respondé ÚNICAMENTE con JSON sin markdown:
+{"nombreSugerido": "texto aquí"}`
+
   } else {
     return NextResponse.json({ observaciones: null, sugerencia: null })
   }
@@ -231,6 +248,8 @@ Respondé ÚNICAMENTE con este JSON sin markdown:
           contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
           generationConfig: (paso === 'generar_objetivo_mayor' || paso === 'generar_nombre')
             ? { temperature: 0.4, maxOutputTokens: 1024, thinkingConfig: { thinkingBudget: 0 } }
+            : paso === 'generar_nombre_objetivo'
+            ? { temperature: 0.4, maxOutputTokens: 256, thinkingConfig: { thinkingBudget: 0 } }
             : paso === 'analizar_secuencia'
             ? { temperature: 0.3, maxOutputTokens: 1500, thinkingConfig: { thinkingBudget: 1024 } }
             : { temperature: 0.1, maxOutputTokens: 512, thinkingConfig: { thinkingBudget: 1024 } },
@@ -244,7 +263,7 @@ Respondé ÚNICAMENTE con este JSON sin markdown:
     const text = textPart?.text ?? '{}'
     const result = JSON.parse(text.replace(/```json|```/g, '').trim())
 
-    if (paso === 'generar_nombre') {
+    if (paso === 'generar_nombre' || paso === 'generar_nombre_objetivo') {
       return NextResponse.json({ nombreSugerido: result.nombreSugerido ?? '' })
     }
 
@@ -276,7 +295,7 @@ Respondé ÚNICAMENTE con este JSON sin markdown:
       sugerencia: result.sugerencia ?? null,
     })
   } catch {
-    if (paso === 'generar_nombre') {
+    if (paso === 'generar_nombre' || paso === 'generar_nombre_objetivo') {
       return NextResponse.json({ nombreSugerido: '' })
     }
     if (paso === 'generar_objetivo_mayor') {
