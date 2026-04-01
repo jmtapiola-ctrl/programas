@@ -328,7 +328,7 @@ export default function WizardPage() {
     if (!state.programaId) { advance(); return }
     iniciarGuardado()
     try {
-      await wizardPatch(state.programaId, { proposito: state.proposito })
+      await wizardPatch(state.programaId, { proposito: state.proposito, objetivoMayor: state.objetivoMayor })
       advance()
       finalizarGuardado()
     } catch (e) {
@@ -338,7 +338,7 @@ export default function WizardPage() {
     } finally {
       setSaving(false)
     }
-  }, [state.programaId, state.proposito])
+  }, [state.programaId, state.proposito, state.objetivoMayor])
 
   const handleNext3 = useCallback(async () => {
     iniciarGuardado()
@@ -471,7 +471,9 @@ export default function WizardPage() {
             <Step2Proposito
               situacion={state.situacion}
               proposito={state.proposito}
+              objetivoMayor={state.objetivoMayor}
               onChange={v => update({ proposito: v })}
+              onChangeObjetivoMayor={v => update({ objetivoMayor: v })}
               onNext={handleNext2}
               onBack={goBack}
               saving={saving}

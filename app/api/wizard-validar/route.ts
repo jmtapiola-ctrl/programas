@@ -76,6 +76,30 @@ Objetivo Mayor: ${typeof contenido === 'object' ? contenido.objetivoMayor : ''}
 Devolvé: { "observaciones": string | null, "sugerencia": string | null }
 Si está bien: observaciones null. Si se puede mejorar: texto corto de 1-2 oraciones.`
 
+  } else if (paso === 'generar_objetivo_mayor') {
+    systemPrompt = `Sos un experto en planificación estratégica por objetivos. Generás Objetivos Mayores concretos, medibles y verificables a partir de una situación y un propósito dados. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional.`
+    const situacion = typeof contexto === 'object' ? (contexto?.situacion ?? '') : (contexto ?? '')
+    userPrompt = `Dada esta situación y propósito, generá un Objetivo Mayor:
+
+Situación: ${situacion}
+Propósito: ${contenido}
+
+El Objetivo Mayor debe:
+- Ser el resultado concreto y verificable que se logra cuando el programa esté completo
+- Poder medirse o verificarse objetivamente
+- Ser específico, no genérico
+- Si aplica, incluir una cantidad o fecha aproximada
+- Ser distinto del propósito — el propósito es el POR QUÉ, el Objetivo Mayor es el QUÉ concreto
+
+Ejemplos:
+  Propósito: "Que el equipo genere ingresos sin depender de nadie"
+  Objetivo Mayor: "Facturar $500k mensuales de forma autónoma antes de diciembre"
+
+  Propósito: "Que JMT tenga salud y energía óptima"
+  Objetivo Mayor: "JMT pesando 79kg y completando 3 sesiones de ejercicio semanales sin excepción"
+
+Devolvé: { "objetivoMayorSugerido": string }`
+
   } else {
     return NextResponse.json({ observaciones: null, sugerencia: null })
   }
@@ -88,13 +112,17 @@ Si está bien: observaciones null. Si se puede mejorar: texto corto de 1-2 oraci
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 512 },
+          generationConfig: { temperature: 0.3, maxOutputTokens: 512 },
         }),
       }
     )
     const data = await response.json()
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}'
     const result = JSON.parse(text.replace(/```json|```/g, '').trim())
+
+    if (paso === 'generar_objetivo_mayor') {
+      return NextResponse.json({ objetivoMayorSugerido: result.objetivoMayorSugerido ?? '' })
+    }
 
     if (paso === 2) {
       return NextResponse.json({
@@ -110,6 +138,9 @@ Si está bien: observaciones null. Si se puede mejorar: texto corto de 1-2 oraci
       sugerencia: result.sugerencia ?? null,
     })
   } catch {
+    if (paso === 'generar_objetivo_mayor') {
+      return NextResponse.json({ objetivoMayorSugerido: '' })
+    }
     if (paso === 2) {
       return NextResponse.json({
         fuerte: true,
