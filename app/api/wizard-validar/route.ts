@@ -112,7 +112,9 @@ Devolvé: { "objetivoMayorSugerido": string }`
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 512 },
+          generationConfig: paso === 'generar_objetivo_mayor'
+            ? { temperature: 0.4, maxOutputTokens: 1024, thinkingConfig: { thinkingBudget: 0 } }
+            : { temperature: 0.1, maxOutputTokens: 512 },
         }),
       }
     )
