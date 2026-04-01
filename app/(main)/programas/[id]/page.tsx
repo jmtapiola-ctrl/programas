@@ -8,7 +8,7 @@ import { Tooltip } from '@/components/ui/Tooltip'
 import { ObjetivosOrdenables } from '@/components/programas/ObjetivosOrdenables'
 import { ArchivarButton } from '@/components/programas/ArchivarButton'
 import { ModalResumenEjecutivo } from '@/components/programas/ModalResumenEjecutivo'
-import { sortObjetivos, puedeVerTodo, esOficialDelPrograma } from '@/lib/types'
+import { sortObjetivos, puedeVerTodo, esOficialDelPrograma, esObjetivoEjecutable } from '@/lib/types'
 import type { Usuario, Rol } from '@/lib/types'
 
 const ESTADOS_PROBLEMA = ['Incumplido', 'Rechazado', 'Modificación solicitada'] as const
@@ -40,6 +40,8 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
 
   const usuariosMap = Object.fromEntries(usuarios.map((u: Usuario) => [u.id, u]))
   const sortedObjetivos = sortObjetivos(objetivos)
+  const vitales = sortedObjetivos.filter(o => o.tipo === 'Vital')
+  const ejecutables = sortedObjetivos.filter(o => esObjetivoEjecutable(o.tipo))
   const responsables = programa.responsableIds.map(rid => usuariosMap[rid]).filter(Boolean)
   const aprobador = programa.aprobadorId ? usuariosMap[programa.aprobadorId] : undefined
 
@@ -55,8 +57,8 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
     { label: 'Tiene Propósito definido', ok: !!programa.proposito },
     { label: 'Tiene Objetivo Mayor definido', ok: !!programa.objetivoMayor },
     { label: 'Tiene Aprobador asignado', ok: !!programa.aprobadorId },
-    { label: 'Todos los objetivos tienen Responsable', ok: objetivos.length > 0 && objetivos.every(o => !!o.responsableId) },
-    { label: 'Hay al menos un objetivo Condicional', ok: objetivos.some(o => o.tipo === 'Condicional') },
+    { label: 'Todos los objetivos tienen Responsable', ok: ejecutables.length > 0 && ejecutables.every(o => !!o.responsableId) },
+    { label: 'Tiene al menos un Vital definido', ok: vitales.length > 0 },
   ]
   const score = scoreItems.filter(i => i.ok).length
   const scoreColor = score === 6
@@ -67,12 +69,12 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
   const scoreLabel = score === 6 ? 'Programa completo ✓' : `${score}/6 completo`
 
   const problematicos = sortedObjetivos.filter(o =>
-    (o.tipo === 'Primario' || o.tipo === 'Vital') &&
+    o.tipo === 'Primario' &&
     (ESTADOS_PROBLEMA as readonly string[]).includes(o.estado)
   )
   const hayIncumplido = problematicos.some(o => o.estado === 'Incumplido')
 
-  const completados = objetivos.filter(o => o.estado === 'Completado').length
+  const completados = ejecutables.filter(o => o.estado === 'Completado').length
 
   return (
     <div className="space-y-6">
@@ -246,15 +248,35 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
         )}
       </div>
 
+      {/* Vitales — principios de funcionamiento */}
+      {vitales.length > 0 && (
+        <div className="rounded-lg border border-yellow-700/40 bg-yellow-900/10 p-4 space-y-2">
+          <p className="text-xs font-semibold text-yellow-400 uppercase tracking-wider">
+            Principios Vitales ({vitales.length})
+          </p>
+          <p className="text-xs text-muted-foreground">Condiciones permanentes de funcionamiento. No son tareas — son lo que no puede omitirse.</p>
+          <ul className="space-y-1 mt-2">
+            {vitales.map(v => (
+              <li key={v.id} className="flex items-start gap-2 text-sm text-foreground">
+                <span className="text-yellow-500 flex-shrink-0 mt-0.5">◆</span>
+                <Link href={`/objetivos/${v.id}`} className="hover:text-yellow-300 transition-colors">
+                  {v.nombre}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Encabezado de sección Objetivos */}
       <div className="flex items-center gap-2">
         <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-          Objetivos ({completados}/{objetivos.length} completados)
+          Objetivos ({completados}/{ejecutables.length} completados)
         </p>
       </div>
 
       {/* Objetivos por tipo */}
-      {objetivos.length === 0 ? (
+      {ejecutables.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <p>Este programa no tiene objetivos aún.</p>
           {puedeAgregarObjetivo && (
@@ -265,7 +287,7 @@ export default async function ProgramaDetailPage({ params }: { params: Promise<{
         </div>
       ) : (
         <ObjetivosOrdenables
-          objetivosIniciales={sortedObjetivos}
+          objetivosIniciales={ejecutables}
           usuariosMap={usuariosMap}
           puedeReordenar={isEjecutivo || esOficial}
         />

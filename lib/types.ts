@@ -215,3 +215,11 @@ export function getTomorrow(): string {
   d.setDate(d.getDate() + 1)
   return d.toISOString().split('T')[0]
 }
+
+export function esObjetivoEjecutable(tipo: string): boolean {
+  return tipo !== 'Vital'
+}
+
+export function esObjetivoContable(tipo: string): boolean {
+  return tipo !== 'Vital'
+}

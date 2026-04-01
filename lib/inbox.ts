@@ -204,10 +204,7 @@ export async function calcularInbox(
 
     const programasConProblemas = new Set<string>()
     for (const obj of objetivosActivos) {
-      if (
-        (obj.tipo === 'Primario' || obj.tipo === 'Vital') &&
-        obj.estado === 'Incumplido'
-      ) {
+      if (obj.tipo === 'Primario' && obj.estado === 'Incumplido') {
         const progId = obj.programaIds[0]
         if (progId && !programasConProblemas.has(progId)) {
           programasConProblemas.add(progId)

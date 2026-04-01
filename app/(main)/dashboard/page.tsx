@@ -138,7 +138,7 @@ export default async function DashboardPage() {
 
   const programasArchivadosIds = new Set(programas.filter(p => p.estado === 'Archivado').map(p => p.id))
   const programasActivos = programas.filter(p => p.estado === 'Activo')
-  const objetivosActivos = todosObjetivos.filter(o => !o.programaIds.some(pid => programasArchivadosIds.has(pid)))
+  const objetivosActivos = todosObjetivos.filter(o => !o.programaIds.some(pid => programasArchivadosIds.has(pid)) && o.tipo !== 'Vital')
   const objetivosEnCurso = objetivosActivos.filter(o => o.estado === 'En curso')
   const objetivosVencidos = objetivosActivos.filter(o => isVencido(o))
 
@@ -174,7 +174,7 @@ export default async function DashboardPage() {
 
   // Alerta críticos
   const criticos = objetivosActivos.filter(o =>
-    (o.tipo === 'Primario' || o.tipo === 'Vital') && o.estado === 'Incumplido'
+    o.tipo === 'Primario' && o.estado === 'Incumplido'
   )
 
   // Resolver nombres para listas

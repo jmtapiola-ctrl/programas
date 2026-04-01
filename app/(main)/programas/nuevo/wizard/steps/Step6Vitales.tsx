@@ -1,27 +1,43 @@
 'use client'
 
 import { useState } from 'react'
-import { TablaObjetivosWizard } from '@/components/programas/TablaObjetivosWizard'
 import type { ObjetivoWizard } from '../types'
-import type { Usuario } from '@/lib/types'
 
 interface Props {
   objetivos: ObjetivoWizard[]
   onChange: (obs: ObjetivoWizard[]) => void
-  usuarios: Usuario[]
-  defaultFechaLimite?: string
-  defaultResponsableId?: string
-  defaultAprobadorId?: string
   onNext: () => Promise<void>
   onBack: () => void
   saving?: boolean
 }
 
-export function Step6Vitales({ objetivos, onChange, usuarios, defaultFechaLimite, defaultResponsableId, defaultAprobadorId, onNext, onBack, saving }: Props) {
+export function Step6Vitales({ objetivos, onChange, onNext, onBack, saving }: Props) {
   const [confirmSkip, setConfirmSkip] = useState(false)
 
+  function addVital() {
+    onChange([...objetivos, {
+      tempId: Math.random().toString(36).slice(2),
+      nombre: '',
+      descripcionDoingness: '',
+      responsableId: '',
+      aprobadorId: '',
+      fechaLimite: '',
+      esRepetible: false,
+    }])
+  }
+
+  function updateNombre(tempId: string, nombre: string) {
+    onChange(objetivos.map(o => o.tempId === tempId ? { ...o, nombre } : o))
+  }
+
+  function removeVital(tempId: string) {
+    onChange(objetivos.filter(o => o.tempId !== tempId))
+  }
+
+  const conNombre = objetivos.filter(o => o.nombre.trim())
+
   async function handleContinuar() {
-    if (objetivos.length === 0 && !confirmSkip) {
+    if (conNombre.length === 0 && !confirmSkip) {
       setConfirmSkip(true)
       return
     }
@@ -32,10 +48,10 @@ export function Step6Vitales({ objetivos, onChange, usuarios, defaultFechaLimite
     <div className="space-y-5">
       <div>
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Paso 5 de 8</p>
-        <h2 className="text-xl font-bold text-foreground">Objetivos Vitales</h2>
+        <h2 className="text-xl font-bold text-foreground">Principios Vitales</h2>
       </div>
 
-      <blockquote className="border-l-2 border-red-500 pl-4 space-y-1">
+      <blockquote className="border-l-2 border-yellow-500 pl-4 space-y-1">
         <p className="text-sm text-muted-foreground italic">
           "Las cosas que NO podés omitir sin que todo se caiga.
           Son casi políticas básicas de funcionamiento:
@@ -46,19 +62,48 @@ export function Step6Vitales({ objetivos, onChange, usuarios, defaultFechaLimite
       </blockquote>
 
       <div className="space-y-2">
-        <p className="text-sm text-foreground font-medium">¿Qué cosas, si no se hacen, hacen imposible todo lo demás?</p>
-        <p className="text-xs text-muted-foreground">¿Qué está amenazando actualmente los resultados? ¿Qué sería catastrófico omitir?</p>
+        <p className="text-sm text-foreground font-medium">¿Qué condiciones son innegociables para este programa?</p>
+        <p className="text-xs text-muted-foreground">Son principios permanentes, no tareas. No tienen responsable ni fecha — son del programa entero.</p>
         <div className="text-xs text-muted-foreground/60 space-y-1 bg-muted/30 rounded-md px-3 py-2">
           <p>Ejemplos:</p>
-          <p>· "Si un objetivo se atora más de X días, escalar inmediatamente"</p>
+          <p>· "Si un objetivo se atora más de 3 días, escalar inmediatamente"</p>
           <p>· "No reducir las actividades habituales del equipo para ejecutar este programa"</p>
           <p>· "Mantener al menos una comunicación semanal con todos los responsables"</p>
         </div>
       </div>
 
-      <TablaObjetivosWizard tipo="Vital" objetivos={objetivos} onChange={onChange} usuarios={usuarios} programaFechaObjetivo={defaultFechaLimite} defaultResponsableId={defaultResponsableId} defaultAprobadorId={defaultAprobadorId} />
+      <div className="space-y-2">
+        {objetivos.map((obj, i) => (
+          <div key={obj.tempId} className="flex items-center gap-2">
+            <span className="text-yellow-500 flex-shrink-0">◆</span>
+            <input
+              type="text"
+              value={obj.nombre}
+              onChange={e => updateNombre(obj.tempId, e.target.value)}
+              placeholder={`Principio vital ${i + 1}`}
+              className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              autoFocus={i === objetivos.length - 1 && !obj.nombre}
+            />
+            <button
+              type="button"
+              onClick={() => removeVital(obj.tempId)}
+              className="text-muted-foreground hover:text-red-400 transition-colors p-1"
+              aria-label="Eliminar"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={addVital}
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5 mt-1"
+        >
+          <span className="text-yellow-500">◆</span> + Agregar principio vital
+        </button>
+      </div>
 
-      {confirmSkip && objetivos.length === 0 && (
+      {confirmSkip && conNombre.length === 0 && (
         <div className="rounded-md border border-yellow-600/40 bg-yellow-900/20 px-4 py-3 space-y-3">
           <p className="text-sm text-yellow-200/80">
             ¿Seguro? Los Vitales son los que más frecuentemente se omiten y los que más frecuentemente causan que el programa se caiga.
@@ -78,7 +123,7 @@ export function Step6Vitales({ objetivos, onChange, usuarios, defaultFechaLimite
         <button type="button" onClick={onBack} className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
           ← Atrás
         </button>
-        {!(confirmSkip && objetivos.length === 0) && (
+        {!(confirmSkip && conNombre.length === 0) && (
           <button
             type="button"
             onClick={handleContinuar}

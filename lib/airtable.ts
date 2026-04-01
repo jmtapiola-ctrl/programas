@@ -325,7 +325,11 @@ export async function createObjetivo(
   if (data.esCondicional !== undefined) fields['Es Condicional'] = data.esCondicional
   if (data.orden !== undefined) fields['Orden'] = data.orden
   if (data.notas) fields['Notas'] = data.notas
-  fields['Estado'] = data.responsableId === data.creadorId ? 'No iniciado' : 'Asignado'
+  if (data.tipo === 'Vital') {
+    fields['Estado'] = 'Completado'
+  } else {
+    fields['Estado'] = data.responsableId === data.creadorId ? 'No iniciado' : 'Asignado'
+  }
   const r = await createRecord(TABLA_OBJETIVOS, fields)
   return mapObjetivo(r)
 }
@@ -430,7 +434,7 @@ export async function getInboxCount(usuarioId: string, rol: string): Promise<num
   if (rolNorm === 'program manager') {
     const programasConProblemas = new Set<string>()
     for (const obj of objetivos) {
-      if ((obj.tipo === 'Primario' || obj.tipo === 'Vital') && obj.estado === 'Incumplido') {
+      if (obj.tipo === 'Primario' && obj.estado === 'Incumplido') {
         const progId = obj.programaIds[0]
         if (progId) programasConProblemas.add(progId)
       }

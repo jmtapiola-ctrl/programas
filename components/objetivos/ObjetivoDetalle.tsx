@@ -609,8 +609,19 @@ export function ObjetivoDetalle({
         </div>
       )}
 
+      {/* Banner Vital */}
+      {objetivo.tipo === 'Vital' && (
+        <div className="rounded-lg border border-yellow-700/40 bg-yellow-900/10 p-4 space-y-2">
+          <p className="text-sm font-semibold text-yellow-400">Principio Vital del programa</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Este es un principio permanente de funcionamiento, no una tarea ejecutable.
+            No tiene estados, fechas ni responsables individuales — es una condición que el programa entero debe mantener siempre.
+          </p>
+        </div>
+      )}
+
       {/* Acciones */}
-      {(() => {
+      {objetivo.tipo !== 'Vital' && (() => {
         const esEjecutivoOAprobador = isEjecutivo || esAprobador
         const accionesDisponibles =
           (objetivo.estado === 'Asignado' && esResponsable) ||

@@ -141,19 +141,23 @@ async function saveObjetivos(
   const validos = objetivos.filter(o => o.nombre.trim())
   const saved = await Promise.all(
     validos.map(async (obj, i): Promise<ObjetivoWizard> => {
+      const isVital = tipo === 'Vital'
       const fields: Record<string, any> = {
         'Nombre': obj.nombre,
         'Tipo': tipo,
-        'Descripcion Doingness': obj.descripcionDoingness,
+        'Descripcion Doingness': obj.descripcionDoingness || '',
         'Programa': [programaId],
-        'Estado': 'No iniciado',
-        'Es Repetible': obj.esRepetible,
-        'Es Condicional': obj.esCondicional ?? false,
+        'Estado': isVital ? 'Completado' : 'No iniciado',
+        'Es Repetible': false,
+        'Es Condicional': isVital ? false : (obj.esCondicional ?? false),
         'Orden': i,
       }
-      if (obj.responsableId) fields['Responsable'] = [obj.responsableId]
-      if (obj.aprobadorId) fields['Aprobador'] = [obj.aprobadorId]
-      if (obj.fechaLimite) fields['Fecha Limite'] = obj.fechaLimite
+      if (!isVital) {
+        if (obj.responsableId) fields['Responsable'] = [obj.responsableId]
+        if (obj.aprobadorId) fields['Aprobador'] = [obj.aprobadorId]
+        if (obj.fechaLimite) fields['Fecha Limite'] = obj.fechaLimite
+        fields['Es Repetible'] = obj.esRepetible
+      }
       if (obj.notas) fields['Notas'] = obj.notas
 
       if (obj.airtableId) {
@@ -525,10 +529,6 @@ export default function WizardPage() {
             <Step6Vitales
               objetivos={state.objetivosVitales}
               onChange={obs => update({ objetivosVitales: obs })}
-              usuarios={usuarios}
-              defaultFechaLimite={state.fechaObjetivo}
-              defaultResponsableId={state.responsableId}
-              defaultAprobadorId={state.aprobadorId}
               onNext={handleNext5}
               onBack={goBack}
               saving={saving}

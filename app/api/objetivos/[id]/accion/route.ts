@@ -27,6 +27,7 @@ export async function POST(
 
   try {
     const objetivo = await getObjetivo(id)
+    if (objetivo.tipo === 'Vital') return NextResponse.json({ error: 'Los Objetivos Vitales son principios de funcionamiento y no tienen acciones' }, { status: 400 })
     const programa = objetivo.programaIds[0]
       ? await getPrograma(objetivo.programaIds[0]).catch(() => null)
       : null
@@ -74,10 +75,10 @@ export async function POST(
         if (objetivo.estado !== 'En curso') return NextResponse.json({ error: 'Estado inválido' }, { status: 400 })
         if (!esResponsable) return NextResponse.json({ error: 'Solo el responsable puede reportar cumplimiento' }, { status: 403 })
         // Bloqueo: si hay Primario/Vital caído en el mismo programa, no se puede reportar
-        if (objetivo.tipo !== 'Primario' && objetivo.tipo !== 'Vital' && objetivo.programaIds[0]) {
+        if (objetivo.tipo !== 'Primario' && objetivo.programaIds[0]) {
           const objetivosPrograma = await getObjetivos(objetivo.programaIds[0])
           const primarioCaido = objetivosPrograma.find(o =>
-            (o.tipo === 'Primario' || o.tipo === 'Vital') &&
+            o.tipo === 'Primario' &&
             (o.estado === 'Incumplido' || o.estado === 'Rechazado') &&
             o.id !== id
           )
@@ -108,10 +109,10 @@ export async function POST(
         if (!esAprobador) return NextResponse.json({ error: 'Solo el aprobador puede aprobar' }, { status: 403 })
         if (esResponsable) return NextResponse.json({ error: 'El responsable no puede aprobar sus propios cumplimientos' }, { status: 403 })
         // Bloqueo: si hay Primario/Vital caído en el mismo programa
-        if (objetivo.tipo !== 'Primario' && objetivo.tipo !== 'Vital' && objetivo.programaIds[0]) {
+        if (objetivo.tipo !== 'Primario' && objetivo.programaIds[0]) {
           const objetivosPrograma = await getObjetivos(objetivo.programaIds[0])
           const primarioCaido = objetivosPrograma.find(o =>
-            (o.tipo === 'Primario' || o.tipo === 'Vital') &&
+            o.tipo === 'Primario' &&
             (o.estado === 'Incumplido' || o.estado === 'Rechazado') &&
             o.id !== id
           )
