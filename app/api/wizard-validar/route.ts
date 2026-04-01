@@ -84,19 +84,31 @@ Si está bien: observaciones null. Si se puede mejorar: texto corto de 1-2 oraci
 Situación: ${situacion}
 Propósito: ${contenido}
 
-El Objetivo Mayor debe:
-- Ser el resultado concreto y verificable que se logra cuando el programa esté completo
-- Poder medirse o verificarse objetivamente
-- Ser específico, no genérico
-- Si aplica, incluir una cantidad o fecha aproximada
+El Objetivo Mayor debe ser:
+- CORTO: máximo 2 líneas o 30 palabras
+- SIMPLE: sin métricas, sin porcentajes, sin detalles de implementación — esos van en los objetivos operativos
+- ASPIRACIONAL pero VERIFICABLE: describe el estado final deseado, no el cómo llegar ahí
+- Empieza con "Que [sujeto] [verbo]..." o "[resultado concreto]"
 - Ser distinto del propósito — el propósito es el POR QUÉ, el Objetivo Mayor es el QUÉ concreto
 
-Ejemplos:
+NO incluir:
+- Porcentajes ni métricas específicas
+- Metodologías de implementación
+- Detalles técnicos
+- Múltiples condiciones encadenadas
+
+Ejemplos de lo que NO hacer:
+  ✗ "Implementar un modelo interactivo que permita al 100% de los miembros comprender sus roles con 90% de precisión antes del 30 de junio."
+
+Ejemplos de lo que SÍ hacer:
   Propósito: "Que el equipo genere ingresos sin depender de nadie"
-  Objetivo Mayor: "Facturar $500k mensuales de forma autónoma antes de diciembre"
+  ✓ Objetivo Mayor: "Que el equipo cierre ventas de forma autónoma, sin necesitar dirección externa para operar."
 
   Propósito: "Que JMT tenga salud y energía óptima"
-  Objetivo Mayor: "JMT pesando 79kg y completando 3 sesiones de ejercicio semanales sin excepción"
+  ✓ Objetivo Mayor: "JMT en su peso ideal de 79kg, con energía y físico sostenidos."
+
+  Propósito: "Que cada miembro entienda su función"
+  ✓ Objetivo Mayor: "Que cada miembro del equipo entienda su función y sepa exactamente qué tiene que entregar de valor."
 
 Devolvé: { "objetivoMayorSugerido": string }`
 
