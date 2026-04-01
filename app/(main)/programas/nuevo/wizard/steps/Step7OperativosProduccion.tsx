@@ -32,10 +32,9 @@ export function Step7OperativosProduccion({ operativos, produccion, onChangeOper
           <h3 className="text-base font-semibold text-foreground">Operativos</h3>
           <blockquote className="border-l-2 border-orange-500 pl-4 mt-2 space-y-1">
             <p className="text-sm text-muted-foreground italic">
-              "Los Objetivos Operativos establecen direcciones y acciones o un calendario de eventos e itinerario.
-              Normalmente incluyen una FECHA en la cual deben completarse para encajar con otros objetivos."
+              "Las acciones concretas con fechas y responsables.
+              Sin fechas, un objetivo operativo es solo una intención."
             </p>
-            <p className="text-xs text-muted-foreground/60">— LRH, Serie de Objetivos Nº2</p>
           </blockquote>
         </div>
         <div className="space-y-2">
@@ -56,11 +55,10 @@ export function Step7OperativosProduccion({ operativos, produccion, onChangeOper
           <h3 className="text-base font-semibold text-foreground">Producción</h3>
           <blockquote className="border-l-2 border-green-600 pl-4 mt-2 space-y-1">
             <p className="text-sm text-muted-foreground italic">
-              "Los Objetivos de Producción establecen cantidades como estadísticas. DEBÉS inspeccionar y establecer
-              Objetivos Operativos y Primarios ANTES de poder establecer Objetivos de Producción. Organizaciones que
-              solo tienen Objetivos de Producción ven caer sus estadísticas."
+              "Los resultados medibles del programa. Solo tienen
+              sentido si los objetivos de organización y acción
+              están resueltos primero."
             </p>
-            <p className="text-xs text-muted-foreground/60">— LRH, Serie de Objetivos Nº2</p>
           </blockquote>
         </div>
         <div className="space-y-2">

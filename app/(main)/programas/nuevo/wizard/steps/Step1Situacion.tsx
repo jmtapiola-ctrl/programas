@@ -50,11 +50,10 @@ export function Step1Situacion({ situacion, onChange, onNext, saving }: Props) {
 
       <blockquote className="border-l-2 border-primary pl-4 space-y-1">
         <p className="text-sm text-muted-foreground italic">
-          "El primer paso correcto es: ve si hay una situación. Un programa debe manejar situaciones
-          verdaderas — las situaciones que reducen la producción y la prosperidad. Hacer cualquier
-          otra cosa es omitir pasos en la secuencia."
+          "Todo programa válido nace de una situación real.
+          Sin un problema concreto que resolver, el programa
+          no tiene razón de existir y difícilmente se ejecute."
         </p>
-        <p className="text-xs text-muted-foreground/60">— LRH, Serie de Objetivos Nº8</p>
       </blockquote>
 
       <div className="space-y-2">

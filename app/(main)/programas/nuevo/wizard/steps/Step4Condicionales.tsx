@@ -37,12 +37,11 @@ export function Step4Condicionales({ objetivos, onChange, usuarios, defaultFecha
 
       <blockquote className="border-l-2 border-yellow-600 pl-4 space-y-1">
         <p className="text-sm text-muted-foreground italic">
-          "Un plan sin ningún Objetivo Condicional previo produce algo que nadie quiere realmente y no sirve para
-          ningún propósito. Todos los Objetivos Condicionales son básicamente acciones de reunir datos en primer
-          lugar. Si está bien, entonces pasás a la acción. Una serie elaborada de Objetivos Operativos y Primarios
-          se desmorona porque no se había establecido ningún Objetivo Condicional."
+          "Antes de actuar, verificar. Los objetivos condicionales
+          son las preguntas que hay que responder antes de
+          comprometer recursos. Sin ellos, el programa puede
+          arrancar en la dirección equivocada."
         </p>
-        <p className="text-xs text-muted-foreground/60">— LRH, Serie de Objetivos Nº3</p>
       </blockquote>
 
       <div className="space-y-2">

@@ -106,7 +106,6 @@ export function StepRevision({ state, usuarios, onFinalize, onBack, saving }: Pr
           Podés conseguir que se haga casi cualquier cosa que quieras hacer si los tipos de objetivos se comprenden,
           se establecen con realidad, se mantienen en vigor o se completan."
         </p>
-        <p className="text-xs text-muted-foreground/60">— LRH, Serie de Objetivos Nº2</p>
       </blockquote>
 
       {/* Score */}

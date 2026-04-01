@@ -100,6 +100,8 @@ export function ObjetivoDetalle({
   const hayClarificacionPendiente =
     eventosClari.length > 0 &&
     eventosClari[eventosClari.length - 1].tipoEvento === 'Clarificación Solicitada'
+  const clarificacionPendiente = hayClarificacionPendiente ? eventosClari[eventosClari.length - 1] : null
+  const bloqueadoPorClarificacion = hayClarificacionPendiente && esResponsable
 
   async function ejecutarAccion(accion: string, datos?: Record<string, any>) {
     setPending(true)
@@ -625,8 +627,17 @@ export function ObjetivoDetalle({
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Acciones</h2>
         <div className="flex flex-wrap gap-2">
 
+          {/* Responsable bloqueado por clarificación pendiente */}
+          {bloqueadoPorClarificacion && (
+            <div className="w-full rounded-md border border-yellow-600/40 bg-yellow-900/20 px-4 py-3">
+              <p className="text-sm text-yellow-200/80">
+                Hay una clarificación pendiente de respuesta. No podés realizar otras acciones hasta que el ejecutivo responda tu pregunta.
+              </p>
+            </div>
+          )}
+
           {/* Responsable: Asignado */}
-          {objetivo.estado === 'Asignado' && esResponsable && (
+          {objetivo.estado === 'Asignado' && esResponsable && !bloqueadoPorClarificacion && (
             <>
               <Button size="sm" loading={pending} onClick={() => ejecutarAccion('aceptar')}>
                 Aceptar
@@ -648,7 +659,7 @@ export function ObjetivoDetalle({
           )}
 
           {/* Responsable: No iniciado */}
-          {objetivo.estado === 'No iniciado' && esResponsable && (
+          {objetivo.estado === 'No iniciado' && esResponsable && !bloqueadoPorClarificacion && (
             <>
               <Button size="sm" loading={pending} onClick={() => ejecutarAccion('iniciar')}>
                 Iniciar
@@ -663,7 +674,7 @@ export function ObjetivoDetalle({
           )}
 
           {/* Responsable: En curso */}
-          {objetivo.estado === 'En curso' && esResponsable && (
+          {objetivo.estado === 'En curso' && esResponsable && !bloqueadoPorClarificacion && (
             <>
               <Button size="sm" onClick={() => abrirModal('reportar_cumplimiento')}>
                 Reportar Cumplimiento
@@ -836,6 +847,12 @@ export function ObjetivoDetalle({
       {/* Responder Clarificación */}
       <Modal open={modalActivo === 'responder_clarificacion'} onClose={() => setModalActivo(null)} title="Responder Clarificación">
         <div className="space-y-4">
+          {clarificacionPendiente?.notas && (
+            <div className="rounded-md border border-yellow-600/40 bg-yellow-900/20 px-4 py-3">
+              <p className="text-xs font-semibold text-yellow-400 uppercase tracking-wider mb-1">Pregunta del responsable</p>
+              <p className="text-sm text-yellow-100/80 whitespace-pre-wrap">{clarificacionPendiente.notas}</p>
+            </div>
+          )}
           <p className="text-muted-foreground text-sm">Escribí tu respuesta a la solicitud de clarificación.</p>
           <Textarea
             label="Respuesta"

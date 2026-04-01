@@ -52,11 +52,11 @@ export function Step2Proposito({ situacion, proposito, onChange, onNext, onBack,
 
       <blockquote className="border-l-2 border-primary pl-4 space-y-1">
         <p className="text-sm text-muted-foreground italic">
-          "Detrás de cada paro hay un propósito fallido. Todo lo que tenés que hacer para restaurar la
-          vida y la acción es reavivar el propósito fallido — los paros volarán de inmediato. Los
-          propósitos tienen que ejecutarse. Son algo que HACER."
+          "El propósito es el motor del programa. Tiene que ser
+          algo que genuinamente valga la pena hacer — si al
+          leerlo no sentís que moviliza al equipo, no va a
+          ejecutarse."
         </p>
-        <p className="text-xs text-muted-foreground/60">— LRH, Serie de Objetivos Nº1 y Nº5</p>
       </blockquote>
 
       {situacion && (

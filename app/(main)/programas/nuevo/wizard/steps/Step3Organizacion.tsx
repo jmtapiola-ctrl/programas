@@ -71,11 +71,10 @@ export function Step3Organizacion({
 
       <blockquote className="border-l-2 border-primary pl-4 space-y-1">
         <p className="text-sm text-muted-foreground italic">
-          "El Objetivo Mayor es la aspiración general y amplia que posiblemente abarca un período de tiempo largo
-          y aproximado. Asignar con claridad la responsabilidad del proyecto a un terminal — si NADIE en particular
-          es responsable, el proyecto fallará."
+          "Sin responsabilidad clara, ningún programa avanza.
+          Definir quién está a cargo y quién aprueba es la base
+          que hace posible todo lo demás."
         </p>
-        <p className="text-xs text-muted-foreground/60">— LRH, Serie de Objetivos Nº4 y Nº7</p>
       </blockquote>
 
       <div className="space-y-4">

@@ -152,19 +152,19 @@ export const ESTADO_COLOR: Record<string, string> = {
 }
 
 export const TOOLTIP_TIPOS: Record<string, string> = {
-  'Primario': 'Los objetivos del tipo de organización, de personal y de comunicaciones. Estos deben mantenerse.',
-  'Vital': 'Por definición, un objetivo VITAL es algo que debe hacerse para funcionar en medida alguna.',
-  'Condicional': 'Aquellos que se establecen como O BIEN… O, para averiguar información o si un proyecto puede hacerse, o dónde o a quién.',
-  'Operativo': 'Aquellos que establecen direcciones y acciones o un calendario de eventos e itinerario.',
-  'Producción': 'Aquellos que establecen cantidades como estadísticas.',
-  'Mayor': 'La aspiración general y amplia, que posiblemente abarca un período de tiempo largo y aproximado.',
+  'Primario': 'Objetivos de organización, personas y comunicaciones. Son la base estructural del programa — si se abandonan, todo lo demás se cae.',
+  'Vital': 'Lo mínimo indispensable para que el programa funcione. Si estos objetivos no se cumplen, el resto no puede avanzar.',
+  'Condicional': 'Objetivos de verificación o investigación previos a la acción. Sirven para confirmar que el enfoque es correcto antes de comprometer recursos.',
+  'Operativo': 'Objetivos de acción concreta con dirección, secuencia y fechas. Definen el cómo y el cuándo del programa.',
+  'Producción': 'Objetivos que establecen cantidades o resultados medibles. Son los indicadores de avance del programa.',
+  'Mayor': 'La aspiración general del programa — amplia y de largo plazo. Define hacia dónde va todo.',
 }
 
 export const TOOLTIP_CAMPOS: Record<string, string> = {
-  'Proposito': 'Los propósitos tienen que ejecutarse. Son algo que HACER.',
-  'Objetivo Mayor': 'El propósito general deseable que se acomete. Esto es muy general, como "llegar a ser auditor".',
-  'Plan de Batalla': 'Una lista de objetivos para el día o la semana siguiente, que ayudan al avance de la planificación estratégica, y se ocupan de las acciones inmediatas y de los puntos fuera que la estorban.',
-  'Descripcion Doingness': '¿Cuándo está HECHO este objetivo? Describí la acción concreta y terminable.',
+  'Proposito': 'El motor del programa. Por qué tiene que existir y qué moviliza al equipo a ejecutarlo.',
+  'Objetivo Mayor': 'La aspiración general que se logra cuando el programa está completo. Amplio, de largo plazo.',
+  'Plan de Batalla': 'Lista de objetivos para el período inmediato que convierte el plan estratégico en acciones concretas y ejecutables.',
+  'Descripcion Doingness': '¿Cuándo está HECHO este objetivo? Describí la acción concreta y el resultado verificable.',
 }
 
 export const CAUSAS_DESATORAMIENTO = [

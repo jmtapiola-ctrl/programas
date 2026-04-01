@@ -37,11 +37,10 @@ export function Step6Vitales({ objetivos, onChange, usuarios, defaultFechaLimite
 
       <blockquote className="border-l-2 border-red-500 pl-4 space-y-1">
         <p className="text-sm text-muted-foreground italic">
-          "Los Objetivos Vitales son LO QUE TENEMOS QUE HACER PARA FUNCIONAR EN LO MÁS MÍNIMO. Se encuentran
-          aquellos puntos que detienen o amenazan los éxitos futuros. Son fáciles de omitir porque a veces parecen
-          obvios o ya resueltos — pero si caen, bloquean todo el programa."
+          "Los objetivos vitales son los que más fácilmente se
+          omiten — parecen obvios o ya resueltos. Pero si faltan,
+          bloquean todo el programa."
         </p>
-        <p className="text-xs text-muted-foreground/60">— LRH, Serie de Objetivos Nº2</p>
       </blockquote>
 
       <div className="space-y-2">

@@ -39,12 +39,11 @@ export function Step5Primarios({ objetivos, onChange, usuarios, defaultFechaLimi
 
       <blockquote className="border-l-2 border-blue-500 pl-4 space-y-1">
         <p className="text-sm text-muted-foreground italic">
-          "Los Objetivos Primarios son los de organización, personal y comunicaciones. DEBEN MANTENERSE.
-          Si estos se abandonan o no se sustituyen, no importa qué objetivos se pongan después — se tambalearán
-          o fallarán por completo. El primero es: ALGUIEN AHÍ. Luego: ALGUIEN QUE ASUMA RESPONSABILIDAD.
-          Luego: LA ORGANIZACIÓN FUNCIONANDO."
+          "La estructura organizativa es la base invisible del
+          programa. Si los roles, comunicaciones y responsabilidades
+          no están definidos, los objetivos operativos y de
+          producción se caen solos."
         </p>
-        <p className="text-xs text-muted-foreground/60">— LRH, Serie de Objetivos Nº2</p>
       </blockquote>
 
       <div className="space-y-2">

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function POST(req: NextRequest) {
   const { nombre, descripcionDoingness, tipo } = await req.json()
 
-  const systemPrompt = `Sos un validador de objetivos basado en la Serie de Objetivos de L. Ronald Hubbard. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional. Sé estricto pero conciso.`
+  const systemPrompt = `Sos un validador de objetivos basado en principios de gestión de objetivos organizacionales. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional. Sé estricto pero conciso.`
 
   const userPrompt = `Evaluá este objetivo:
 
@@ -11,7 +11,7 @@ Nombre: ${nombre}
 Tipo: ${tipo}
 Doingness: ${descripcionDoingness}
 
-Un objetivo válido según la Serie de Objetivos de LRH debe:
+Un objetivo válido según las mejores prácticas de gestión de objetivos debe:
 1. Describir una acción concreta con un resultado verificable
 2. Tener UNA sola acción principal
 3. Ser terminable — tener un punto de finalización claro

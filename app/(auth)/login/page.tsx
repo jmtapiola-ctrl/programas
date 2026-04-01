@@ -39,7 +39,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-foreground tracking-tight">PROGRAMAS</h1>
-          <p className="text-muted-foreground text-sm mt-1">Sistema de Objetivos — LRH</p>
+          <p className="text-muted-foreground text-sm mt-1">Sistema de Gestión de Programas</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-card border border-border rounded-lg p-6 space-y-4">
