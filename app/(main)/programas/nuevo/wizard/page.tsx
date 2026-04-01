@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Check } from 'lucide-react'
+import { Check, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Usuario } from '@/lib/types'
 import { WIZARD_INITIAL_STATE, type WizardState, type ObjetivoWizard } from './types'
@@ -83,6 +83,26 @@ function ContextPanel({ situacion, proposito }: { situacion: string; proposito: 
 
 // ─── Save helpers ─────────────────────────────────────────────────────────────
 
+async function wizardPost(data: Record<string, any>) {
+  const res = await fetch('/api/wizard-save-programa', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) throw new Error(`Save failed: ${res.status}`)
+  return res.json()
+}
+
+async function wizardPatch(id: string, data: Record<string, any>) {
+  const res = await fetch(`/api/wizard-save-programa?id=${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) throw new Error(`Patch failed: ${res.status}`)
+  return res.json()
+}
+
 async function airtablePost(table: string, fields: Record<string, any>) {
   const res = await fetch(`/api/airtable/${table}`, {
     method: 'POST',
@@ -107,14 +127,12 @@ async function airtableDelete(table: string, id: string) {
   await fetch(`/api/airtable/${table}?id=${id}`, { method: 'DELETE' })
 }
 
-
 async function saveObjetivos(
   programaId: string,
   tipo: string,
   objetivos: ObjetivoWizard[],
   existingIds: string[]
 ): Promise<ObjetivoWizard[]> {
-  // Delete removed objectives
   const currentIds = new Set(objetivos.filter(o => o.airtableId).map(o => o.airtableId!))
   for (const id of existingIds) {
     if (!currentIds.has(id)) await airtableDelete(TABLA_OBJETIVOS, id)
@@ -163,8 +181,8 @@ export default function WizardPage() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(!!programaIdParam)
+  const [estadoGuardado, setEstadoGuardado] = useState<'idle' | 'guardando' | 'guardado'>('idle')
 
-  // Track existing airtableIds per type for delete logic
   const [existingIds, setExistingIds] = useState<Record<string, string[]>>({
     Condicional: [], Primario: [], Vital: [], Operativo: [], 'Producción': [], Mayor: [],
   })
@@ -226,11 +244,23 @@ export default function WizardPage() {
           Mayor: mayor.filter(o => o.airtableId).map(o => o.airtableId!),
         })
 
-        // Detect step to resume at
-        let paso = 4
-        if (prim.length > 0) paso = 6
-        if (vit.length > 0) paso = 7
-        if (oper.length > 0 || prod.length > 0) paso = 8
+        // Detect step to resume at based on how far the program progressed
+        const isBorrador = !programa.nombre || programa.nombre.startsWith('Borrador -')
+        let paso: number
+
+        if (isBorrador && !programa.proposito) {
+          paso = 1
+        } else if (isBorrador) {
+          paso = 2
+        } else if (!cond.length && !prim.length && !vit.length && !oper.length && !prod.length) {
+          paso = 3
+        } else {
+          paso = 4
+          if (cond.length > 0) paso = 5
+          if (prim.length > 0) paso = 6
+          if (vit.length > 0) paso = 7
+          if (oper.length > 0 || prod.length > 0) paso = 8
+        }
 
         setState({
           programaId: programaIdParam,
@@ -262,13 +292,56 @@ export default function WizardPage() {
   function advance() { setState(s => ({ ...s, paso: s.paso + 1 })) }
   function goBack() { setState(s => ({ ...s, paso: Math.max(1, s.paso - 1) })) }
 
+  function iniciarGuardado() {
+    setSaving(true)
+    setEstadoGuardado('guardando')
+  }
+
+  function finalizarGuardado() {
+    setEstadoGuardado('guardado')
+    setTimeout(() => setEstadoGuardado('idle'), 2000)
+  }
+
   // ─── Step handlers ──────────────────────────────────────────────────────────
 
-  const handleNext1 = useCallback(async () => advance(), [])
-  const handleNext2 = useCallback(async () => advance(), [])
+  const handleNext1 = useCallback(async () => {
+    iniciarGuardado()
+    try {
+      if (state.programaId) {
+        await wizardPatch(state.programaId, { situacion: state.situacion })
+        advance()
+      } else {
+        const nombre = `Borrador - ${new Date().toLocaleDateString('es-AR')}`
+        const data = await wizardPost({ nombre, situacion: state.situacion, estado: 'Borrador' })
+        setState(s => ({ ...s, programaId: data.id, paso: 2 }))
+      }
+      finalizarGuardado()
+    } catch (e) {
+      console.error(e)
+      setEstadoGuardado('idle')
+    } finally {
+      setSaving(false)
+    }
+  }, [state.programaId, state.situacion])
+
+  const handleNext2 = useCallback(async () => {
+    if (!state.programaId) { advance(); return }
+    iniciarGuardado()
+    try {
+      await wizardPatch(state.programaId, { proposito: state.proposito })
+      advance()
+      finalizarGuardado()
+    } catch (e) {
+      console.error(e)
+      setEstadoGuardado('idle')
+      advance()
+    } finally {
+      setSaving(false)
+    }
+  }, [state.programaId, state.proposito])
 
   const handleNext3 = useCallback(async () => {
-    setSaving(true)
+    iniciarGuardado()
     try {
       const programaData = {
         nombre: state.nombre,
@@ -282,29 +355,16 @@ export default function WizardPage() {
         estado: 'Borrador' as const,
       }
       if (state.programaId) {
-        const res = await fetch(`/api/wizard-save-programa?id=${state.programaId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(programaData),
-        })
-        if (!res.ok) throw new Error(`Save failed: ${res.status}`)
+        await wizardPatch(state.programaId, programaData)
         advance()
       } else {
-        const res = await fetch('/api/wizard-save-programa', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(programaData),
-        })
-        if (!res.ok) {
-          const errBody = await res.json().catch(() => ({}))
-          console.error('wizard-save-programa error:', errBody)
-          throw new Error(`Save failed: ${res.status} — ${errBody.error ?? ''}`)
-        }
-        const data = await res.json()
+        const data = await wizardPost(programaData)
         setState(s => ({ ...s, programaId: data.id, paso: 4 }))
       }
+      finalizarGuardado()
     } catch (e) {
       console.error(e)
+      setEstadoGuardado('idle')
     } finally {
       setSaving(false)
     }
@@ -312,37 +372,40 @@ export default function WizardPage() {
 
   const handleNext4 = useCallback(async () => {
     if (!state.programaId) return
-    setSaving(true)
+    iniciarGuardado()
     try {
       const saved = await saveObjetivos(state.programaId, 'Condicional', state.objetivosCondicionales, existingIds.Condicional)
       setState(s => ({ ...s, objetivosCondicionales: saved, paso: 5 }))
       setExistingIds(e => ({ ...e, Condicional: saved.filter(o => o.airtableId).map(o => o.airtableId!) }))
-    } catch (e) { console.error(e) } finally { setSaving(false) }
+      finalizarGuardado()
+    } catch (e) { console.error(e); setEstadoGuardado('idle') } finally { setSaving(false) }
   }, [state, existingIds])
 
   const handleNext5 = useCallback(async () => {
     if (!state.programaId) return
-    setSaving(true)
+    iniciarGuardado()
     try {
       const saved = await saveObjetivos(state.programaId, 'Primario', state.objetivosPrimarios, existingIds.Primario)
       setState(s => ({ ...s, objetivosPrimarios: saved, paso: 6 }))
       setExistingIds(e => ({ ...e, Primario: saved.filter(o => o.airtableId).map(o => o.airtableId!) }))
-    } catch (e) { console.error(e) } finally { setSaving(false) }
+      finalizarGuardado()
+    } catch (e) { console.error(e); setEstadoGuardado('idle') } finally { setSaving(false) }
   }, [state, existingIds])
 
   const handleNext6 = useCallback(async () => {
     if (!state.programaId) return
-    setSaving(true)
+    iniciarGuardado()
     try {
       const saved = await saveObjetivos(state.programaId, 'Vital', state.objetivosVitales, existingIds.Vital)
       setState(s => ({ ...s, objetivosVitales: saved, paso: 7 }))
       setExistingIds(e => ({ ...e, Vital: saved.filter(o => o.airtableId).map(o => o.airtableId!) }))
-    } catch (e) { console.error(e) } finally { setSaving(false) }
+      finalizarGuardado()
+    } catch (e) { console.error(e); setEstadoGuardado('idle') } finally { setSaving(false) }
   }, [state, existingIds])
 
   const handleNext7 = useCallback(async () => {
     if (!state.programaId) return
-    setSaving(true)
+    iniciarGuardado()
     try {
       const [savedOper, savedProd] = await Promise.all([
         saveObjetivos(state.programaId, 'Operativo', state.objetivosOperativos, existingIds.Operativo),
@@ -354,21 +417,17 @@ export default function WizardPage() {
         Operativo: savedOper.filter(o => o.airtableId).map(o => o.airtableId!),
         'Producción': savedProd.filter(o => o.airtableId).map(o => o.airtableId!),
       }))
-    } catch (e) { console.error(e) } finally { setSaving(false) }
+      finalizarGuardado()
+    } catch (e) { console.error(e); setEstadoGuardado('idle') } finally { setSaving(false) }
   }, [state, existingIds])
 
   const handleFinalize = useCallback(async (estadoFinal: 'Borrador' | 'Activo') => {
     if (!state.programaId) return
-    setSaving(true)
+    iniciarGuardado()
     try {
-      const res = await fetch(`/api/wizard-save-programa?id=${state.programaId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: estadoFinal }),
-      })
-      if (!res.ok) throw new Error(`Finalize failed: ${res.status}`)
+      await wizardPatch(state.programaId, { estado: estadoFinal })
       router.push(`/programas/${state.programaId}`)
-    } catch (e) { console.error(e) } finally { setSaving(false) }
+    } catch (e) { console.error(e); setEstadoGuardado('idle') } finally { setSaving(false) }
   }, [state.programaId, router])
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -504,6 +563,16 @@ export default function WizardPage() {
           <ContextPanel situacion={state.situacion} proposito={state.proposito} />
         )}
       </div>
+
+      {/* Indicador de guardado */}
+      {estadoGuardado !== 'idle' && (
+        <div className="fixed bottom-4 right-4 text-xs text-muted-foreground flex items-center gap-1.5 bg-background border border-border rounded-md px-3 py-2 shadow-md z-50">
+          {estadoGuardado === 'guardando'
+            ? <><Loader2 className="w-3 h-3 animate-spin" /> Guardando...</>
+            : <><Check className="w-3 h-3 text-green-500" /> Guardado</>
+          }
+        </div>
+      )}
     </div>
   )
 }
