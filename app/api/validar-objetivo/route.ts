@@ -122,7 +122,9 @@ Devolvé exactamente este JSON:
       }
     )
     const data = await response.json()
-    const texto = data.candidates[0].content.parts[0].text
+    const parts: any[] = data.candidates?.[0]?.content?.parts ?? []
+    const textPart = parts.find((p: any) => p.text && !p.thought) ?? parts[0]
+    const texto = textPart?.text ?? '{}'
     const resultado = JSON.parse(texto.replace(/```json|```/g, '').trim())
     return NextResponse.json(resultado)
   } catch {

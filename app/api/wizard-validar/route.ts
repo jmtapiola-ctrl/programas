@@ -117,7 +117,10 @@ Devolvé: { "objetivoMayorSugerido": string }`
       }
     )
     const data = await response.json()
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}'
+    const parts: any[] = data.candidates?.[0]?.content?.parts ?? []
+    // gemini-2.5-flash may return thinking tokens as part[0] (thought:true) — skip them
+    const textPart = parts.find((p: any) => p.text && !p.thought) ?? parts[0]
+    const text = textPart?.text ?? '{}'
     const result = JSON.parse(text.replace(/```json|```/g, '').trim())
 
     if (paso === 'generar_objetivo_mayor') {
