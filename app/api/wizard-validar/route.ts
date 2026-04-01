@@ -3,11 +3,11 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function POST(req: NextRequest) {
   const { paso, contenido, contexto } = await req.json()
 
-  const systemPrompt = `Sos un coach de planificación experto en metodología de gestión de programas. Tu función es evaluar si el contenido de cada paso del wizard cumple con los principios de la metodología. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional. Sé constructivo — el objetivo es ayudar a mejorar, no bloquear.`
-
+  let systemPrompt: string
   let userPrompt = ''
 
   if (paso === 1) {
+    systemPrompt = `Sos un coach de planificación experto en metodología de gestión de programas. Tu función es evaluar si el contenido de cada paso del wizard cumple con los principios de la metodología. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional. Sé constructivo — el objetivo es ayudar a mejorar, no bloquear.`
     userPrompt = `Evaluá esta situación según los principios de gestión de programas.
 Un programa debe manejar situaciones verdaderas — situaciones que reducen la producción o la prosperidad. Hacer cualquier otra cosa es omitir pasos en la secuencia.
 
@@ -17,17 +17,52 @@ Situación: ${contenido}
 Devolvé: { "observaciones": string | null, "sugerencia": string | null }
 Si está bien: observaciones null. Si se puede mejorar: texto corto de 1-2 oraciones.
 NO generes observaciones si la situación es específica y concreta.`
+
   } else if (paso === 2) {
-    userPrompt = `Evaluá este propósito según los principios de gestión de programas.
-El propósito tiene que ejecutarse — es algo que HACER. Detrás de cada paro hay un propósito fallido.
+    systemPrompt = `Sos un coach de planificación estratégica. Evaluás si los propósitos de programas organizacionales tienen la fuerza motivacional suficiente para movilizar a un equipo a ejecutarlos. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional.`
+    const situacion = typeof contexto === 'object' ? (contexto?.situacion ?? '') : (contexto ?? '')
+    userPrompt = `Evaluá este propósito de programa:
 
-Situación del programa: ${contexto}
-Propósito: ${contenido}
+Situación que origina el programa: ${situacion}
+Propósito declarado: ${contenido}
 
-¿Es un propósito que moviliza a la acción? ¿Está conectado con la situación? ¿O es genérico y desconectado?
-Devolvé: { "observaciones": string | null, "sugerencia": string | null }
-Si está bien: observaciones null. Si se puede mejorar: texto corto de 1-2 oraciones.`
+Evaluá estas 4 dimensiones y devolvé el resultado:
+
+{
+  "fuerte": boolean,
+  "dimensiones": {
+    "concreto": boolean,
+    "energico": boolean,
+    "vale_la_pena": boolean,
+    "movilizador": boolean
+  },
+  "observacion": string | null,
+  "sugerencia": string | null
+}
+
+Las 4 dimensiones:
+
+1. CONCRETO: ¿Se entiende claramente qué se quiere lograr? ¿O es vago y genérico? ("mejorar resultados" = no concreto)
+
+2. ENERGICO: ¿Tiene fuerza y convicción en las palabras? ¿O suena tibio, burocrático o indiferente? ("optimizar procesos" = tibio / "que nadie en el equipo tenga que adivinar qué hacer" = enérgico)
+
+3. VALE_LA_PENA: ¿El resultado que promete justifica el esfuerzo? ¿Es algo que realmente importa?
+
+4. MOVILIZADOR: Si alguien leyera este propósito antes de empezar a trabajar en el programa, ¿sentiría que vale la pena? ¿O lo dejaría indiferente?
+
+"fuerte": true solo si las 4 dimensiones son true.
+
+"observacion": Si no es fuerte, UNA sola observación concisa (máximo 20 palabras) sobre el punto más débil.
+  Ejemplos:
+  - "Suena genérico — podría ser el propósito de cualquier empresa."
+  - "Le falta energía. No transmite urgencia ni convicción."
+  - "No queda claro qué cambia concretamente cuando se logre."
+  Si es fuerte: null.
+
+"sugerencia": Una versión mejorada del propósito que resuelve las debilidades encontradas. Misma intención, más fuerza y claridad. Si ya es fuerte: null.`
+
   } else if (paso === 3) {
+    systemPrompt = `Sos un coach de planificación experto en metodología de gestión de programas. Tu función es evaluar si el contenido de cada paso del wizard cumple con los principios de la metodología. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional. Sé constructivo — el objetivo es ayudar a mejorar, no bloquear.`
     const ctx = typeof contexto === 'object' ? contexto : {}
     userPrompt = `Evaluá el nombre y objetivo mayor de este programa según los principios de gestión de programas.
 El Objetivo Mayor es la aspiración general y amplia que posiblemente abarca un período de tiempo largo y aproximado.
@@ -40,6 +75,7 @@ Objetivo Mayor: ${typeof contenido === 'object' ? contenido.objetivoMayor : ''}
 ¿El Objetivo Mayor está alineado con la Situación y el Propósito? ¿Es suficientemente concreto sin ser demasiado detallado?
 Devolvé: { "observaciones": string | null, "sugerencia": string | null }
 Si está bien: observaciones null. Si se puede mejorar: texto corto de 1-2 oraciones.`
+
   } else {
     return NextResponse.json({ observaciones: null, sugerencia: null })
   }
@@ -59,11 +95,29 @@ Si está bien: observaciones null. Si se puede mejorar: texto corto de 1-2 oraci
     const data = await response.json()
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}'
     const result = JSON.parse(text.replace(/```json|```/g, '').trim())
+
+    if (paso === 2) {
+      return NextResponse.json({
+        fuerte: result.fuerte ?? false,
+        dimensiones: result.dimensiones ?? { concreto: false, energico: false, vale_la_pena: false, movilizador: false },
+        observacion: result.observacion ?? null,
+        sugerencia: result.sugerencia ?? null,
+      })
+    }
+
     return NextResponse.json({
       observaciones: result.observaciones ?? null,
       sugerencia: result.sugerencia ?? null,
     })
   } catch {
+    if (paso === 2) {
+      return NextResponse.json({
+        fuerte: true,
+        dimensiones: { concreto: true, energico: true, vale_la_pena: true, movilizador: true },
+        observacion: null,
+        sugerencia: null,
+      })
+    }
     return NextResponse.json({ observaciones: null, sugerencia: null })
   }
 }
