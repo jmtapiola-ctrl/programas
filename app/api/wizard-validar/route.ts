@@ -1,4 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
+import {
+  K_SITUACION,
+  K_PORQUE,
+  K_PUNTOS_FUERA,
+  K_PROPOSITO,
+  K_TIPOS_OBJETIVOS,
+  K_FALLAS_PROGRAMAS,
+} from '@/lib/knowledge'
+
+function conPrincipios(fragmentos: string, tareaEspecifica: string): string {
+  return `Basate PRINCIPALMENTE en los principios de gestión de programas que se detallan a continuación. Si algo no puede evaluarse con estos principios, usá criterios generales de planificación organizacional. Nunca ignorés estos principios en favor de convenciones genéricas.
+
+${fragmentos}
+
+Tu tarea específica: ${tareaEspecifica}`
+}
 
 export async function POST(req: NextRequest) {
   const { paso, contenido, contexto } = await req.json()
@@ -7,7 +23,10 @@ export async function POST(req: NextRequest) {
   let userPrompt = ''
 
   if (paso === 1) {
-    systemPrompt = `Sos un coach de planificación experto en metodología de gestión de programas. Tu función es evaluar si el contenido de cada paso del wizard cumple con los principios de la metodología. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional. Sé constructivo — el objetivo es ayudar a mejorar, no bloquear.`
+    systemPrompt = conPrincipios(
+      `${K_SITUACION}\n\n${K_PORQUE}\n\n${K_PUNTOS_FUERA}`,
+      `Sos un coach de planificación experto en metodología de gestión de programas. Tu función es evaluar si el contenido de cada paso del wizard cumple con los principios de la metodología. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional. Sé constructivo — el objetivo es ayudar a mejorar, no bloquear.`
+    )
     userPrompt = `Evaluá esta situación según los principios de gestión de programas.
 Un programa debe manejar situaciones verdaderas — situaciones que reducen la producción o la prosperidad. Hacer cualquier otra cosa es omitir pasos en la secuencia.
 
@@ -19,7 +38,10 @@ Si está bien: observaciones null. Si se puede mejorar: texto corto de 1-2 oraci
 NO generes observaciones si la situación es específica y concreta.`
 
   } else if (paso === 2) {
-    systemPrompt = `Sos un coach de planificación estratégica. Evaluás si los propósitos de programas organizacionales tienen la fuerza motivacional suficiente para movilizar a un equipo a ejecutarlos. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional.`
+    systemPrompt = conPrincipios(
+      K_PROPOSITO,
+      `Sos un coach de planificación estratégica. Evaluás si los propósitos de programas organizacionales tienen la fuerza motivacional suficiente para movilizar a un equipo a ejecutarlos. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional.`
+    )
     const situacion = typeof contexto === 'object' ? (contexto?.situacion ?? '') : (contexto ?? '')
     userPrompt = `Evaluá este propósito de programa:
 
@@ -62,7 +84,10 @@ Las 4 dimensiones:
 "sugerencia": Una versión mejorada del propósito que resuelve las debilidades encontradas. Misma intención, más fuerza y claridad. Si ya es fuerte: null.`
 
   } else if (paso === 3) {
-    systemPrompt = `Sos un coach de planificación experto en metodología de gestión de programas. Tu función es evaluar si el contenido de cada paso del wizard cumple con los principios de la metodología. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional. Sé constructivo — el objetivo es ayudar a mejorar, no bloquear.`
+    systemPrompt = conPrincipios(
+      K_PROPOSITO,
+      `Sos un coach de planificación experto en metodología de gestión de programas. Tu función es evaluar si el contenido de cada paso del wizard cumple con los principios de la metodología. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional. Sé constructivo — el objetivo es ayudar a mejorar, no bloquear.`
+    )
     const ctx = typeof contexto === 'object' ? contexto : {}
     userPrompt = `Evaluá el nombre y objetivo mayor de este programa según los principios de gestión de programas.
 El Objetivo Mayor es la aspiración general y amplia que posiblemente abarca un período de tiempo largo y aproximado.
@@ -103,7 +128,10 @@ Respondé ÚNICAMENTE con este JSON sin markdown:
 {"nombreSugerido": "nombre aquí"}`
 
   } else if (paso === 'generar_objetivo_mayor') {
-    systemPrompt = `Sos un experto en planificación estratégica por objetivos. Generás Objetivos Mayores concretos, medibles y verificables a partir de una situación y un propósito dados. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional.`
+    systemPrompt = conPrincipios(
+      `${K_PROPOSITO}\n\n${K_TIPOS_OBJETIVOS}`,
+      `Sos un experto en planificación estratégica por objetivos. Generás Objetivos Mayores concretos, medibles y verificables a partir de una situación y un propósito dados. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional.`
+    )
     const situacion = typeof contexto === 'object' ? (contexto?.situacion ?? '') : (contexto ?? '')
     userPrompt = `Dada esta situación y propósito, generá un Objetivo Mayor:
 
@@ -139,7 +167,10 @@ Ejemplos de lo que SÍ hacer:
 Devolvé: { "objetivoMayorSugerido": string }`
 
   } else if (paso === 'analizar_secuencia') {
-    systemPrompt = `Sos un experto en planificación de proyectos. Analizás secuencias de objetivos operativos para detectar gaps lógicos y pasos faltantes. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional.`
+    systemPrompt = conPrincipios(
+      `${K_TIPOS_OBJETIVOS}\n\n${K_FALLAS_PROGRAMAS}`,
+      `Sos un experto en planificación de proyectos. Analizás secuencias de objetivos operativos para detectar gaps lógicos y pasos faltantes. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional.`
+    )
     const ctx = typeof contexto === 'object' ? contexto : {}
     const objetivosCtx: any[] = ctx.objetivos ?? []
     const listaObjetivos = objetivosCtx.map((o: any, i: number) => {
@@ -198,9 +229,11 @@ Respondé ÚNICAMENTE con este JSON sin markdown:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
-          generationConfig: (paso === 'generar_objetivo_mayor' || paso === 'generar_nombre' || paso === 'analizar_secuencia')
-            ? { temperature: 0.3, maxOutputTokens: 1500, thinkingConfig: { thinkingBudget: 0 } }
-            : { temperature: 0.1, maxOutputTokens: 512 },
+          generationConfig: (paso === 'generar_objetivo_mayor' || paso === 'generar_nombre')
+            ? { temperature: 0.4, maxOutputTokens: 1024, thinkingConfig: { thinkingBudget: 0 } }
+            : paso === 'analizar_secuencia'
+            ? { temperature: 0.3, maxOutputTokens: 1500, thinkingConfig: { thinkingBudget: 1024 } }
+            : { temperature: 0.1, maxOutputTokens: 512, thinkingConfig: { thinkingBudget: 1024 } },
         }),
       }
     )

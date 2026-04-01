@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { K_OBJETIVOS_VALIDOS } from '@/lib/knowledge'
 
 export async function POST(req: NextRequest) {
   const { nombre, descripcionDoingness, tipo } = await req.json()
 
-  const systemPrompt = `Sos un validador de objetivos basado en principios de gestión de objetivos organizacionales. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional. Sé estricto pero conciso.`
+  const systemPrompt = `Basate PRINCIPALMENTE en los principios de gestión de programas que se detallan a continuación. Si algo no puede evaluarse con estos principios, usá criterios generales de planificación organizacional. Nunca ignorés estos principios en favor de convenciones genéricas.
+
+${K_OBJETIVOS_VALIDOS}
+
+Tu tarea específica: Sos un validador de objetivos. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional. Sé estricto pero conciso.`
 
   const userPrompt = `Evaluá este objetivo:
 
@@ -117,7 +122,7 @@ Devolvé exactamente este JSON:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: promptCompleto }] }],
-          generationConfig: { temperature: 0, maxOutputTokens: 1024 },
+          generationConfig: { temperature: 0, maxOutputTokens: 1024, thinkingConfig: { thinkingBudget: 1024 } },
         }),
       }
     )

@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { getPrograma, getObjetivos, getUsuarios, updatePrograma } from '@/lib/airtable'
 import { esOficialDelPrograma, puedeVerTodo, TIPO_ORDEN } from '@/lib/types'
 import type { Objetivo, Rol } from '@/lib/types'
+import { K_TIPOS_OBJETIVOS, K_FALLAS_PROGRAMAS, K_PROPOSITO, K_PORQUE } from '@/lib/knowledge'
 
 export async function POST(
   req: NextRequest,
@@ -70,7 +71,17 @@ export async function POST(
       ).join('\n\n')
     : 'Sin objetivos cargados'
 
-  const systemPrompt = `Sos un analista experto en gestión organizacional y planificación estratégica por objetivos. Generás resúmenes ejecutivos ricos, detallados y útiles para ejecutivos que necesitan entender rápidamente el estado real de un programa. Escribís en español, en prosa fluida con párrafos bien desarrollados. Usás títulos de sección en Markdown con ## para cada párrafo, seguidos del contenido en prosa. Usás **negritas** para destacar puntos clave dentro del texto. Cada sección debe tener 3-4 oraciones bien desarrolladas. No usés bullets ni listas.`
+  const systemPrompt = `Basate PRINCIPALMENTE en los principios de gestión de programas que se detallan a continuación. Si algo no puede evaluarse con estos principios, usá criterios generales de planificación organizacional. Nunca ignorés estos principios en favor de convenciones genéricas.
+
+${K_TIPOS_OBJETIVOS}
+
+${K_FALLAS_PROGRAMAS}
+
+${K_PROPOSITO}
+
+${K_PORQUE}
+
+Tu tarea específica: Sos un analista experto en gestión organizacional y planificación estratégica por objetivos. Generás resúmenes ejecutivos ricos, detallados y útiles para ejecutivos que necesitan entender rápidamente el estado real de un programa. Escribís en español, en prosa fluida con párrafos bien desarrollados. Usás títulos de sección en Markdown con ## para cada párrafo, seguidos del contenido en prosa. Usás **negritas** para destacar puntos clave dentro del texto. Cada sección debe tener 3-4 oraciones bien desarrolladas. No usés bullets ni listas.`
 
   const userPrompt = `Generá un resumen ejecutivo completo y detallado de este programa.
 
@@ -130,7 +141,9 @@ Sé específico y directo. Mencioná nombres de objetivos concretos cuando sea r
       }
     )
     const data = await response.json()
-    const resumen: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+    const parts: any[] = data.candidates?.[0]?.content?.parts ?? []
+    const textPart = parts.find((p: any) => p.text && !p.thought) ?? parts[0]
+    const resumen: string = textPart?.text ?? ''
 
     if (!resumen) {
       return NextResponse.json({ error: 'Gemini no devolvió contenido' }, { status: 502 })
