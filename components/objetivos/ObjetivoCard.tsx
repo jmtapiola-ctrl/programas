@@ -56,6 +56,11 @@ export function ObjetivoCard({
           {/* Badges row */}
           <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
             {showTipo && <Badge tipo={objetivo.tipo} />}
+            {showTipo && objetivo.tipo === 'Operativo' && objetivo.esCondicional && (
+              <span className="inline-flex items-center rounded-full border border-dashed border-orange-600/60 bg-orange-900/30 px-2 py-0.5 text-[11px] font-medium text-orange-300">
+                Condicional
+              </span>
+            )}
             <Badge estadoObjetivo={objetivo.estado} />
             {sinMovimiento && (
               <span className="inline-flex items-center rounded-full border border-orange-500/20 bg-orange-500/10 px-2 py-0.5 text-xs font-medium text-orange-400">

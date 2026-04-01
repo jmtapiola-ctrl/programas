@@ -9,6 +9,7 @@ export interface ObjetivoWizard {
   aprobadorId: string
   fechaLimite: string
   esRepetible: boolean
+  esCondicional?: boolean
   notas?: string
   validacionGemini?: {
     valido: boolean
@@ -29,7 +30,6 @@ export interface WizardState {
   aprobadorId: string
   fechaInicio: string
   fechaObjetivo: string
-  objetivosCondicionales: ObjetivoWizard[]
   objetivosPrimarios: ObjetivoWizard[]
   objetivosVitales: ObjetivoWizard[]
   objetivosOperativos: ObjetivoWizard[]
@@ -48,7 +48,6 @@ export const WIZARD_INITIAL_STATE: WizardState = {
   aprobadorId: '',
   fechaInicio: '',
   fechaObjetivo: '',
-  objetivosCondicionales: [],
   objetivosPrimarios: [],
   objetivosVitales: [],
   objetivosOperativos: [],

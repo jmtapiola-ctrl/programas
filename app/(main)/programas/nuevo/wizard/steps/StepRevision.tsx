@@ -60,7 +60,6 @@ export function StepRevision({ state, usuarios, onFinalize, onBack, saving }: Pr
   const [activarError, setActivarError] = useState('')
 
   const allObjetivos = [
-    ...state.objetivosCondicionales,
     ...state.objetivosPrimarios,
     ...state.objetivosVitales,
     ...state.objetivosOperativos,
@@ -75,7 +74,7 @@ export function StepRevision({ state, usuarios, onFinalize, onBack, saving }: Pr
     { label: 'Tiene Objetivo Mayor', ok: !!state.objetivoMayor.trim() },
     { label: 'Tiene Responsable asignado', ok: !!state.responsableId },
     { label: 'Tiene al menos un Primario', ok: state.objetivosPrimarios.filter(o => o.nombre.trim()).length > 0 },
-    { label: 'Tiene al menos un Condicional', ok: state.objetivosCondicionales.filter(o => o.nombre.trim()).length > 0 },
+    { label: 'Tiene al menos un Vital', ok: state.objetivosVitales.filter(o => o.nombre.trim()).length > 0 },
   ]
   const score = scoreItems.filter(i => i.ok).length
   const scoreColor = score === 6 ? 'text-green-400' : score >= 4 ? 'text-yellow-400' : 'text-red-400'
@@ -150,7 +149,6 @@ export function StepRevision({ state, usuarios, onFinalize, onBack, saving }: Pr
       {totalObjetivos > 0 && (
         <div className="bg-card border border-border rounded-lg p-4 space-y-4">
           <p className="text-sm font-medium text-foreground">{totalObjetivos} objetivo{totalObjetivos !== 1 ? 's' : ''}</p>
-          <TipoSection tipo="Condicional" objetivos={state.objetivosCondicionales} usuarios={usuarios} />
           <TipoSection tipo="Primario" objetivos={state.objetivosPrimarios} usuarios={usuarios} />
           <TipoSection tipo="Vital" objetivos={state.objetivosVitales} usuarios={usuarios} />
           <TipoSection tipo="Operativo" objetivos={state.objetivosOperativos} usuarios={usuarios} />

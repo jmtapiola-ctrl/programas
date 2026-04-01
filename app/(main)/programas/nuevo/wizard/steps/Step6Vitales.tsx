@@ -31,15 +31,17 @@ export function Step6Vitales({ objetivos, onChange, usuarios, defaultFechaLimite
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Paso 6 de 8</p>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Paso 5 de 8</p>
         <h2 className="text-xl font-bold text-foreground">Objetivos Vitales</h2>
       </div>
 
       <blockquote className="border-l-2 border-red-500 pl-4 space-y-1">
         <p className="text-sm text-muted-foreground italic">
-          "Los objetivos vitales son los que más fácilmente se
-          omiten — parecen obvios o ya resueltos. Pero si faltan,
-          bloquean todo el programa."
+          "Las cosas que NO podés omitir sin que todo se caiga.
+          Son casi políticas básicas de funcionamiento:
+          si algo se atora, desatorarlo; no abandonar lo habitual
+          mientras ejecutás este programa; mantener la comunicación
+          activa. Si estos fallan, el programa muere."
         </p>
       </blockquote>
 
@@ -48,9 +50,9 @@ export function Step6Vitales({ objetivos, onChange, usuarios, defaultFechaLimite
         <p className="text-xs text-muted-foreground">¿Qué está amenazando actualmente los resultados? ¿Qué sería catastrófico omitir?</p>
         <div className="text-xs text-muted-foreground/60 space-y-1 bg-muted/30 rounded-md px-3 py-2">
           <p>Ejemplos:</p>
-          <p>· "Resolver el problema de acceso al sistema antes del lanzamiento"</p>
-          <p>· "Confirmar que el presupuesto está aprobado y disponible"</p>
-          <p>· "Asegurarse de que [persona crítica] está disponible y comprometida"</p>
+          <p>· "Si un objetivo se atora más de X días, escalar inmediatamente"</p>
+          <p>· "No reducir las actividades habituales del equipo para ejecutar este programa"</p>
+          <p>· "Mantener al menos una comunicación semanal con todos los responsables"</p>
         </div>
       </div>
 

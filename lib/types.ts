@@ -59,6 +59,7 @@ export interface Objetivo {
   fechaLimite?: string
   descripcionDoingness: string
   esRepetible: boolean
+  esCondicional?: boolean
   orden?: number
   notas?: string
   pbIds: string[]
@@ -124,10 +125,10 @@ export interface PBConDatos extends PlanDeBatalla {
 export const TIPO_ORDEN: Record<string, number> = {
   'Primario': 1,
   'Vital': 2,
-  'Condicional': 3,
-  'Operativo': 4,
-  'Producción': 5,
-  'Mayor': 6,
+  'Operativo': 3,
+  'Producción': 4,
+  'Mayor': 5,
+  'Condicional': 6, // compatibilidad con registros existentes
 }
 
 export const TIPO_COLOR: Record<string, string> = {
@@ -135,6 +136,7 @@ export const TIPO_COLOR: Record<string, string> = {
   'Vital': 'bg-red-900 text-red-200 border-red-700',
   'Condicional': 'bg-yellow-900 text-yellow-200 border-yellow-700',
   'Operativo': 'bg-orange-900 text-orange-200 border-orange-700',
+  'Operativo Condicional': 'bg-orange-900/60 text-orange-200 border-orange-600 border-dashed',
   'Producción': 'bg-green-900 text-green-200 border-green-700',
   'Mayor': 'bg-purple-900 text-purple-200 border-purple-700',
 }
@@ -155,7 +157,7 @@ export const TOOLTIP_TIPOS: Record<string, string> = {
   'Primario': 'Objetivos de organización, personas y comunicaciones. Son la base estructural del programa — si se abandonan, todo lo demás se cae.',
   'Vital': 'Lo mínimo indispensable para que el programa funcione. Si estos objetivos no se cumplen, el resto no puede avanzar.',
   'Condicional': 'Objetivos de verificación o investigación previos a la acción. Sirven para confirmar que el enfoque es correcto antes de comprometer recursos.',
-  'Operativo': 'Objetivos de acción concreta con dirección, secuencia y fechas. Definen el cómo y el cuándo del programa.',
+  'Operativo': 'Acciones concretas con dirección, secuencia y fechas. Pueden marcarse como condicionales si dependen de una condición previa.',
   'Producción': 'Objetivos que establecen cantidades o resultados medibles. Son los indicadores de avance del programa.',
   'Mayor': 'La aspiración general del programa — amplia y de largo plazo. Define hacia dónde va todo.',
 }

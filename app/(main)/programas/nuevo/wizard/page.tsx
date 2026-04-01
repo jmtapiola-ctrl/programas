@@ -9,18 +9,18 @@ import { WIZARD_INITIAL_STATE, type WizardState, type ObjetivoWizard } from './t
 import { Step1Situacion } from './steps/Step1Situacion'
 import { Step2Proposito } from './steps/Step2Proposito'
 import { Step3Organizacion } from './steps/Step3Organizacion'
-import { Step4Condicionales } from './steps/Step4Condicionales'
 import { Step5Primarios } from './steps/Step5Primarios'
 import { Step6Vitales } from './steps/Step6Vitales'
-import { Step7OperativosProduccion } from './steps/Step7OperativosProduccion'
+import { Step6Operativos } from './steps/Step6Operativos'
+import { Step7Produccion } from './steps/Step7Produccion'
 import { StepRevision } from './steps/StepRevision'
 
 const TABLA_OBJETIVOS = 'tbl9ljCeFDMeCsbAT'
 
 const STEP_LABELS = [
   'Situación', 'Propósito', 'Organización',
-  'Condicionales', 'Primarios', 'Vitales',
-  'Operativos', 'Revisión',
+  'Primarios', 'Vitales', 'Operativos',
+  'Producción', 'Revisión',
 ]
 
 function ProgressBar({ paso }: { paso: number }) {
@@ -148,6 +148,7 @@ async function saveObjetivos(
         'Programa': [programaId],
         'Estado': 'No iniciado',
         'Es Repetible': obj.esRepetible,
+        'Es Condicional': obj.esCondicional ?? false,
         'Orden': i,
       }
       if (obj.responsableId) fields['Responsable'] = [obj.responsableId]
@@ -182,9 +183,10 @@ export default function WizardPage() {
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(!!programaIdParam)
   const [estadoGuardado, setEstadoGuardado] = useState<'idle' | 'guardando' | 'guardado'>('idle')
+  const [nombreSugerido, setNombreSugerido] = useState('')
 
   const [existingIds, setExistingIds] = useState<Record<string, string[]>>({
-    Condicional: [], Primario: [], Vital: [], Operativo: [], 'Producción': [], Mayor: [],
+    Primario: [], Vital: [], Operativo: [], 'Producción': [], Mayor: [],
   })
 
   // Load usuarios
@@ -226,9 +228,9 @@ export default function WizardPage() {
               aprobadorId: o.aprobadorId ?? '',
               fechaLimite: o.fechaLimite ?? '',
               esRepetible: o.esRepetible,
+              esCondicional: o.esCondicional ?? false,
             }))
 
-        const cond = makeWizardObjetivos('Condicional')
         const prim = makeWizardObjetivos('Primario')
         const vit = makeWizardObjetivos('Vital')
         const oper = makeWizardObjetivos('Operativo')
@@ -236,7 +238,6 @@ export default function WizardPage() {
         const mayor = makeWizardObjetivos('Mayor')
 
         setExistingIds({
-          Condicional: cond.filter(o => o.airtableId).map(o => o.airtableId!),
           Primario: prim.filter(o => o.airtableId).map(o => o.airtableId!),
           Vital: vit.filter(o => o.airtableId).map(o => o.airtableId!),
           Operativo: oper.filter(o => o.airtableId).map(o => o.airtableId!),
@@ -252,14 +253,14 @@ export default function WizardPage() {
           paso = 1
         } else if (isBorrador) {
           paso = 2
-        } else if (!cond.length && !prim.length && !vit.length && !oper.length && !prod.length) {
+        } else if (!prim.length && !vit.length && !oper.length && !prod.length) {
           paso = 3
         } else {
           paso = 4
-          if (cond.length > 0) paso = 5
-          if (prim.length > 0) paso = 6
-          if (vit.length > 0) paso = 7
-          if (oper.length > 0 || prod.length > 0) paso = 8
+          if (prim.length > 0) paso = 5
+          if (vit.length > 0) paso = 6
+          if (oper.length > 0) paso = 7
+          if (prod.length > 0) paso = 8
         }
 
         setState({
@@ -273,7 +274,6 @@ export default function WizardPage() {
           aprobadorId: programa.aprobadorId ?? '',
           fechaInicio: programa.fechaInicio ?? '',
           fechaObjetivo: programa.fechaObjetivo ?? '',
-          objetivosCondicionales: cond,
           objetivosPrimarios: prim,
           objetivosVitales: vit,
           objetivosOperativos: oper,
@@ -329,8 +329,28 @@ export default function WizardPage() {
     iniciarGuardado()
     try {
       await wizardPatch(state.programaId, { proposito: state.proposito, objetivoMayor: state.objetivoMayor })
-      advance()
       finalizarGuardado()
+      // Generate suggested name in background before advancing
+      try {
+        const res = await fetch('/api/wizard-validar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            paso: 'generar_nombre',
+            contenido: state.proposito,
+            contexto: { situacion: state.situacion, objetivoMayor: state.objetivoMayor },
+          }),
+        })
+        const data = await res.json()
+        if (data.nombreSugerido) {
+          setNombreSugerido(data.nombreSugerido)
+          setState(s => ({ ...s, nombre: data.nombreSugerido, paso: 3 }))
+          return
+        }
+      } catch {
+        // silencioso — el usuario puede escribir el nombre manualmente
+      }
+      advance()
     } catch (e) {
       console.error(e)
       setEstadoGuardado('idle')
@@ -338,7 +358,7 @@ export default function WizardPage() {
     } finally {
       setSaving(false)
     }
-  }, [state.programaId, state.proposito, state.objetivoMayor])
+  }, [state.programaId, state.proposito, state.objetivoMayor, state.situacion])
 
   const handleNext3 = useCallback(async () => {
     iniciarGuardado()
@@ -347,7 +367,6 @@ export default function WizardPage() {
         nombre: state.nombre,
         situacion: state.situacion,
         proposito: state.proposito,
-        objetivoMayor: state.objetivoMayor || undefined,
         responsableIds: state.responsableId ? [state.responsableId] : [],
         aprobadorId: state.aprobadorId || undefined,
         fechaInicio: state.fechaInicio || undefined,
@@ -374,9 +393,9 @@ export default function WizardPage() {
     if (!state.programaId) return
     iniciarGuardado()
     try {
-      const saved = await saveObjetivos(state.programaId, 'Condicional', state.objetivosCondicionales, existingIds.Condicional)
-      setState(s => ({ ...s, objetivosCondicionales: saved, paso: 5 }))
-      setExistingIds(e => ({ ...e, Condicional: saved.filter(o => o.airtableId).map(o => o.airtableId!) }))
+      const saved = await saveObjetivos(state.programaId, 'Primario', state.objetivosPrimarios, existingIds.Primario)
+      setState(s => ({ ...s, objetivosPrimarios: saved, paso: 5 }))
+      setExistingIds(e => ({ ...e, Primario: saved.filter(o => o.airtableId).map(o => o.airtableId!) }))
       finalizarGuardado()
     } catch (e) { console.error(e); setEstadoGuardado('idle') } finally { setSaving(false) }
   }, [state, existingIds])
@@ -385,9 +404,9 @@ export default function WizardPage() {
     if (!state.programaId) return
     iniciarGuardado()
     try {
-      const saved = await saveObjetivos(state.programaId, 'Primario', state.objetivosPrimarios, existingIds.Primario)
-      setState(s => ({ ...s, objetivosPrimarios: saved, paso: 6 }))
-      setExistingIds(e => ({ ...e, Primario: saved.filter(o => o.airtableId).map(o => o.airtableId!) }))
+      const saved = await saveObjetivos(state.programaId, 'Vital', state.objetivosVitales, existingIds.Vital)
+      setState(s => ({ ...s, objetivosVitales: saved, paso: 6 }))
+      setExistingIds(e => ({ ...e, Vital: saved.filter(o => o.airtableId).map(o => o.airtableId!) }))
       finalizarGuardado()
     } catch (e) { console.error(e); setEstadoGuardado('idle') } finally { setSaving(false) }
   }, [state, existingIds])
@@ -396,9 +415,9 @@ export default function WizardPage() {
     if (!state.programaId) return
     iniciarGuardado()
     try {
-      const saved = await saveObjetivos(state.programaId, 'Vital', state.objetivosVitales, existingIds.Vital)
-      setState(s => ({ ...s, objetivosVitales: saved, paso: 7 }))
-      setExistingIds(e => ({ ...e, Vital: saved.filter(o => o.airtableId).map(o => o.airtableId!) }))
+      const saved = await saveObjetivos(state.programaId, 'Operativo', state.objetivosOperativos, existingIds.Operativo)
+      setState(s => ({ ...s, objetivosOperativos: saved, paso: 7 }))
+      setExistingIds(e => ({ ...e, Operativo: saved.filter(o => o.airtableId).map(o => o.airtableId!) }))
       finalizarGuardado()
     } catch (e) { console.error(e); setEstadoGuardado('idle') } finally { setSaving(false) }
   }, [state, existingIds])
@@ -407,16 +426,9 @@ export default function WizardPage() {
     if (!state.programaId) return
     iniciarGuardado()
     try {
-      const [savedOper, savedProd] = await Promise.all([
-        saveObjetivos(state.programaId, 'Operativo', state.objetivosOperativos, existingIds.Operativo),
-        saveObjetivos(state.programaId, 'Producción', state.objetivosProduccion, existingIds['Producción']),
-      ])
-      setState(s => ({ ...s, objetivosOperativos: savedOper, objetivosProduccion: savedProd, paso: 8 }))
-      setExistingIds(e => ({
-        ...e,
-        Operativo: savedOper.filter(o => o.airtableId).map(o => o.airtableId!),
-        'Producción': savedProd.filter(o => o.airtableId).map(o => o.airtableId!),
-      }))
+      const saved = await saveObjetivos(state.programaId, 'Producción', state.objetivosProduccion, existingIds['Producción'])
+      setState(s => ({ ...s, objetivosProduccion: saved, paso: 8 }))
+      setExistingIds(e => ({ ...e, 'Producción': saved.filter(o => o.airtableId).map(o => o.airtableId!) }))
       finalizarGuardado()
     } catch (e) { console.error(e); setEstadoGuardado('idle') } finally { setSaving(false) }
   }, [state, existingIds])
@@ -484,7 +496,7 @@ export default function WizardPage() {
               situacion={state.situacion}
               proposito={state.proposito}
               nombre={state.nombre}
-              objetivoMayor={state.objetivoMayor}
+              nombreSugerido={nombreSugerido}
               responsableId={state.responsableId}
               aprobadorId={state.aprobadorId}
               fechaInicio={state.fechaInicio}
@@ -497,9 +509,9 @@ export default function WizardPage() {
             />
           )}
           {state.paso === 4 && (
-            <Step4Condicionales
-              objetivos={state.objetivosCondicionales}
-              onChange={obs => update({ objetivosCondicionales: obs })}
+            <Step5Primarios
+              objetivos={state.objetivosPrimarios}
+              onChange={obs => update({ objetivosPrimarios: obs })}
               usuarios={usuarios}
               defaultFechaLimite={state.fechaObjetivo}
               defaultResponsableId={state.responsableId}
@@ -510,9 +522,9 @@ export default function WizardPage() {
             />
           )}
           {state.paso === 5 && (
-            <Step5Primarios
-              objetivos={state.objetivosPrimarios}
-              onChange={obs => update({ objetivosPrimarios: obs })}
+            <Step6Vitales
+              objetivos={state.objetivosVitales}
+              onChange={obs => update({ objetivosVitales: obs })}
               usuarios={usuarios}
               defaultFechaLimite={state.fechaObjetivo}
               defaultResponsableId={state.responsableId}
@@ -523,9 +535,9 @@ export default function WizardPage() {
             />
           )}
           {state.paso === 6 && (
-            <Step6Vitales
-              objetivos={state.objetivosVitales}
-              onChange={obs => update({ objetivosVitales: obs })}
+            <Step6Operativos
+              operativos={state.objetivosOperativos}
+              onChange={obs => update({ objetivosOperativos: obs })}
               usuarios={usuarios}
               defaultFechaLimite={state.fechaObjetivo}
               defaultResponsableId={state.responsableId}
@@ -536,11 +548,9 @@ export default function WizardPage() {
             />
           )}
           {state.paso === 7 && (
-            <Step7OperativosProduccion
-              operativos={state.objetivosOperativos}
+            <Step7Produccion
               produccion={state.objetivosProduccion}
-              onChangeOperativos={obs => update({ objetivosOperativos: obs })}
-              onChangeProduccion={obs => update({ objetivosProduccion: obs })}
+              onChange={obs => update({ objetivosProduccion: obs })}
               usuarios={usuarios}
               defaultFechaLimite={state.fechaObjetivo}
               defaultResponsableId={state.responsableId}

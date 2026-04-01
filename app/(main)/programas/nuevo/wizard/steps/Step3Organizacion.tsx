@@ -2,12 +2,19 @@
 
 import { useState } from 'react'
 import type { Usuario } from '@/lib/types'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface Props {
   situacion: string
   proposito: string
   nombre: string
-  objetivoMayor: string
+  nombreSugerido?: string
   responsableId: string
   aprobadorId: string
   fechaInicio: string
@@ -19,14 +26,19 @@ interface Props {
   saving?: boolean
 }
 
+const inputCls = "w-full bg-transparent border border-input rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+
 export function Step3Organizacion({
-  situacion, proposito, nombre, objetivoMayor, responsableId, aprobadorId,
-  fechaInicio, fechaObjetivo, usuarios, onChange, onNext, onBack, saving,
+  situacion, proposito, nombre, nombreSugerido,
+  responsableId, aprobadorId, fechaInicio, fechaObjetivo,
+  usuarios, onChange, onNext, onBack, saving,
 }: Props) {
   const [validating, setValidating] = useState(false)
   const [observaciones, setObservaciones] = useState<string | null>(null)
   const [didValidate, setDidValidate] = useState(false)
   const activos = usuarios.filter(u => u.activo)
+
+  const esSugerido = !!nombreSugerido && nombre === nombreSugerido
 
   async function handleContinuar() {
     if (!nombre.trim() || !responsableId) return
@@ -41,7 +53,7 @@ export function Step3Organizacion({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           paso: 3,
-          contenido: { nombre, objetivoMayor },
+          contenido: { nombre },
           contexto: { situacion, proposito },
         }),
       })
@@ -59,14 +71,11 @@ export function Step3Organizacion({
     }
   }
 
-  const inputCls = "w-full bg-transparent border border-input rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
-  const selectCls = `${inputCls} bg-background [&>option]:bg-background [&>option]:text-foreground`
-
   return (
     <div className="space-y-6">
       <div>
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Paso 3 de 8</p>
-        <h2 className="text-xl font-bold text-foreground">Nombre, Objetivo Mayor y Organización</h2>
+        <h2 className="text-xl font-bold text-foreground">Nombre y Organización</h2>
       </div>
 
       <blockquote className="border-l-2 border-primary pl-4 space-y-1">
@@ -80,39 +89,52 @@ export function Step3Organizacion({
       <div className="space-y-4">
         <div>
           <label className="text-xs font-medium text-muted-foreground block mb-1">Nombre del programa *</label>
-          <input
-            className={inputCls}
-            placeholder="Ej: Expansión de Ventas Q2 2026"
-            value={nombre}
-            onChange={e => { onChange({ nombre: e.target.value }); setObservaciones(null); setDidValidate(false) }}
-          />
-        </div>
-
-        <div>
-          <label className="text-xs font-medium text-muted-foreground block mb-1">Objetivo Mayor *</label>
-          <textarea
-            rows={3}
-            className={`${inputCls} resize-none`}
-            placeholder="Ej: Tener un equipo de ventas que genera ingresos predecibles y crecientes mes a mes, con un proceso documentado y dominado por todos los vendedores."
-            value={objetivoMayor}
-            onChange={e => { onChange({ objetivoMayor: e.target.value }); setObservaciones(null); setDidValidate(false) }}
-          />
+          <div className="relative">
+            <input
+              className={inputCls}
+              placeholder="Ej: Expansión de Ventas Q2 2026"
+              value={nombre}
+              onChange={e => {
+                onChange({ nombre: e.target.value })
+                setObservaciones(null)
+                setDidValidate(false)
+              }}
+            />
+            {esSugerido && (
+              <span className="absolute top-1/2 -translate-y-1/2 right-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/20 text-primary border border-primary/30 pointer-events-none">
+                ✨ Sugerido
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">Responsable *</label>
-            <select className={selectCls} value={responsableId} onChange={e => onChange({ responsableId: e.target.value })}>
-              <option value="">Seleccionar...</option>
-              {activos.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-            </select>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">Responsable del programa *</label>
+            <Select value={responsableId} onValueChange={v => onChange({ responsableId: v })}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Seleccionar..." />
+              </SelectTrigger>
+              <SelectContent>
+                {activos.map(u => (
+                  <SelectItem key={u.id} value={u.id}>{u.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground block mb-1">Aprobador (opcional)</label>
-            <select className={selectCls} value={aprobadorId} onChange={e => onChange({ aprobadorId: e.target.value })}>
-              <option value="">Sin asignar</option>
-              {activos.filter(u => u.rol === 'Ejecutivo').map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
-            </select>
+            <Select value={aprobadorId || '_none'} onValueChange={v => onChange({ aprobadorId: v === '_none' ? '' : v })}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Sin asignar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_none">Sin asignar</SelectItem>
+                {activos.filter(u => u.rol === 'Ejecutivo').map(u => (
+                  <SelectItem key={u.id} value={u.id}>{u.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -122,7 +144,7 @@ export function Step3Organizacion({
             <input type="date" className={inputCls} value={fechaInicio} onChange={e => onChange({ fechaInicio: e.target.value })} />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">Fecha objetivo</label>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">Fecha de completación esperada</label>
             <input type="date" className={inputCls} value={fechaObjetivo} onChange={e => onChange({ fechaObjetivo: e.target.value })} />
           </div>
         </div>

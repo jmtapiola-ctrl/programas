@@ -33,16 +33,16 @@ export function Step5Primarios({ objetivos, onChange, usuarios, defaultFechaLimi
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Paso 5 de 8</p>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Paso 4 de 8</p>
         <h2 className="text-xl font-bold text-foreground">Objetivos Primarios</h2>
       </div>
 
       <blockquote className="border-l-2 border-blue-500 pl-4 space-y-1">
         <p className="text-sm text-muted-foreground italic">
-          "La estructura organizativa es la base invisible del
-          programa. Si los roles, comunicaciones y responsabilidades
-          no están definidos, los objetivos operativos y de
-          producción se caen solos."
+          "Los básicos para que el programa pueda operar.
+          ¿Quién es el responsable? ¿Quién hace qué? ¿Todos
+          leyeron el programa? Sin estos, nada de lo que viene
+          después puede funcionar."
         </p>
       </blockquote>
 
@@ -51,9 +51,9 @@ export function Step5Primarios({ objetivos, onChange, usuarios, defaultFechaLimi
         <p className="text-xs text-muted-foreground">¿Quién está a cargo de qué? ¿Qué roles necesitan existir o reestablecerse?</p>
         <div className="text-xs text-muted-foreground/60 space-y-1 bg-muted/30 rounded-md px-3 py-2">
           <p>Ejemplos:</p>
-          <p>· "Designar a [nombre] como responsable de [área o función]"</p>
-          <p>· "Establecer reunión semanal de seguimiento con todo el equipo"</p>
-          <p>· "Crear el sistema de reporte de resultados para el área"</p>
+          <p>· "Designar a [nombre] como responsable del programa"</p>
+          <p>· "Que todo el equipo lea y confirme haber leído el programa"</p>
+          <p>· "Establecer reunión semanal de seguimiento"</p>
         </div>
       </div>
 

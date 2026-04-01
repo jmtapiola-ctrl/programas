@@ -25,6 +25,7 @@ function manana(): string {
 interface PanelProps {
   obj: ObjetivoWizard
   index: number
+  tipo: TipoObjetivo
   usuarios: Usuario[]
   validating: boolean
   sugerenciaIgnorada: boolean
@@ -48,7 +49,7 @@ function GeminiIcon({ v, validating }: { v?: ObjetivoWizard['validacionGemini'];
 }
 
 function PanelDetalle({
-  obj, index, usuarios,
+  obj, index, tipo, usuarios,
   validating, sugerenciaIgnorada,
   onIgnorarSugerencia, onAplicarTexto,
   onChange, onValidate, onClose,
@@ -165,6 +166,29 @@ function PanelDetalle({
             >
               Ignorar
             </button>
+          </div>
+        )}
+
+        {/* 3b. Es condicional (solo Operativos) */}
+        {tipo === 'Operativo' && (
+          <div className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              id={`condicional-${obj.tempId}`}
+              className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
+              checked={obj.esCondicional ?? false}
+              onChange={e => onChange({ esCondicional: e.target.checked, validacionGemini: undefined })}
+            />
+            <div>
+              <label htmlFor={`condicional-${obj.tempId}`} className="text-sm text-foreground cursor-pointer">
+                Es condicional
+              </label>
+              {obj.esCondicional && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Este objetivo depende de una condición previa. El doingness debe empezar con "Si..." o describir la condición claramente.
+                </p>
+              )}
+            </div>
           </div>
         )}
 
@@ -293,13 +317,14 @@ export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaO
     setValidatingIds(prev => new Set([...prev, tempId]))
     actualizarObjetivo(tempId, { validacionGemini: undefined })
     try {
+      const tipoParaValidar = tipo === 'Operativo' && obj.esCondicional ? 'Condicional' : tipo
       const res = await fetch('/api/validar-objetivo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nombre: obj.nombre,
           descripcionDoingness: obj.descripcionDoingness,
-          tipo,
+          tipo: tipoParaValidar,
         }),
       })
       const data = await res.json()
@@ -354,6 +379,7 @@ export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaO
   const panelProps: PanelProps | null = selectedObjetivo ? {
     obj: selectedObjetivo,
     index: objetivos.indexOf(selectedObjetivo),
+    tipo,
     usuarios,
     validating: validatingIds.has(selectedObjetivo.tempId),
     sugerenciaIgnorada: sugerenciaIgnorada.has(selectedObjetivo.tempId),
@@ -378,6 +404,9 @@ export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaO
                 <th className="py-2 px-3 text-left text-xs font-medium text-muted-foreground">Nombre del objetivo</th>
                 <th className="w-36 py-2 px-3 text-left text-xs font-medium text-muted-foreground">Responsable</th>
                 <th className="w-32 py-2 px-3 text-left text-xs font-medium text-muted-foreground">Fecha límite</th>
+                {tipo === 'Operativo' && (
+                  <th className="w-12 py-2 px-1 text-center text-xs font-medium text-muted-foreground" title="¿Es condicional?">Cond.</th>
+                )}
                 <th className="w-10 py-2 px-1 text-center text-xs font-medium text-muted-foreground">✓</th>
                 <th className="w-8 py-2 px-1"></th>
               </tr>
@@ -400,7 +429,8 @@ export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaO
                     onClick={() => setSelectedTempId(obj.tempId)}
                     className={cn(
                       'border-b border-border/50 hover:bg-muted/20 transition-colors group cursor-pointer',
-                      isSelected && 'bg-accent/20 border-l-4 border-l-primary'
+                      isSelected && 'bg-accent/20 border-l-4 border-l-primary',
+                      tipo === 'Operativo' && obj.esCondicional && !isSelected && 'border-l-2 border-l-orange-500/50 border-l-dashed'
                     )}
                   >
                     <td className="py-1.5 px-3 text-muted-foreground text-xs">{i + 1}</td>
@@ -430,6 +460,17 @@ export function TablaObjetivosWizard({ tipo, objetivos, usuarios, programaFechaO
                         onChange={e => actualizarObjetivo(obj.tempId, { fechaLimite: e.target.value })}
                       />
                     </td>
+                    {tipo === 'Operativo' && (
+                      <td className="py-1.5 px-1 text-center" onClick={e => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="h-3.5 w-3.5 rounded border-border accent-orange-500"
+                          checked={obj.esCondicional ?? false}
+                          onChange={e => actualizarObjetivo(obj.tempId, { esCondicional: e.target.checked, validacionGemini: undefined })}
+                          title="Marcar como condicional"
+                        />
+                      </td>
+                    )}
                     <td className="py-1.5 px-1 text-center" onClick={e => e.stopPropagation()}>
                       <GeminiIcon v={obj.validacionGemini} validating={isValidating} />
                     </td>

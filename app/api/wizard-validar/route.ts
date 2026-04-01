@@ -76,6 +76,32 @@ Objetivo Mayor: ${typeof contenido === 'object' ? contenido.objetivoMayor : ''}
 Devolvé: { "observaciones": string | null, "sugerencia": string | null }
 Si está bien: observaciones null. Si se puede mejorar: texto corto de 1-2 oraciones.`
 
+  } else if (paso === 'generar_nombre') {
+    systemPrompt = `Sos un experto en planificación estratégica. Generás nombres cortos y descriptivos para programas organizacionales. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional.`
+    const ctx = typeof contexto === 'object' ? contexto : {}
+    userPrompt = `Generá un nombre corto y descriptivo para este programa.
+
+Situación: ${ctx.situacion ?? ''}
+Propósito: ${contenido}
+Objetivo Mayor: ${ctx.objetivoMayor ?? ''}
+
+El nombre debe:
+- Ser corto: máximo 5-6 palabras
+- Ser descriptivo: que se entienda de qué trata
+- No usar gerundios ("Implementando", "Mejorando")
+- Empezar con mayúscula
+- No ser genérico ("Programa de mejora", "Plan estratégico")
+
+Ejemplos buenos:
+  "Expansión Zona Norte 2026"
+  "JMT 79kg"
+  "Onboarding Terravinci"
+  "Sistema de Organigramas Grupales"
+  "Autonomía Comercial Q3"
+
+Respondé ÚNICAMENTE con este JSON sin markdown:
+{"nombreSugerido": "nombre aquí"}`
+
   } else if (paso === 'generar_objetivo_mayor') {
     systemPrompt = `Sos un experto en planificación estratégica por objetivos. Generás Objetivos Mayores concretos, medibles y verificables a partir de una situación y un propósito dados. Respondé ÚNICAMENTE con JSON válido, sin markdown ni texto adicional.`
     const situacion = typeof contexto === 'object' ? (contexto?.situacion ?? '') : (contexto ?? '')
@@ -124,7 +150,7 @@ Devolvé: { "objetivoMayorSugerido": string }`
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
-          generationConfig: paso === 'generar_objetivo_mayor'
+          generationConfig: (paso === 'generar_objetivo_mayor' || paso === 'generar_nombre')
             ? { temperature: 0.4, maxOutputTokens: 1024, thinkingConfig: { thinkingBudget: 0 } }
             : { temperature: 0.1, maxOutputTokens: 512 },
         }),
@@ -136,6 +162,10 @@ Devolvé: { "objetivoMayorSugerido": string }`
     const textPart = parts.find((p: any) => p.text && !p.thought) ?? parts[0]
     const text = textPart?.text ?? '{}'
     const result = JSON.parse(text.replace(/```json|```/g, '').trim())
+
+    if (paso === 'generar_nombre') {
+      return NextResponse.json({ nombreSugerido: result.nombreSugerido ?? '' })
+    }
 
     if (paso === 'generar_objetivo_mayor') {
       return NextResponse.json({ objetivoMayorSugerido: result.objetivoMayorSugerido ?? '' })
@@ -155,6 +185,9 @@ Devolvé: { "objetivoMayorSugerido": string }`
       sugerencia: result.sugerencia ?? null,
     })
   } catch {
+    if (paso === 'generar_nombre') {
+      return NextResponse.json({ nombreSugerido: '' })
+    }
     if (paso === 'generar_objetivo_mayor') {
       return NextResponse.json({ objetivoMayorSugerido: '' })
     }
