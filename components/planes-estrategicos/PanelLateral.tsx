@@ -8,6 +8,19 @@ interface Props {
   planSr: PlanEstrategico | null
 }
 
+function VerPlanCompletoLink({ planId }: { planId: string }) {
+  return (
+    <a
+      href={`/planes-estrategicos/${planId}/vista`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block text-[11px] text-muted-foreground hover:text-foreground transition-colors text-right pb-2"
+    >
+      Ver plan completo ↗
+    </a>
+  )
+}
+
 export function PanelLateral({ plan, panel, planSr }: Props) {
   const esSr = plan.tipo === 'Sr'
   const proposito = panel?.proposito ?? plan.proposito
@@ -40,6 +53,7 @@ export function PanelLateral({ plan, panel, planSr }: Props) {
 
         {/* Columna der: Plan Jr en construcción */}
         <div className="flex-1 overflow-y-auto space-y-4">
+          <VerPlanCompletoLink planId={plan.id} />
           <PanelConstruccion proposito={proposito} situacion={situacion} datosFaltantes={datosFaltantes} alineacion={proposito?.alineacion_sr} />
         </div>
       </div>
@@ -48,6 +62,7 @@ export function PanelLateral({ plan, panel, planSr }: Props) {
 
   return (
     <div className="overflow-y-auto space-y-4">
+      <VerPlanCompletoLink planId={plan.id} />
       <PanelConstruccion proposito={proposito} situacion={situacion} datosFaltantes={datosFaltantes} />
     </div>
   )

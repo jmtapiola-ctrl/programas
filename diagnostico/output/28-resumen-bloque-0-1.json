@@ -1,0 +1,15 @@
+{
+  "ran_at": "2026-05-02T16:46:10.735Z",
+  "model": "claude-opus-4-7",
+  "temperature": "default (deprecated en este modelo)",
+  "max_tokens": 4000,
+  "input_tokens": 51398,
+  "output_tokens": 4000,
+  "cost_usd": 1.07097,
+  "latency_ms": 66977,
+  "stop_reason": "max_tokens",
+  "system_prompt_len_chars": 51708,
+  "user_message_len_chars": 65950,
+  "resumen_chars": 9406,
+  "tenia_panel_update": false
+}

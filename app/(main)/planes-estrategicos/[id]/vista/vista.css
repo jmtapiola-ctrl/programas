@@ -1,0 +1,208 @@
+/* Vista de prestigio del Plan Estratégico — read-only document. */
+
+.pe-vista-root {
+  /* Override del tema dark global. */
+  background: #fafaf7;
+  color: #1a1a1a;
+  min-height: 100vh;
+  font-family: var(--font-serif), Georgia, 'Times New Roman', serif;
+  font-feature-settings: 'kern', 'liga', 'onum';
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.pe-vista-container {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 4rem 2rem 6rem;
+}
+
+.pe-vista-header {
+  border-bottom: 1px solid #d4d4cf;
+  padding-bottom: 1.5rem;
+  margin-bottom: 3rem;
+}
+
+.pe-vista-header .top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+.pe-vista-header .top-bar .back {
+  font-size: 13px;
+  color: #5c5c5c;
+  text-decoration: none;
+}
+.pe-vista-header .top-bar .back:hover { color: #1a1a1a; }
+
+.pe-vista-header h1 {
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.5rem;
+}
+
+.pe-vista-header .subtitle {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 14px;
+  color: #5c5c5c;
+  margin: 0 0 0.25rem;
+}
+
+.pe-vista-header .meta {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 12px;
+  color: #8a8a8a;
+  margin: 0;
+}
+
+.pe-vista section {
+  margin-bottom: 3rem;
+  page-break-inside: avoid;
+}
+
+.pe-vista h2 {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  margin: 0 0 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e2e2dc;
+}
+
+.pe-vista h3 {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #4a4a4a;
+  margin: 2rem 0 0.75rem;
+}
+
+.pe-vista h3:first-of-type {
+  margin-top: 0;
+}
+
+.pe-vista p, .pe-vista li {
+  font-size: 16.5px;
+  line-height: 1.7;  /* generoso para textos largos como causa raíz */
+  color: #1a1a1a;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.pe-vista p {
+  margin: 0 0 1rem;
+}
+
+.pe-vista p:last-child {
+  margin-bottom: 0;
+}
+
+.pe-vista ol, .pe-vista ul {
+  margin: 0 0 1rem;
+  padding-left: 1.5rem;
+}
+
+.pe-vista ol li, .pe-vista ul li {
+  margin-bottom: 1rem;
+  padding-left: 0.25rem;
+}
+
+.pe-vista ol li:last-child, .pe-vista ul li:last-child {
+  margin-bottom: 0;
+}
+
+.pe-vista ol li::marker {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-weight: 600;
+  color: #5c5c5c;
+}
+
+.pe-vista ul li::marker {
+  color: #8a8a8a;
+}
+
+.pe-vista .item-title {
+  font-weight: 600;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.pe-vista .item-meta {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 12px;
+  color: #5c5c5c;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+  margin-left: 0.5rem;
+}
+
+.pe-vista .item-detail {
+  display: block;
+  margin-top: 0.5rem;
+  color: #2a2a2a;
+}
+
+.pe-vista .item-label {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #5c5c5c;
+  margin-right: 0.5rem;
+}
+
+.pe-vista .empty {
+  font-style: italic;
+  color: #8a8a8a;
+}
+
+/* ─── Print styles ────────────────────────────────────────────────────────── */
+
+@page {
+  size: A4;
+  margin: 2cm;
+}
+
+@media print {
+  .pe-vista-root {
+    background: #ffffff;
+    color: #000000;
+  }
+  .pe-vista-container {
+    max-width: 100%;
+    padding: 0;
+  }
+  .pe-vista-header .top-bar {
+    display: none;  /* ocultar el link "Volver al wizard" */
+  }
+  .pe-vista-header {
+    border-bottom-color: #888;
+  }
+  .pe-vista section {
+    page-break-inside: auto;  /* permitir partir si una sección no entra */
+  }
+  .pe-vista section > h2 {
+    page-break-after: avoid;  /* evitar H2 huérfano al final de página */
+  }
+  .pe-vista h3 {
+    page-break-after: avoid;
+  }
+  .pe-vista ol li, .pe-vista ul li {
+    page-break-inside: avoid;  /* item completo en la misma página */
+  }
+  .pe-vista p {
+    orphans: 3;
+    widows: 3;
+  }
+}
