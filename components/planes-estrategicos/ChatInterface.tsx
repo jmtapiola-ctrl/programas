@@ -38,9 +38,13 @@ export function ChatInterface({
     <div className="flex flex-col h-full">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
-        {historial.map((turno, i) => (
-          <Burbuja key={i} rol={turno.rol} contenido={cleanContent(turno.contenido)} />
-        ))}
+        {/* Solo mostrar turnos conversacionales — los `reviewer` y `snapshot`
+            (feat/audit-reviewer) tienen su propia UI dedicada en Pantallas 1-4. */}
+        {historial
+          .filter((t): t is typeof t & { rol: 'user' | 'model' } => t.rol === 'user' || t.rol === 'model')
+          .map((turno, i) => (
+            <Burbuja key={i} rol={turno.rol} contenido={cleanContent(turno.contenido)} />
+          ))}
 
         {/* Streaming response */}
         {isStreaming && (

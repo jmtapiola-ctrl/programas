@@ -11,6 +11,10 @@ import type {
   PropositorPE,
   SituacionPE,
   PanelUpdatePE,
+  SubEstadoPaso,
+  ReviewerReport,
+  DecisionUsuario,
+  SnapshotPaso,
 } from './types'
 
 const BASE_URL = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}`
@@ -551,6 +555,32 @@ const TURNOS_FIELD_CONTENIDO = 'fldxJbxdePyn88p4k'
 const TURNOS_FIELD_TIMESTAMP = 'fldblAcqCgrGPIUHq'
 const TURNOS_FIELD_PASO = 'fld8n5nbfvHkppsnk'
 
+// Field IDs de Turnos_PE para rol=reviewer (feat/audit-reviewer Fase 1)
+const TURNOS_FIELD_REVIEWER_BLOQUE = 'fldTjDPLvtsnhUvWK'
+const TURNOS_FIELD_REVIEWER_MODELO = 'fldFqNpoLObBfeeui'
+const TURNOS_FIELD_REVIEWER_ERRORES_TOTAL = 'fldreloD9xOBNYb9s'
+const TURNOS_FIELD_REVIEWER_PREGUNTAS_TOTAL = 'fld9PLlkGYodW27XK'
+const TURNOS_FIELD_REVIEWER_DECISIONES = 'fldCWJkl6rutPHo8G'
+const TURNOS_FIELD_REVIEWER_SNAPSHOT_PRE_APPLY = 'fld36Iee0NKKHQM2g'
+const TURNOS_FIELD_REVIEWER_COSTO = 'fldI9ciNKhWLt2fWI'
+const TURNOS_FIELD_REVIEWER_LATENCIA = 'fldy42FvR4RV9KfTq'
+const TURNOS_FIELD_REVIEWER_SKIPPED = 'fld2ASBHhPgQNYt5r'
+const TURNOS_FIELD_REVIEWER_SKIPPED_REASON = 'fldWVuR0v31Ccqcx3'
+const TURNOS_FIELD_REVIEWER_FAILED = 'fldgwL6Pxj2Ii1vy5'
+const TURNOS_FIELD_REVIEWER_RETRY_COUNT = 'fldGhBmHiwXhUiA03'
+const TURNOS_FIELD_APPLY_COSTO = 'fld36noMHgnJfKU0o'
+const TURNOS_FIELD_APPLY_LATENCIA = 'fldVOyd9R9lnPkmSs'
+
+// Field IDs de Turnos_PE para rol=snapshot
+const TURNOS_FIELD_SNAPSHOT_PASO = 'fldra6jRHH32yM0Th'
+const TURNOS_FIELD_SNAPSHOT_RESUMEN = 'fldk4WTpCtTPuirUr'
+
+// Field IDs nuevos de entrevistas_pe (feat/audit-reviewer Fase 1)
+// Usados por nombre en updateEntrevistaPE — IDs documentados acá para referencia.
+// Sub Estado Paso          fldx8Kjxmivd1Kq99
+// Auditorias Paso 1 Count  fldddCG4gfTLanfNa
+// Auditorias Paso 2 Count  fldl7SdmBvCJlnX8S
+
 function mapPlanEstrategico(r: any): PlanEstrategico {
   const f = r.fields ?? {}
   const proposito = f['Proposito Escena'] ? {
@@ -614,6 +644,10 @@ function mapEntrevistaPE(r: any): EntrevistaPE {
     ultimo_panel_update_ok: f['Ultimo Panel Update OK'] ?? undefined,
     turnos_sin_panel_consecutivos: f['Turnos Sin Panel Consecutivos'] ?? 0,
     retries_panel_update_acumulados: f['Retries Panel Update Acumulados'] ?? 0,
+    // Estado del flow de cierre+auditoría (feat/audit-reviewer Fase 1+)
+    sub_estado_paso: (f['Sub Estado Paso']?.name ?? f['Sub Estado Paso'] ?? 'en_curso') as SubEstadoPaso,
+    auditorias_paso_1_count: f['Auditorias Paso 1 Count'] ?? 0,
+    auditorias_paso_2_count: f['Auditorias Paso 2 Count'] ?? 0,
   }
 }
 
@@ -622,7 +656,7 @@ function mapTurnoPE(r: any): TurnoPE & { _airtableId: string; _indice: number } 
   return {
     _airtableId: r.id,
     _indice: f['Indice'] ?? 0,
-    rol: (f['Rol']?.name ?? f['Rol'] ?? 'user') as 'user' | 'model',
+    rol: (f['Rol']?.name ?? f['Rol'] ?? 'user') as TurnoPE['rol'],
     contenido: f['Contenido'] ?? '',
     timestamp: f['Timestamp'] ?? '',
     paso: f['Paso'] ?? 0,
@@ -817,6 +851,9 @@ export async function updateEntrevistaPE(id: string, data: {
   ultimo_panel_update_ok?: string
   turnos_sin_panel_consecutivos?: number
   retries_panel_update_acumulados?: number
+  sub_estado_paso?: SubEstadoPaso
+  auditorias_paso_1_count?: number
+  auditorias_paso_2_count?: number
 }): Promise<void> {
   const fields: Record<string, any> = { 'Ultima Actividad': new Date().toISOString() }
   if (data.estado !== undefined) fields['Estado'] = data.estado
@@ -825,6 +862,218 @@ export async function updateEntrevistaPE(id: string, data: {
   if (data.ultimo_panel_update_ok !== undefined) fields['Ultimo Panel Update OK'] = data.ultimo_panel_update_ok
   if (data.turnos_sin_panel_consecutivos !== undefined) fields['Turnos Sin Panel Consecutivos'] = data.turnos_sin_panel_consecutivos
   if (data.retries_panel_update_acumulados !== undefined) fields['Retries Panel Update Acumulados'] = data.retries_panel_update_acumulados
+  if (data.sub_estado_paso !== undefined) fields['Sub Estado Paso'] = data.sub_estado_paso
+  if (data.auditorias_paso_1_count !== undefined) fields['Auditorias Paso 1 Count'] = data.auditorias_paso_1_count
+  if (data.auditorias_paso_2_count !== undefined) fields['Auditorias Paso 2 Count'] = data.auditorias_paso_2_count
   // El campo Historial (legacy multilineText) ya no se escribe — los turnos van a Turnos_PE
   await updateRecord(TABLA_ENTREVISTAS_PE, id, fields)
+}
+
+// ─── Helpers de auditoría (feat/audit-reviewer Fase 1+) ──────────────────────
+//
+// Nota sobre `typecast: true`: las choices `reviewer` y `snapshot` del campo
+// `Rol` en Turnos_PE se agregan manualmente desde la UI de Airtable, o on-the-fly
+// por la API con `typecast: true`. Mientras no estén pre-agregadas, typecast las
+// crea en el primer createRecord. Una vez creadas, typecast es no-op (idempotente).
+
+const SUB_ESTADO_TRANSICIONES_VALIDAS: Record<SubEstadoPaso, SubEstadoPaso[]> = {
+  en_curso: ['cierre_sugerido'],
+  cierre_sugerido: ['esperando_auditoria', 'en_curso'],          // user puede volver a entrevistar
+  esperando_auditoria: ['auditoria_en_proceso', 'completo'],     // o skip directo
+  auditoria_en_proceso: ['auditoria_completa', 'esperando_auditoria'], // si falla retry
+  auditoria_completa: ['aplicando_cambios', 'esperando_auditoria'],    // re-audit
+  aplicando_cambios: ['esperando_aprobacion_final'],
+  esperando_aprobacion_final: ['completo', 'aplicando_cambios', 'auditoria_en_proceso'], // re-audit o re-apply
+  completo: [],  // estado terminal del Paso
+}
+
+/**
+ * Update guarded: valida que la transición de sub_estado_paso sea legal según
+ * la máquina de estados del flow de cierre+auditoría. Lanza error si no lo es.
+ */
+export async function updateSubEstadoPaso(
+  entrevistaId: string,
+  desde: SubEstadoPaso,
+  hasta: SubEstadoPaso,
+): Promise<void> {
+  const transicionesValidas = SUB_ESTADO_TRANSICIONES_VALIDAS[desde]
+  if (!transicionesValidas.includes(hasta)) {
+    throw new Error(`Transición inválida de sub_estado_paso: '${desde}' → '${hasta}'. Válidas desde '${desde}': ${transicionesValidas.join(', ') || '(ninguna)'}`)
+  }
+  await updateEntrevistaPE(entrevistaId, { sub_estado_paso: hasta })
+}
+
+/**
+ * Incrementa el contador de auditorías para el Paso especificado.
+ * Devuelve el nuevo conteo. Lanza error si supera el max (3 por Paso).
+ */
+export async function incrementAuditoriasPaso(
+  entrevistaId: string,
+  paso: 1 | 2,
+  currentCount: number,
+): Promise<number> {
+  const MAX = 3
+  if (currentCount >= MAX) {
+    throw new Error(`Auditorías del Paso ${paso} ya en el máximo (${MAX}). No se puede incrementar.`)
+  }
+  const nuevo = currentCount + 1
+  const fieldKey = paso === 1 ? 'auditorias_paso_1_count' : 'auditorias_paso_2_count'
+  await updateEntrevistaPE(entrevistaId, { [fieldKey]: nuevo })
+  return nuevo
+}
+
+/**
+ * Crea un turno con rol=reviewer en Turnos_PE. Persiste el reporte completo
+ * + metadata (costo, latencia, modelo, etc.).
+ *
+ * El `contenido` del turno es el JSON serializado del ReviewerReport — esto
+ * mantiene consistencia con cómo se almacena el resto de los turnos (string).
+ */
+export async function appendReviewerTurno(
+  entrevistaId: string,
+  indice: number,
+  data: {
+    paso: number
+    bloqueAuditado: number
+    modelo: string
+    report: ReviewerReport
+    costo_usd: number
+    latencia_ms: number
+    retry_count: number
+    skipped?: boolean
+    skipped_reason?: string
+    failed?: boolean
+  },
+): Promise<{ id: string }> {
+  const fields: Record<string, any> = {
+    [TURNOS_FIELD_ETIQUETA]: `${String(indice).padStart(4, '0')}|reviewer`,
+    [TURNOS_FIELD_ENTREVISTA]: [entrevistaId],
+    [TURNOS_FIELD_INDICE]: indice,
+    [TURNOS_FIELD_ROL]: 'reviewer',
+    [TURNOS_FIELD_CONTENIDO]: JSON.stringify(data.report),
+    [TURNOS_FIELD_TIMESTAMP]: new Date().toISOString(),
+    [TURNOS_FIELD_PASO]: data.paso,
+    [TURNOS_FIELD_REVIEWER_BLOQUE]: data.bloqueAuditado,
+    [TURNOS_FIELD_REVIEWER_MODELO]: data.modelo,
+    [TURNOS_FIELD_REVIEWER_ERRORES_TOTAL]: data.report.errors.length,
+    [TURNOS_FIELD_REVIEWER_PREGUNTAS_TOTAL]: data.report.questions.length,
+    [TURNOS_FIELD_REVIEWER_COSTO]: data.costo_usd,
+    [TURNOS_FIELD_REVIEWER_LATENCIA]: data.latencia_ms,
+    [TURNOS_FIELD_REVIEWER_RETRY_COUNT]: data.retry_count,
+    [TURNOS_FIELD_REVIEWER_SKIPPED]: !!data.skipped,
+    [TURNOS_FIELD_REVIEWER_FAILED]: !!data.failed,
+  }
+  if (data.skipped_reason) fields[TURNOS_FIELD_REVIEWER_SKIPPED_REASON] = data.skipped_reason
+
+  // typecast:true necesario hasta que las choices reviewer/snapshot del campo Rol
+  // se agreguen manualmente en la UI (Meta API no permite agregar choices via PATCH).
+  const res = await fetch(`${BASE_URL}/${TABLA_TURNOS_PE}`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ records: [{ fields }], typecast: true }),
+  })
+  if (!res.ok) throw new Error(`Airtable appendReviewerTurno error: ${res.status} ${await res.text()}`)
+  const created = await res.json()
+  return { id: created.records[0].id }
+}
+
+/**
+ * Persiste decisiones del usuario + snapshot pre-apply en un turno reviewer
+ * existente. Se llama tras el apply changes step.
+ */
+export async function updateReviewerDecisiones(
+  reviewerTurnoId: string,
+  decisiones: DecisionUsuario[],
+  snapshotPreApply: { proposito?: PropositorPE; situacion?: SituacionPE; datos_faltantes: string[] },
+  applyMetrics: { costo_usd: number; latencia_ms: number },
+): Promise<void> {
+  const fields: Record<string, any> = {
+    [TURNOS_FIELD_REVIEWER_DECISIONES]: JSON.stringify(decisiones),
+    [TURNOS_FIELD_REVIEWER_SNAPSHOT_PRE_APPLY]: JSON.stringify(snapshotPreApply),
+    [TURNOS_FIELD_APPLY_COSTO]: applyMetrics.costo_usd,
+    [TURNOS_FIELD_APPLY_LATENCIA]: applyMetrics.latencia_ms,
+  }
+  await updateRecord(TABLA_TURNOS_PE, reviewerTurnoId, fields)
+}
+
+/**
+ * Crea un turno con rol=snapshot. Marca el cierre definitivo de un Paso —
+ * congela el resumen completo (proposito + situacion + datos_faltantes) en el
+ * campo `Snapshot Resumen JSON`. Inmutable después de crearse.
+ */
+export async function appendSnapshotTurno(
+  entrevistaId: string,
+  indice: number,
+  snapshot: SnapshotPaso,
+): Promise<{ id: string }> {
+  const fields: Record<string, any> = {
+    [TURNOS_FIELD_ETIQUETA]: `${String(indice).padStart(4, '0')}|snapshot|p${snapshot.paso}`,
+    [TURNOS_FIELD_ENTREVISTA]: [entrevistaId],
+    [TURNOS_FIELD_INDICE]: indice,
+    [TURNOS_FIELD_ROL]: 'snapshot',
+    [TURNOS_FIELD_CONTENIDO]: JSON.stringify(snapshot),
+    [TURNOS_FIELD_TIMESTAMP]: snapshot.cerrado_en,
+    [TURNOS_FIELD_PASO]: snapshot.paso,
+    [TURNOS_FIELD_SNAPSHOT_PASO]: snapshot.paso,
+    [TURNOS_FIELD_SNAPSHOT_RESUMEN]: JSON.stringify(snapshot),
+  }
+  const res = await fetch(`${BASE_URL}/${TABLA_TURNOS_PE}`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ records: [{ fields }], typecast: true }),
+  })
+  if (!res.ok) throw new Error(`Airtable appendSnapshotTurno error: ${res.status} ${await res.text()}`)
+  const created = await res.json()
+  return { id: created.records[0].id }
+}
+
+/**
+ * Devuelve los turnos con rol=reviewer de una entrevista para un Paso dado,
+ * ordenados cronológicamente. Útil para re-auditorías (M5: pasar al reviewer
+ * el contexto del reporte previo + decisiones del usuario).
+ */
+export async function getReviewerTurnos(
+  entrevistaId: string,
+  paso: number,
+): Promise<Array<{ airtableId: string; report: ReviewerReport; decisiones?: DecisionUsuario[]; costo_usd: number; latencia_ms: number; retry_count: number }>> {
+  const params = `sort[0][field]=${TURNOS_FIELD_INDICE}&sort[0][direction]=asc`
+  const records = await fetchAll(TABLA_TURNOS_PE, params)
+  return records
+    .filter(r => {
+      const rolName = r.fields?.[TURNOS_FIELD_ROL]?.name ?? r.fields?.['Rol']
+      const ent: string[] = r.fields?.[TURNOS_FIELD_ENTREVISTA] ?? r.fields?.['Entrevista'] ?? []
+      const turnoPaso = r.fields?.[TURNOS_FIELD_REVIEWER_BLOQUE] ?? r.fields?.['Reviewer Bloque Auditado']
+      return rolName === 'reviewer' && ent.includes(entrevistaId) && turnoPaso === paso
+    })
+    .map(r => ({
+      airtableId: r.id,
+      report: safeParseJson(r.fields?.[TURNOS_FIELD_CONTENIDO] ?? r.fields?.['Contenido'], { errors: [], questions: [], cross_block_changes: [], meta: {} }),
+      decisiones: r.fields?.[TURNOS_FIELD_REVIEWER_DECISIONES]
+        ? safeParseJson(r.fields[TURNOS_FIELD_REVIEWER_DECISIONES], [])
+        : undefined,
+      costo_usd: r.fields?.[TURNOS_FIELD_REVIEWER_COSTO] ?? 0,
+      latencia_ms: r.fields?.[TURNOS_FIELD_REVIEWER_LATENCIA] ?? 0,
+      retry_count: r.fields?.[TURNOS_FIELD_REVIEWER_RETRY_COUNT] ?? 0,
+    }))
+}
+
+/**
+ * Devuelve el snapshot inmutable del Paso N de una entrevista (si existe).
+ * Útil para mostrar el resumen congelado en la UI o para operaciones de rollback.
+ */
+export async function getSnapshotPaso(
+  entrevistaId: string,
+  paso: number,
+): Promise<SnapshotPaso | null> {
+  const params = `sort[0][field]=${TURNOS_FIELD_INDICE}&sort[0][direction]=asc`
+  const records = await fetchAll(TABLA_TURNOS_PE, params)
+  const match = records.find(r => {
+    const rolName = r.fields?.[TURNOS_FIELD_ROL]?.name ?? r.fields?.['Rol']
+    const ent: string[] = r.fields?.[TURNOS_FIELD_ENTREVISTA] ?? r.fields?.['Entrevista'] ?? []
+    const snapshotPaso = r.fields?.[TURNOS_FIELD_SNAPSHOT_PASO] ?? r.fields?.['Snapshot Paso']
+    return rolName === 'snapshot' && ent.includes(entrevistaId) && snapshotPaso === paso
+  })
+  if (!match) return null
+  const raw = match.fields?.[TURNOS_FIELD_SNAPSHOT_RESUMEN] ?? match.fields?.['Snapshot Resumen JSON']
+  return safeParseJson(raw, null)
 }

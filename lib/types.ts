@@ -317,11 +317,95 @@ export interface PlanEstrategico {
   datos_faltantes: string[]
 }
 
+// Rol del turno. Extendido en Fase 1 del feat/audit-reviewer:
+//   - 'reviewer': turno consolidado con el reporte de la auditoría externa.
+//   - 'snapshot': turno especial creado al cerrar definitivamente un Paso,
+//     congela el resumen del Paso (proposito + situacion + datos_faltantes).
+export type RolTurno = 'model' | 'user' | 'reviewer' | 'snapshot'
+
 export interface TurnoPE {
-  rol: 'model' | 'user'
+  rol: RolTurno
   contenido: string
   timestamp: string
   paso: number
+}
+
+// ─── Auditoría (feat/audit-reviewer Fase 1+) ─────────────────────────────────
+
+export type SubEstadoPaso =
+  | 'en_curso'
+  | 'cierre_sugerido'
+  | 'esperando_auditoria'
+  | 'auditoria_en_proceso'
+  | 'auditoria_completa'
+  | 'aplicando_cambios'
+  | 'esperando_aprobacion_final'
+  | 'completo'
+
+export interface ReviewerError {
+  id: string
+  tipo: 1 | 2 | 3 | 4
+  severidad: 'Alta' | 'Media' | 'Baja'
+  que_dice_resumen: string
+  que_se_dijo_en_conversacion: string
+  turno_referencia: number
+  cambio_propuesto: string
+}
+
+export interface ReviewerQuestion {
+  id: string
+  categoria: 'CRITICA' | 'RECOMENDADA'
+  pregunta: string
+  por_que_importa: string
+  relacion_con_plan: string
+  placeholder_ejemplo_respuesta: string
+}
+
+export interface ReviewerCrossBlock {
+  id: string
+  bloque_afectado: number
+  seccion_afectada: string
+  severidad: 'Alta' | 'Media' | 'Baja'
+  que_dice_actualmente: string
+  que_se_declaro_que_lo_modifica: string
+  turno_referencia: number
+  cambio_propuesto: string
+}
+
+export interface ReviewerReportMeta {
+  errores_alta: number
+  errores_media: number
+  errores_baja: number
+  preguntas_criticas: number
+  preguntas_recomendadas: number
+  cross_block_changes_total: number
+  confianza_general: 'Alta' | 'Media' | 'Baja'
+  justificacion_confianza: string
+}
+
+export interface ReviewerReport {
+  errors: ReviewerError[]
+  questions: ReviewerQuestion[]
+  cross_block_changes: ReviewerCrossBlock[]
+  meta: ReviewerReportMeta
+}
+
+export interface DecisionUsuario {
+  hallazgo_id: string
+  tipo: 'error' | 'pregunta' | 'cross_block'
+  decision: 'aprobado' | 'aprobado_con_cambios' | 'ignorado' | 'respondido'
+  texto_editado?: string       // si aprobado_con_cambios
+  respuesta_usuario?: string   // si respondido
+}
+
+// Snapshot del resumen al cerrar definitivamente un Paso. Se persiste como
+// contenido JSON dentro del campo `Snapshot Resumen JSON` del turno snapshot.
+export interface SnapshotPaso {
+  paso: number
+  proposito?: PropositorPE
+  situacion?: SituacionPE
+  datos_faltantes: string[]
+  cerrado_en: string  // ISO datetime
 }
 
 export interface EntrevistaPE {
@@ -336,4 +420,8 @@ export interface EntrevistaPE {
   ultimo_panel_update_ok?: string                  // ISO datetime, último turno donde el PANEL_UPDATE se procesó OK
   turnos_sin_panel_consecutivos?: number           // contador; >=3 dispara panel_unhealthy
   retries_panel_update_acumulados?: number         // telemetría: total de retries para esta entrevista
+  // Estado del flow de cierre+auditoría (feat/audit-reviewer Fase 1+)
+  sub_estado_paso?: SubEstadoPaso                  // sub-estado del Paso actual; default 'en_curso'
+  auditorias_paso_1_count?: number                 // cantidad de audits del Paso 1 (max 3)
+  auditorias_paso_2_count?: number                 // cantidad de audits del Paso 2 (max 3)
 }
