@@ -175,3 +175,12 @@ El campo `paso_actual` de las entrevistas PE se actualiza con el `PANEL_UPDATE` 
 - Para tests sintéticos sobre datos históricos del Plan Sr de Terravinci, usar **cortes manuales hardcoded** validados por contenido del último turno (ej: turno declara explícitamente "Paso N — completo").
 - En el feature de auditoría, este problema se resuelve usando la marca explícita `rol=snapshot` que se crea al cerrar definitivamente un Paso. Ese snapshot **es** el corte real.
 - Origen: smoke 0.2 del feat/audit-reviewer falló en run 1 por contaminación del input (filtro `paso ≤ 1` devolvió turnos del Paso 2).
+
+### Antes de recomendar correr un smoke/script existente, verificar QUÉ TOCA
+
+Scripts en `diagnostico/scripts/` pueden tener side effects destructivos: escribir en Airtable de producción, mutar datos curados (ej: `proposito` o `situacion` del Plan Sr de Terravinci), insertar turnos sintéticos al historial real. **"Costo monetario bajo" no implica "seguro".**
+
+- **Verificación obligatoria antes de recomendar un script:** `grep -nE "update[A-Z]|append[A-Z]|delete[A-Z]" path/to/script.ts` para ver qué helpers de mutación usa, y leer las llamadas concretas para confirmar qué tabla/registro tocan.
+- **Para validar cambios al parser, schema, o lógica pura:** preferir **unit-tests** (`32-parser-unit.ts` y similares) — sin red, sin Airtable, sin LLM. $0 USD, segundos de runtime, 100% reproducibles.
+- **Si un smoke destructivo es genuinamente necesario:** crear plan de testing dedicado (no usar el del piloto), o snapshot + restore explícito antes/después.
+- Origen: en el merge pre-Fase 1 de feat/audit-reviewer, casi corrimos `27-smoke-test-final.ts` para validar el cambio aditivo al parser. El script escribe en `recFMWxoE5gTQQrf7` (Plan Sr real). Pivote a unit-test `32-parser-unit.ts` evitó contaminación del piloto curado.
