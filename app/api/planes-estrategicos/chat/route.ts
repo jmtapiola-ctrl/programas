@@ -8,6 +8,7 @@ import {
   updateEntrevistaPE,
   updatePlanEstrategico,
   appendTurnosPE,
+  updateSubEstadoPaso,
 } from '@/lib/airtable'
 import { buildSystemPrompt } from '@/lib/pe-system-prompt'
 import {
@@ -44,12 +45,35 @@ export async function POST(req: NextRequest) {
     planSr = await getPlanEstrategico(plan.plan_sr_id).catch(() => null)
   }
 
-  // Construir messages para Anthropic
+  // Construir messages para Anthropic.
+  //
+  // Anthropic solo acepta roles 'user' | 'assistant'. Mapeo:
+  //   - 'model'    → 'assistant' (turnos del wizard)
+  //   - 'user'     → 'user'      (turnos del ejecutivo)
+  //   - 'reviewer' → 'user'      (envuelto con prefijo de contexto — feat/audit-reviewer)
+  //   - 'snapshot' → 'user'      (envuelto con prefijo de cierre — feat/audit-reviewer)
+  //
+  // Los turnos reviewer/snapshot se mantienen visibles para el LLM en su contexto
+  // histórico (importante para continuidad cross-bloque: en Paso N+1 el modelo
+  // debe saber qué se auditó y qué se cerró en el Paso N). El frontend sí los
+  // oculta del rendering visual (ChatInterface.tsx).
   const historial = entrevista.historial
-  const messages: Anthropic.MessageParam[] = historial.map(t => ({
-    role: t.rol === 'model' ? 'assistant' : 'user',
-    content: t.contenido,
-  }))
+  const messages: Anthropic.MessageParam[] = historial.map(t => {
+    if (t.rol === 'model') return { role: 'assistant', content: t.contenido }
+    if (t.rol === 'reviewer') {
+      return {
+        role: 'user',
+        content: `[CONTEXTO DE AUDITORÍA EXTERNA DEL PASO ${t.paso} — REPORTE Y DECISIONES DEL USUARIO]\n\n${t.contenido}`,
+      }
+    }
+    if (t.rol === 'snapshot') {
+      return {
+        role: 'user',
+        content: `[CIERRE FORMAL DEL PASO ${t.paso} — RESUMEN CONGELADO]\n\n${t.contenido}`,
+      }
+    }
+    return { role: 'user', content: t.contenido }
+  })
 
   // Caso especial: historial vacío o mensaje vacío → apertura del Paso 0
   const userContent = mensaje.trim() || 'Comenzar entrevista'
@@ -148,12 +172,17 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // Logging estructurado para grep/agregación posterior
+        // Logging estructurado para grep/agregación posterior.
+        // Incluye tracking de cierre_sugerido + first-attempt no_block (definición
+        // operacional en CLAUDE.md / wrap-up Fase 0) — base de la métrica
+        // `first_attempt_no_block_rate` agregada en lib/audit-metrics.ts (Fase 5.3).
+        const cierreSugeridoEmitido = panelUpdate?.cierre_sugerido === true
         console.log('[PE chat panel]', JSON.stringify({
           event: 'panel_update_processed',
           plan_id: planId,
           entrevista_id: entrevista.id,
           turn_index: historial.length,
+          paso_actual: entrevista.paso_actual,
           panel_ok: panelOK,
           parse_first_attempt: parseResult.ok ? 'ok' : parseResult.reason,
           retry_disparado: retryDisparado,
@@ -161,6 +190,10 @@ export async function POST(req: NextRequest) {
           consecutive_failures: counterNew,
           retries_total: retriesNew,
           panel_unhealthy_emitted: !!panelUnhealthy,
+          cierre_sugerido: cierreSugeridoEmitido,
+          // Para first_attempt_no_block_rate: marcar turnos donde el modelo
+          // sugirió cierre Y el primer intento no_block (señal de regresión).
+          first_attempt_no_block_in_cierre: cierreSugeridoEmitido && parseResult.ok === false && parseResult.reason === 'no_block',
         }))
 
         // Texto limpio (sin el bloque PANEL_UPDATE)
@@ -204,6 +237,30 @@ export async function POST(req: NextRequest) {
 
         if (!saveResult.ok) {
           send({ type: 'save_failed', detail: saveResult.error })
+        }
+
+        // ─── Detección de cierre_sugerido (feat/audit-reviewer Fase 2.3) ──
+        // Si el modelo emitió cierre_sugerido=true Y el estado actual es 'en_curso',
+        // transicionamos a 'cierre_sugerido' y avisamos al frontend para que muestre
+        // el botón "Cerrar Paso N y revisar". Si el save falló, NO transicionamos
+        // (evita inconsistencia: estado actualizado pero turno no persistido).
+        if (saveResult.ok && cierreSugeridoEmitido && panelUpdate) {
+          const subEstadoActual = entrevista.sub_estado_paso ?? 'en_curso'
+          if (subEstadoActual === 'en_curso') {
+            try {
+              await updateSubEstadoPaso(entrevista.id, 'en_curso', 'cierre_sugerido')
+              send({ type: 'cierre_sugerido', paso: panelUpdate.paso_actual })
+              console.log(`[PE chat] cierre_sugerido emitido para Paso ${panelUpdate.paso_actual} (entrevista ${entrevista.id})`)
+            } catch (e) {
+              // Guard de transición rechazó. Probablemente race condition o estado raro.
+              // Loggeamos pero no rompemos el turno — el modelo seguirá emitiendo
+              // cierre_sugerido en próximos turnos hasta que la UI lo capture.
+              console.warn(`[PE chat] No se pudo transicionar a cierre_sugerido:`, e instanceof Error ? e.message : String(e))
+            }
+          } else {
+            // El modelo emite cierre_sugerido=true pero el estado ya está más adelante
+            // (cierre_sugerido, esperando_auditoria, etc.). No-op silencioso.
+          }
         }
 
         send({ type: 'done', panelUpdate })
