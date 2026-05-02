@@ -1,0 +1,213 @@
+{
+  "curva": [
+    {
+      "idx": 0,
+      "rol": "user",
+      "chars_contenido": 19,
+      "chars_acumulado": 19,
+      "input_tokens": 16208,
+      "delta_tokens": null
+    },
+    {
+      "idx": 4,
+      "rol": "user",
+      "chars_contenido": 267,
+      "chars_acumulado": 1870,
+      "input_tokens": 17024,
+      "delta_tokens": 816
+    },
+    {
+      "idx": 8,
+      "rol": "user",
+      "chars_contenido": 8,
+      "chars_acumulado": 3970,
+      "input_tokens": 17997,
+      "delta_tokens": 973
+    },
+    {
+      "idx": 12,
+      "rol": "user",
+      "chars_contenido": 1225,
+      "chars_acumulado": 7679,
+      "input_tokens": 19533,
+      "delta_tokens": 1536
+    },
+    {
+      "idx": 16,
+      "rol": "user",
+      "chars_contenido": 822,
+      "chars_acumulado": 13837,
+      "input_tokens": 22073,
+      "delta_tokens": 2540
+    },
+    {
+      "idx": 20,
+      "rol": "user",
+      "chars_contenido": 93,
+      "chars_acumulado": 20541,
+      "input_tokens": 24963,
+      "delta_tokens": 2890
+    },
+    {
+      "idx": 24,
+      "rol": "user",
+      "chars_contenido": 2417,
+      "chars_acumulado": 26824,
+      "input_tokens": 27551,
+      "delta_tokens": 2588
+    },
+    {
+      "idx": 28,
+      "rol": "user",
+      "chars_contenido": 529,
+      "chars_acumulado": 31355,
+      "input_tokens": 29459,
+      "delta_tokens": 1908
+    },
+    {
+      "idx": 32,
+      "rol": "user",
+      "chars_contenido": 11,
+      "chars_acumulado": 37229,
+      "input_tokens": 31937,
+      "delta_tokens": 2478
+    },
+    {
+      "idx": 36,
+      "rol": "user",
+      "chars_contenido": 3484,
+      "chars_acumulado": 45738,
+      "input_tokens": 35535,
+      "delta_tokens": 3598
+    },
+    {
+      "idx": 40,
+      "rol": "user",
+      "chars_contenido": 1409,
+      "chars_acumulado": 57890,
+      "input_tokens": 40581,
+      "delta_tokens": 5046
+    },
+    {
+      "idx": 44,
+      "rol": "user",
+      "chars_contenido": 1467,
+      "chars_acumulado": 64271,
+      "input_tokens": 43268,
+      "delta_tokens": 2687
+    },
+    {
+      "idx": 48,
+      "rol": "user",
+      "chars_contenido": 470,
+      "chars_acumulado": 70895,
+      "input_tokens": 46160,
+      "delta_tokens": 2892
+    },
+    {
+      "idx": 52,
+      "rol": "user",
+      "chars_contenido": 630,
+      "chars_acumulado": 76028,
+      "input_tokens": 48399,
+      "delta_tokens": 2239
+    },
+    {
+      "idx": 56,
+      "rol": "user",
+      "chars_contenido": 58,
+      "chars_acumulado": 87419,
+      "input_tokens": 53125,
+      "delta_tokens": 4726
+    },
+    {
+      "idx": 60,
+      "rol": "user",
+      "chars_contenido": 10,
+      "chars_acumulado": 91847,
+      "input_tokens": 55035,
+      "delta_tokens": 1910
+    },
+    {
+      "idx": 61,
+      "rol": "model",
+      "chars_contenido": 1246,
+      "chars_acumulado": 93093,
+      "input_tokens": 55035,
+      "delta_tokens": 0
+    },
+    {
+      "idx": 62,
+      "rol": "user",
+      "chars_contenido": 646,
+      "chars_acumulado": 93739,
+      "input_tokens": 55838,
+      "delta_tokens": 803
+    },
+    {
+      "idx": 63,
+      "rol": "model",
+      "chars_contenido": 4575,
+      "chars_acumulado": 98314,
+      "input_tokens": 55838,
+      "delta_tokens": 0
+    },
+    {
+      "idx": 64,
+      "rol": "user",
+      "chars_contenido": 546,
+      "chars_acumulado": 98860,
+      "input_tokens": 57932,
+      "delta_tokens": 2094
+    },
+    {
+      "idx": 65,
+      "rol": "model",
+      "chars_contenido": 1822,
+      "chars_acumulado": 100682,
+      "input_tokens": 57932,
+      "delta_tokens": 0
+    },
+    {
+      "idx": 66,
+      "rol": "user",
+      "chars_contenido": 1213,
+      "chars_acumulado": 101895,
+      "input_tokens": 59208,
+      "delta_tokens": 1276
+    },
+    {
+      "idx": 68,
+      "rol": "user",
+      "chars_contenido": 1262,
+      "chars_acumulado": 107677,
+      "input_tokens": 61600,
+      "delta_tokens": 2392
+    },
+    {
+      "idx": 71,
+      "rol": "model",
+      "chars_contenido": 3896,
+      "chars_acumulado": 116803,
+      "input_tokens": 63738,
+      "delta_tokens": 2138
+    },
+    {
+      "idx": 72,
+      "rol": "user",
+      "chars_contenido": 19,
+      "chars_acumulado": 116822,
+      "input_tokens": 65376,
+      "delta_tokens": 1638
+    },
+    {
+      "idx": 73,
+      "rol": "model",
+      "chars_contenido": 757,
+      "chars_acumulado": 117579,
+      "input_tokens": 65376,
+      "delta_tokens": 0
+    }
+  ],
+  "system_prompt_tokens": 16200
+}

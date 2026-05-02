@@ -1,0 +1,38 @@
+{
+  "generated_at": "2026-05-01T15:39:31.412Z",
+  "heuristic_checks": [
+    {
+      "name": "Respuesta no vacía",
+      "ok": true,
+      "detail": "len=2856"
+    },
+    {
+      "name": "Tiene bloque PANEL_UPDATE",
+      "ok": false
+    },
+    {
+      "name": "PANEL_UPDATE parseable como JSON",
+      "ok": false
+    },
+    {
+      "name": "No dice \"no entiendo\" / \"no corresponde\"",
+      "ok": true
+    },
+    {
+      "name": "Menciona desvío #3 o liquidez",
+      "ok": true
+    },
+    {
+      "name": "Avanza (no repite la pregunta original)",
+      "ok": true
+    }
+  ],
+  "heuristics_all_ok": false,
+  "input_tokens": 66103,
+  "output_tokens": 1290,
+  "latency_ms": 26371,
+  "stop_reason": "end_turn",
+  "panel_update": null,
+  "texto_limpio": "Confirmado. Te dejo el cuadro completo de desvíos para que lo veas integrado y avanzamos.\n\n---\n\n**DESVÍO PRINCIPAL:**\n\n> *\"El Grupo no tiene desplegada la cobertura geográfica multi-macrozona necesaria para sostener 1.000+ dueños/mes. Hoy: 1 macrozona con stock real (~100 dueños/mes). Objetivo fin 2026: 6 macrozonas operativas (5 de CABA + GBA Oeste) con tierra comprada/optada, proyectos en desarrollo y mix de marcas por subzona, produciendo ~200 dueños/mes/macrozona en régimen, total 1.000+/mes. Cada macrozona nueva requiere ~5-7 meses de rampa desde opción de tierra hasta venta en régimen, con sucursal, anteproyecto y asesores en paralelo. Las 5 opciones de tierra faltantes deben estar firmadas en Q1-Q3, con las primeras en Q1-Q2 para alcanzar régimen en diciembre.\"*\n\n**DESVÍOS SECUNDARIOS:**\n\n**#1 — PR / Marca masiva:** awareness no medido, marca Más Dueños sub-desarrollada a escala masiva, blitz Q3 (US$3-5M en 3 meses) sin dimensionar e inversión actual (US$100k/mes) mayormente asignada a Spazios. Secuencia obligada: sucursales completas en macrozonas → blitz (de invertir, se queman leads).\n\n**#2 — PAI graduado y escalado:** 1 piloto pre-graduado (100 ventas/mes, churn 50% no validado), sin sistematizar, sin sucursales adicionales en pipeline. Objetivo: graduación junio-julio (200/mes), 3-5 sucursales con 500-1.000 ventas/mes a fin 2026, churn proxy validado por PM como gate del escalamiento.\n\n**#3 — Liquidez para banco de tierras 2028:** tierras 2026-2027 se financian orgánicamente, pero tierras 2028 requieren liquidez propia inexistente. Grupo no es sujeto de crédito en estructura actual: reestructuración legal/impositiva es precondición. Securitización orgánica vía División Hacedora de Dueños abre vía alternativa pero su profundidad es desconocida y requiere piloto rápido.\n\n---\n\n**Sub-bloque 2.B cerrado.** Tres desvíos secundarios cuantificados, cada uno con vida propia, cada uno capaz de hundir el plan si se descuida.\n\n---\n\nVamos al **Sub-bloque 2.C — Causa raíz.**\n\nMirá los cuatro desvíos juntos (principal + 3 secundarios). Si tuvieras que señalar **UNA causa raíz** que explica la mayor parte de ellos, ¿cuál sería? No el síntoma — la causa de la causa.\n\nPara que no te tire al aire, te marco lo que NO sirve como causa raíz:\n\n- **\"El mercado argentino\"** o **\"la macro\"** — son condiciones, no causas accionables.\n- **\"No tenemos los recursos\"** — circular, es síntoma al revés.\n- **\"Vamos muy rápido\"** — descripción, no causa.\n\nLo que sí puede ser causa raíz: una decisión histórica de la organización, una falta estructural de capacidad/proceso/liderazgo, una elección estratégica del pasado que ahora se queda corta, un foco que estuvo bien para el tamaño anterior pero no para el nuevo.\n\n**Pensalo bien y dame UNA causa raíz.** Después te voy a pedir que me convenzas de que no estás atacando un síntoma.",
+  "texto_completo": "Confirmado. Te dejo el cuadro completo de desvíos para que lo veas integrado y avanzamos.\n\n---\n\n**DESVÍO PRINCIPAL:**\n\n> *\"El Grupo no tiene desplegada la cobertura geográfica multi-macrozona necesaria para sostener 1.000+ dueños/mes. Hoy: 1 macrozona con stock real (~100 dueños/mes). Objetivo fin 2026: 6 macrozonas operativas (5 de CABA + GBA Oeste) con tierra comprada/optada, proyectos en desarrollo y mix de marcas por subzona, produciendo ~200 dueños/mes/macrozona en régimen, total 1.000+/mes. Cada macrozona nueva requiere ~5-7 meses de rampa desde opción de tierra hasta venta en régimen, con sucursal, anteproyecto y asesores en paralelo. Las 5 opciones de tierra faltantes deben estar firmadas en Q1-Q3, con las primeras en Q1-Q2 para alcanzar régimen en diciembre.\"*\n\n**DESVÍOS SECUNDARIOS:**\n\n**#1 — PR / Marca masiva:** awareness no medido, marca Más Dueños sub-desarrollada a escala masiva, blitz Q3 (US$3-5M en 3 meses) sin dimensionar e inversión actual (US$100k/mes) mayormente asignada a Spazios. Secuencia obligada: sucursales completas en macrozonas → blitz (de invertir, se queman leads).\n\n**#2 — PAI graduado y escalado:** 1 piloto pre-graduado (100 ventas/mes, churn 50% no validado), sin sistematizar, sin sucursales adicionales en pipeline. Objetivo: graduación junio-julio (200/mes), 3-5 sucursales con 500-1.000 ventas/mes a fin 2026, churn proxy validado por PM como gate del escalamiento.\n\n**#3 — Liquidez para banco de tierras 2028:** tierras 2026-2027 se financian orgánicamente, pero tierras 2028 requieren liquidez propia inexistente. Grupo no es sujeto de crédito en estructura actual: reestructuración legal/impositiva es precondición. Securitización orgánica vía División Hacedora de Dueños abre vía alternativa pero su profundidad es desconocida y requiere piloto rápido.\n\n---\n\n**Sub-bloque 2.B cerrado.** Tres desvíos secundarios cuantificados, cada uno con vida propia, cada uno capaz de hundir el plan si se descuida.\n\n---\n\nVamos al **Sub-bloque 2.C — Causa raíz.**\n\nMirá los cuatro desvíos juntos (principal + 3 secundarios). Si tuvieras que señalar **UNA causa raíz** que explica la mayor parte de ellos, ¿cuál sería? No el síntoma — la causa de la causa.\n\nPara que no te tire al aire, te marco lo que NO sirve como causa raíz:\n\n- **\"El mercado argentino\"** o **\"la macro\"** — son condiciones, no causas accionables.\n- **\"No tenemos los recursos\"** — circular, es síntoma al revés.\n- **\"Vamos muy rápido\"** — descripción, no causa.\n\nLo que sí puede ser causa raíz: una decisión histórica de la organización, una falta estructural de capacidad/proceso/liderazgo, una elección estratégica del pasado que ahora se queda corta, un foco que estuvo bien para el tamaño anterior pero no para el nuevo.\n\n**Pensalo bien y dame UNA causa raíz.** Después te voy a pedir que me convenzas de que no estás atacando un síntoma."
+}

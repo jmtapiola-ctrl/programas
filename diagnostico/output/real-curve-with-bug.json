@@ -1,0 +1,41 @@
+{
+  "realCurve": [
+    {
+      "idx": 63,
+      "idealTokens": 55474,
+      "realTokens": 55474,
+      "delta": 0
+    },
+    {
+      "idx": 65,
+      "idealTokens": 57568,
+      "realTokens": 55446,
+      "delta": 2122
+    },
+    {
+      "idx": 67,
+      "idealTokens": 58844,
+      "realTokens": 55690,
+      "delta": 3154
+    },
+    {
+      "idx": 69,
+      "idealTokens": 61236,
+      "realTokens": 55704,
+      "delta": 5532
+    },
+    {
+      "idx": 71,
+      "idealTokens": 63374,
+      "realTokens": 55613,
+      "delta": 7761
+    },
+    {
+      "idx": 73,
+      "idealTokens": 65012,
+      "realTokens": 55234,
+      "delta": 9778
+    }
+  ],
+  "savedBoundary": 62
+}

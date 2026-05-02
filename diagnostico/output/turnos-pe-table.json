@@ -1,0 +1,90 @@
+{
+  "id": "tblWxPv53CRscq18w",
+  "name": "Turnos_PE",
+  "description": "Turnos individuales de las entrevistas del wizard de Plan Estratégico. Reemplaza el campo Historial JSON-blob de Entrevistas_PE para evitar el límite de 100k chars del multilineText.",
+  "primaryFieldId": "fld2dhV3Nebuxp6dz",
+  "fields": [
+    {
+      "type": "singleLineText",
+      "id": "fld2dhV3Nebuxp6dz",
+      "name": "Etiqueta",
+      "description": "Etiqueta auto-generada (índice padded + rol). Se usa solo como primary key visible."
+    },
+    {
+      "type": "multipleRecordLinks",
+      "options": {
+        "linkedTableId": "tblbOOk5jvVu3GsPJ",
+        "isReversed": false,
+        "prefersSingleRecordLink": false,
+        "inverseLinkFieldId": "fld5VoPRRA1hIpei7"
+      },
+      "id": "fldXVs7CFAqtFLFZ2",
+      "name": "Entrevista"
+    },
+    {
+      "type": "number",
+      "options": {
+        "precision": 0
+      },
+      "id": "fldvqiDvekQZHAPm6",
+      "name": "Indice",
+      "description": "Índice del turno dentro de la entrevista (0, 1, 2, ...). Define el orden cronológico."
+    },
+    {
+      "type": "singleSelect",
+      "options": {
+        "choices": [
+          {
+            "id": "selij5KEQpKpqe908",
+            "name": "user",
+            "color": "grayLight2"
+          },
+          {
+            "id": "selhYP54EHjFrQzKP",
+            "name": "model",
+            "color": "grayLight2"
+          }
+        ]
+      },
+      "id": "fld3O3WBTnVx0GdMY",
+      "name": "Rol"
+    },
+    {
+      "type": "multilineText",
+      "id": "fldxJbxdePyn88p4k",
+      "name": "Contenido",
+      "description": "Texto del turno. Para el modelo, ya viene LIMPIO (sin bloque PANEL_UPDATE)."
+    },
+    {
+      "type": "dateTime",
+      "options": {
+        "dateFormat": {
+          "name": "iso",
+          "format": "YYYY-MM-DD"
+        },
+        "timeFormat": {
+          "name": "24hour",
+          "format": "HH:mm"
+        },
+        "timeZone": "client"
+      },
+      "id": "fldblAcqCgrGPIUHq",
+      "name": "Timestamp"
+    },
+    {
+      "type": "number",
+      "options": {
+        "precision": 0
+      },
+      "id": "fld8n5nbfvHkppsnk",
+      "name": "Paso"
+    }
+  ],
+  "views": [
+    {
+      "id": "viwfV8hdRf6DEpktF",
+      "name": "Grid view",
+      "type": "grid"
+    }
+  ]
+}

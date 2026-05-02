@@ -11,13 +11,20 @@ import {
   BarChart2,
   Users,
   LogOut,
+  Map,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const mainNav = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { href: '/planes-estrategicos', label: 'Planes Estratégicos', icon: Map },
+]
+
+const comingSoonNav = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/programas', label: 'Programas', icon: ClipboardList },
   { href: '/plan-de-batalla', label: 'Plan de Batalla', icon: Swords },
+  { href: '/inbox', label: 'Inbox', icon: Inbox },
+  { href: '/informes', label: 'Informes', icon: BarChart2 },
 ]
 
 function NavItem({
@@ -54,6 +61,21 @@ function NavItem({
   )
 }
 
+function DisabledNavItem({
+  label,
+  icon: Icon,
+}: {
+  label: string
+  icon: React.ElementType
+}) {
+  return (
+    <span className="flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium text-muted-foreground/35 cursor-not-allowed select-none">
+      <Icon className="h-4 w-4 flex-shrink-0" strokeWidth={1.75} />
+      <span className="flex-1">{label} <span className="text-[11px]">(próximamente)</span></span>
+    </span>
+  )
+}
+
 export function Sidebar({ inboxCount = 0 }: { inboxCount?: number }) {
   const pathname = usePathname()
   const { data: session } = useSession()
@@ -74,36 +96,24 @@ export function Sidebar({ inboxCount = 0 }: { inboxCount?: number }) {
         <div className="flex h-5 w-5 items-center justify-center rounded bg-primary/20 flex-shrink-0">
           <span className="text-[10px] font-bold text-primary">P</span>
         </div>
-        <span className="text-[13px] font-semibold text-foreground tracking-tight">Programas</span>
+        <span className="text-[13px] font-semibold text-foreground tracking-tight">Plan Terravinci</span>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-        {mainNav.map(({ href, label, icon, exact }) => (
+        {mainNav.map(({ href, label, icon }) => (
           <NavItem
             key={href}
             href={href}
             label={label}
             icon={icon}
-            active={isActive(href, exact)}
+            active={isActive(href)}
           />
         ))}
-        <NavItem
-          href="/inbox"
-          label="Inbox"
-          icon={Inbox}
-          active={isActive('/inbox')}
-          badge={inboxCount}
-        />
 
-        {puedeVerInformes && (
-          <NavItem
-            href="/informes"
-            label="Informes"
-            icon={BarChart2}
-            active={isActive('/informes')}
-          />
-        )}
+        {comingSoonNav.map(({ href, label, icon }) => (
+          <DisabledNavItem key={href} label={label} icon={icon} />
+        ))}
 
         {isEjecutivo && (
           <>

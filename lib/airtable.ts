@@ -5,6 +5,12 @@ import type {
   Cumplimiento,
   LogEvento,
   PlanDeBatalla,
+  PlanEstrategico,
+  EntrevistaPE,
+  TurnoPE,
+  PropositorPE,
+  SituacionPE,
+  PanelUpdatePE,
 } from './types'
 
 const BASE_URL = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}`
@@ -527,4 +533,298 @@ export async function getUsuariosByIds(ids: string[]): Promise<Record<string, Us
   const result: Record<string, Usuario> = {}
   usuarios.forEach((u, i) => { if (u) result[unique[i]] = u })
   return result
+}
+
+// ─── Planes Estratégicos ──────────────────────────────────────────────────────
+// Reemplazar estos IDs con los IDs reales una vez creadas las tablas en Airtable
+
+export const TABLA_PLANES_PE = 'tblPJC1VMQclfCqc7'
+export const TABLA_ENTREVISTAS_PE = 'tblbOOk5jvVu3GsPJ'
+export const TABLA_TURNOS_PE = 'tblWxPv53CRscq18w'
+
+// Field IDs de Turnos_PE — usados en mappers y create payloads
+const TURNOS_FIELD_ETIQUETA = 'fld2dhV3Nebuxp6dz'
+const TURNOS_FIELD_ENTREVISTA = 'fldXVs7CFAqtFLFZ2'
+const TURNOS_FIELD_INDICE = 'fldvqiDvekQZHAPm6'
+const TURNOS_FIELD_ROL = 'fld3O3WBTnVx0GdMY'
+const TURNOS_FIELD_CONTENIDO = 'fldxJbxdePyn88p4k'
+const TURNOS_FIELD_TIMESTAMP = 'fldblAcqCgrGPIUHq'
+const TURNOS_FIELD_PASO = 'fld8n5nbfvHkppsnk'
+
+function mapPlanEstrategico(r: any): PlanEstrategico {
+  const f = r.fields ?? {}
+  const proposito = f['Proposito Escena'] ? {
+    escena: f['Proposito Escena'] ?? '',
+    metricas: safeParseJson(f['Proposito Metricas'], []),
+    fuera: safeParseJson(f['Proposito Fuera'], []),
+    horizonte: f['Horizonte'] ?? '',
+    estabilidad: f['Proposito Estabilidad'] ?? '',
+    ...(f['Alineacion Sr'] ? { alineacion_sr: f['Alineacion Sr'] } : {}),
+  } as PropositorPE : undefined
+
+  const situacion = f['Situacion Desvio Principal'] ? {
+    desvio_principal: f['Situacion Desvio Principal'] ?? '',
+    desvio_cuantificado: f['Situacion Desvio Cuantificado'] ?? '',
+    desvios_secundarios: safeParseJson(f['Situacion Desvios Secundarios'], []),
+    causa_raiz: f['Situacion Causa Raiz'] ?? '',
+    consecuencia_6m: f['Situacion Consecuencia 6m'] ?? '',
+    consecuencia_12m: f['Situacion Consecuencia 12m'] ?? '',
+    recursos_actuales: f['Situacion Recursos Actuales'] ?? '',
+    recursos_faltantes: f['Situacion Recursos Faltantes'] ?? '',
+    intentos_previos: f['Situacion Intentos Previos'] ?? '',
+    resistencias: safeParseJson(f['Situacion Resistencias'], []),
+  } as SituacionPE : undefined
+
+  return {
+    id: r.id,
+    nombre: f['Nombre'] ?? '',
+    area: f['Area'] ?? '',
+    tipo: f['Tipo'] ?? 'Sr',
+    plan_sr_id: f['Plan Sr ID'] ?? undefined,
+    plan_sr_nombre: f['Plan Sr Nombre'] ?? undefined,
+    estado: f['Estado'] ?? 'Borrador',
+    version: f['Version'] ?? 1,
+    responsable_id: f['Responsable']?.[0] ?? '',
+    horizonte: f['Horizonte'] ?? undefined,
+    proposito,
+    situacion,
+    datos_faltantes: safeParseJson(f['Datos Faltantes'], []),
+  }
+}
+
+function safeParseJson(value: any, fallback: any) {
+  if (!value) return fallback
+  try { return JSON.parse(value) } catch { return fallback }
+}
+
+function mapEntrevistaPE(r: any): EntrevistaPE {
+  const f = r.fields ?? {}
+  return {
+    id: r.id,
+    plan_id: f['Plan']?.[0] ?? '',
+    estado: f['Estado'] ?? 'En curso',
+    paso_actual: f['Paso Actual'] ?? 0,
+    sub_bloque_actual: f['Sub Bloque Actual'] ?? '0',
+    // historial se hidrata después desde Turnos_PE; lo dejo vacío acá.
+    // Conservamos el parseo del campo legacy como FALLBACK para entrevistas
+    // que aún no fueron migradas a Turnos_PE.
+    historial: safeParseJson(f['Historial'], []),
+    ultima_actividad: f['Ultima Actividad'] ?? '',
+    // Tracking de salud del PANEL_UPDATE (Fase 2 instrumentación)
+    ultimo_panel_update_ok: f['Ultimo Panel Update OK'] ?? undefined,
+    turnos_sin_panel_consecutivos: f['Turnos Sin Panel Consecutivos'] ?? 0,
+    retries_panel_update_acumulados: f['Retries Panel Update Acumulados'] ?? 0,
+  }
+}
+
+function mapTurnoPE(r: any): TurnoPE & { _airtableId: string; _indice: number } {
+  const f = r.fields ?? {}
+  return {
+    _airtableId: r.id,
+    _indice: f['Indice'] ?? 0,
+    rol: (f['Rol']?.name ?? f['Rol'] ?? 'user') as 'user' | 'model',
+    contenido: f['Contenido'] ?? '',
+    timestamp: f['Timestamp'] ?? '',
+    paso: f['Paso'] ?? 0,
+  }
+}
+
+// ─── Turnos_PE ────────────────────────────────────────────────────────────────
+
+/**
+ * Lista los turnos de una entrevista, ordenados por Indice ascendente.
+ * Pagina automáticamente si hay más de 100 turnos.
+ */
+export async function getTurnosPE(entrevistaId: string): Promise<TurnoPE[]> {
+  // ARRAYJOIN sobre linked field devuelve el primaryFieldId del registro linkeado
+  // (Etiqueta autogenerada) — para filtrar por record ID, filtramos en memoria.
+  const params = `sort[0][field]=${TURNOS_FIELD_INDICE}&sort[0][direction]=asc`
+  const records = await fetchAll(TABLA_TURNOS_PE, params)
+  return records
+    .filter(r => {
+      const ent: string[] = r.fields?.[TURNOS_FIELD_ENTREVISTA] ?? r.fields?.['Entrevista'] ?? []
+      return ent.includes(entrevistaId)
+    })
+    .map(r => {
+      const m = mapTurnoPE(r)
+      // Strip private fields antes de devolver al caller
+      const { _airtableId, _indice, ...turno } = m
+      return turno
+    })
+}
+
+/**
+ * Bulk-crea N turnos en Turnos_PE para una entrevista, comenzando en el índice
+ * dado. Actualiza también `Ultima Actividad` de la entrevista.
+ * Devuelve los record IDs creados.
+ *
+ * Nota: Airtable acepta hasta 10 records por bulk-create. Para N=2 (caso típico
+ * user+model) está sobrado. Si en el futuro se reciben >10, hay que chunkear.
+ */
+export async function appendTurnosPE(
+  entrevistaId: string,
+  turnos: TurnoPE[],
+  indiceInicial: number,
+): Promise<{ ids: string[] }> {
+  if (turnos.length === 0) return { ids: [] }
+  if (turnos.length > 10) {
+    throw new Error(`appendTurnosPE: máximo 10 turnos por llamada, recibidos ${turnos.length}`)
+  }
+
+  const records = turnos.map((t, i) => {
+    const indice = indiceInicial + i
+    return {
+      fields: {
+        [TURNOS_FIELD_ETIQUETA]: `${String(indice).padStart(4, '0')}|${t.rol}`,
+        [TURNOS_FIELD_ENTREVISTA]: [entrevistaId],
+        [TURNOS_FIELD_INDICE]: indice,
+        [TURNOS_FIELD_ROL]: t.rol,
+        [TURNOS_FIELD_CONTENIDO]: t.contenido,
+        [TURNOS_FIELD_TIMESTAMP]: t.timestamp,
+        [TURNOS_FIELD_PASO]: t.paso,
+      },
+    }
+  })
+
+  const res = await fetch(`${BASE_URL}/${TABLA_TURNOS_PE}`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ records }),
+  })
+  if (!res.ok) {
+    throw new Error(`Airtable appendTurnosPE error: ${res.status} ${await res.text()}`)
+  }
+  const data = await res.json()
+  return { ids: data.records.map((r: any) => r.id) }
+}
+
+export async function getPlanesEstrategicos(userId: string, rol: string): Promise<PlanEstrategico[]> {
+  const params = 'sort[0][field]=Nombre&sort[0][direction]=asc'
+  const records = await fetchAll(TABLA_PLANES_PE, params)
+  const planes = records.map(mapPlanEstrategico)
+  if (rol === 'Ejecutivo' || rol === 'Program Manager') return planes
+  return planes.filter(p => p.responsable_id === userId)
+}
+
+export async function getPlanEstrategico(id: string): Promise<PlanEstrategico> {
+  const r = await fetchOne(TABLA_PLANES_PE, id)
+  return mapPlanEstrategico(r)
+}
+
+export async function createPlanEstrategico(data: {
+  nombre: string
+  tipo: 'Sr' | 'Jr'
+  plan_sr_id?: string
+  plan_sr_nombre?: string
+  responsable_id: string
+}): Promise<PlanEstrategico> {
+  const fields: Record<string, any> = {
+    'Nombre': data.nombre,
+    'Tipo': data.tipo,
+    'Estado': 'En entrevista',
+    'Version': 1,
+    'Responsable': [data.responsable_id],
+  }
+  if (data.plan_sr_id) fields['Plan Sr ID'] = data.plan_sr_id
+  if (data.plan_sr_nombre) fields['Plan Sr Nombre'] = data.plan_sr_nombre
+  const r = await createRecord(TABLA_PLANES_PE, fields)
+  return mapPlanEstrategico(r)
+}
+
+export async function updatePlanEstrategico(id: string, data: Partial<{
+  nombre: string
+  area: string
+  estado: string
+  horizonte: string
+  proposito: PropositorPE
+  situacion: SituacionPE
+  datos_faltantes: string[]
+  alineacion_sr: string
+}>): Promise<void> {
+  const fields: Record<string, any> = {}
+  if (data.nombre !== undefined) fields['Nombre'] = data.nombre
+  if (data.area !== undefined) fields['Area'] = data.area
+  if (data.estado !== undefined) fields['Estado'] = data.estado
+  if (data.horizonte !== undefined) fields['Horizonte'] = data.horizonte
+  if (data.alineacion_sr !== undefined) fields['Alineacion Sr'] = data.alineacion_sr
+  if (data.datos_faltantes !== undefined) fields['Datos Faltantes'] = JSON.stringify(data.datos_faltantes)
+  if (data.proposito) {
+    const p = data.proposito
+    fields['Proposito Escena'] = p.escena
+    fields['Proposito Metricas'] = JSON.stringify(p.metricas)
+    fields['Proposito Fuera'] = JSON.stringify(p.fuera)
+    fields['Proposito Estabilidad'] = p.estabilidad
+    if (p.horizonte) fields['Horizonte'] = p.horizonte
+    if (p.alineacion_sr) fields['Alineacion Sr'] = p.alineacion_sr
+  }
+  if (data.situacion) {
+    const s = data.situacion
+    fields['Situacion Desvio Principal'] = s.desvio_principal
+    fields['Situacion Desvio Cuantificado'] = s.desvio_cuantificado
+    fields['Situacion Desvios Secundarios'] = JSON.stringify(s.desvios_secundarios)
+    fields['Situacion Causa Raiz'] = s.causa_raiz
+    fields['Situacion Consecuencia 6m'] = s.consecuencia_6m
+    fields['Situacion Consecuencia 12m'] = s.consecuencia_12m
+    fields['Situacion Recursos Actuales'] = s.recursos_actuales
+    fields['Situacion Recursos Faltantes'] = s.recursos_faltantes
+    fields['Situacion Intentos Previos'] = s.intentos_previos
+    fields['Situacion Resistencias'] = JSON.stringify(s.resistencias)
+  }
+  await updateRecord(TABLA_PLANES_PE, id, fields)
+}
+
+export async function getEntrevistaPE(planId: string): Promise<EntrevistaPE | null> {
+  // ARRAYJOIN on linked fields returns names, not IDs — filter in memory
+  const records = await fetchAll(TABLA_ENTREVISTAS_PE, 'sort[0][field]=Ultima Actividad&sort[0][direction]=desc')
+  const matching = records.filter(r => {
+    const planIds: string[] = r.fields['Plan'] ?? []
+    return planIds.includes(planId)
+  })
+  if (!matching.length) return null
+  const enCurso = matching.find(r => r.fields['Estado'] === 'En curso')
+  const entrevista = mapEntrevistaPE(enCurso ?? matching[0])
+
+  // Hidratar historial desde Turnos_PE. Fallback al campo legacy si la tabla
+  // todavía no tiene registros para esta entrevista (entrevistas no migradas).
+  const turnos = await getTurnosPE(entrevista.id)
+  if (turnos.length > 0) {
+    entrevista.historial = turnos
+  }
+  // Si turnos.length === 0, dejamos el historial parseado del campo legacy
+  // (que ya viene en mapEntrevistaPE). Esto cubre el periodo pre-migración.
+
+  return entrevista
+}
+
+export async function createEntrevistaPE(planId: string): Promise<EntrevistaPE> {
+  const fields: Record<string, any> = {
+    'Titulo': `Entrevista ${new Date().toISOString().split('T')[0]}`,
+    'Plan': [planId],
+    'Estado': 'En curso',
+    'Paso Actual': 0,
+    'Sub Bloque Actual': '0',
+    'Historial': '[]',
+    'Ultima Actividad': new Date().toISOString(),
+  }
+  const r = await createRecord(TABLA_ENTREVISTAS_PE, fields)
+  return mapEntrevistaPE(r)
+}
+
+export async function updateEntrevistaPE(id: string, data: {
+  estado?: string
+  paso_actual?: number
+  sub_bloque_actual?: string
+  ultimo_panel_update_ok?: string
+  turnos_sin_panel_consecutivos?: number
+  retries_panel_update_acumulados?: number
+}): Promise<void> {
+  const fields: Record<string, any> = { 'Ultima Actividad': new Date().toISOString() }
+  if (data.estado !== undefined) fields['Estado'] = data.estado
+  if (data.paso_actual !== undefined) fields['Paso Actual'] = data.paso_actual
+  if (data.sub_bloque_actual !== undefined) fields['Sub Bloque Actual'] = data.sub_bloque_actual
+  if (data.ultimo_panel_update_ok !== undefined) fields['Ultimo Panel Update OK'] = data.ultimo_panel_update_ok
+  if (data.turnos_sin_panel_consecutivos !== undefined) fields['Turnos Sin Panel Consecutivos'] = data.turnos_sin_panel_consecutivos
+  if (data.retries_panel_update_acumulados !== undefined) fields['Retries Panel Update Acumulados'] = data.retries_panel_update_acumulados
+  // El campo Historial (legacy multilineText) ya no se escribe — los turnos van a Turnos_PE
+  await updateRecord(TABLA_ENTREVISTAS_PE, id, fields)
 }

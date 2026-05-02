@@ -1,0 +1,76 @@
+{
+  "ran_at": "2026-05-02T12:15:39.300Z",
+  "input_tokens": 18306,
+  "output_tokens": 733,
+  "latency_ms": 11809,
+  "full_response": "Ya tenemos un desvío previo anotado (\"D previo\"), pero quiero revisarlo desde cero porque la formulación es muy floja para avanzar.\n\nMirá la escena ideal que definimos y mirá el estado actual de tu área. ¿Cuál es la diferencia más grande, la que explica la mayor parte del problema? No quiero un listado ni un \"todo está mal\" — quiero EL desvío principal, el que si lo resolvés los otros se vuelven manejables.\n\nUna cosa más: el desvío tiene que estar formulado contra el propósito. Si lo que vas a decirme es un problema operativo del día a día que no te aleja del destino que declaramos, no entra acá.\n\nDale.\n\n<!--PANEL_UPDATE-->\n{\n  \"paso_actual\": 2,\n  \"sub_bloque_actual\": \"2.A\",\n  \"proposito\": {\n    \"escena\": \"Escena completa\",\n    \"metricas\": [\n      {\"metrica\":\"M1\",\"valor_objetivo\":\"V1\",\"valor_actual\":\"A1\"}\n    ],\n    \"fuera\": [\n      {\"item\":\"X1\",\"razon\":\"R1\"},\n      {\"item\":\"X2\",\"razon\":\"R2\"},\n      {\"item\":\"X3\",\"razon\":\"R3\"},\n      {\"item\":\"X4\",\"razon\":\"R4\"},\n      {\"item\":\"X5\",\"razon\":\"R5\"},\n      {\"item\":\"X6\",\"razon\":\"R6\"},\n      {\"item\":\"X7\",\"razon\":\"R7\"},\n      {\"item\":\"X8\",\"razon\":\"R8\"}\n    ],\n    \"horizonte\": \"Fin de 2026\",\n    \"estabilidad\": \"estable\"\n  },\n  \"situacion\": {\n    \"desvio_principal\": \"D previo\",\n    \"desvio_cuantificado\": \"\",\n    \"desvios_secundarios\": [],\n    \"causa_raiz\": \"\",\n    \"consecuencia_6m\": \"\",\n    \"consecuencia_12m\": \"\",\n    \"recursos_actuales\": \"\",\n    \"recursos_faltantes\": \"\",\n    \"intentos_previos\": \"\",\n    \"resistencias\": []\n  },\n  \"datos_faltantes\": [\"dato A\",\"dato B\"]\n}\n<!--/PANEL_UPDATE-->",
+  "parse_result": {
+    "ok": true,
+    "data": {
+      "paso_actual": 2,
+      "sub_bloque_actual": "2.A",
+      "proposito": {
+        "escena": "Escena completa",
+        "metricas": [
+          {
+            "metrica": "M1",
+            "valor_objetivo": "V1",
+            "valor_actual": "A1"
+          }
+        ],
+        "fuera": [
+          {
+            "item": "X1",
+            "razon": "R1"
+          },
+          {
+            "item": "X2",
+            "razon": "R2"
+          },
+          {
+            "item": "X3",
+            "razon": "R3"
+          },
+          {
+            "item": "X4",
+            "razon": "R4"
+          },
+          {
+            "item": "X5",
+            "razon": "R5"
+          },
+          {
+            "item": "X6",
+            "razon": "R6"
+          },
+          {
+            "item": "X7",
+            "razon": "R7"
+          },
+          {
+            "item": "X8",
+            "razon": "R8"
+          }
+        ],
+        "horizonte": "Fin de 2026",
+        "estabilidad": "estable"
+      },
+      "situacion": {
+        "desvio_principal": "D previo",
+        "desvio_cuantificado": "",
+        "desvios_secundarios": [],
+        "causa_raiz": "",
+        "consecuencia_6m": "",
+        "consecuencia_12m": "",
+        "recursos_actuales": "",
+        "recursos_faltantes": "",
+        "intentos_previos": "",
+        "resistencias": []
+      },
+      "datos_faltantes": [
+        "dato A",
+        "dato B"
+      ]
+    }
+  }
+}

@@ -1,0 +1,126 @@
+[
+  {
+    "nivel": "30k",
+    "truncateAt": 28,
+    "input_tokens": 27883,
+    "pregunta": "¿Qué porcentaje exacto de awareness asistido en target mencioné como métrica? Solo el número y a qué marca lo asocié, sin más explicación.",
+    "contiene_en_turno": 16,
+    "respuesta": "90%+ awareness asistido en target a al menos una marca del Grupo, principalmente Juanma Tapiola y Más Dueños.",
+    "hits": [
+      "90",
+      "juanma",
+      "tapiola",
+      "más dueños"
+    ],
+    "correcto": true,
+    "output_tokens": 51
+  },
+  {
+    "nivel": "30k",
+    "truncateAt": 28,
+    "input_tokens": 27872,
+    "pregunta": "¿Cuántas unidades por mes vendemos hoy y a qué número queremos llegar en 2026? Solo los dos números.",
+    "contiene_en_turno": 12,
+    "respuesta": "Hoy: **100 unidades/mes.** Fin de 2026: **1.000+ unidades/mes sostenido** (con un acumulado anual del orden de 6.000, vía rampa vertical durante el año).",
+    "hits": [
+      "100",
+      "6.000",
+      "1.000"
+    ],
+    "correcto": true,
+    "output_tokens": 76
+  },
+  {
+    "nivel": "40k",
+    "truncateAt": 38,
+    "input_tokens": 35908,
+    "pregunta": "¿Qué porcentaje exacto de awareness asistido en target mencioné como métrica? Solo el número y a qué marca lo asocié, sin más explicación.",
+    "contiene_en_turno": 16,
+    "respuesta": "90%+ awareness asistido en target, a al menos una marca del Grupo (principalmente Juanma Tapiola y Más Dueños).",
+    "hits": [
+      "90",
+      "juanma",
+      "tapiola",
+      "más dueños"
+    ],
+    "correcto": true,
+    "output_tokens": 52
+  },
+  {
+    "nivel": "40k",
+    "truncateAt": 38,
+    "input_tokens": 35897,
+    "pregunta": "¿Cuántas unidades por mes vendemos hoy y a qué número queremos llegar en 2026? Solo los dos números.",
+    "contiene_en_turno": 12,
+    "respuesta": "Hoy: 100 dueños/mes. Fin de 2026: 1.000+ dueños/mes sostenido (con acumulado anual ~6.000).",
+    "hits": [
+      "100",
+      "6.000",
+      "1.000"
+    ],
+    "correcto": true,
+    "output_tokens": 57
+  },
+  {
+    "nivel": "50k",
+    "truncateAt": 54,
+    "input_tokens": 48218,
+    "pregunta": "¿Qué porcentaje exacto de awareness asistido en target mencioné como métrica? Solo el número y a qué marca lo asocié, sin más explicación.",
+    "contiene_en_turno": 16,
+    "respuesta": "90%+ de awareness asistido en target, a al menos una marca del Grupo, principalmente Juanma Tapiola y Más Dueños.",
+    "hits": [
+      "90",
+      "juanma",
+      "tapiola",
+      "más dueños"
+    ],
+    "correcto": true,
+    "output_tokens": 53
+  },
+  {
+    "nivel": "50k",
+    "truncateAt": 54,
+    "input_tokens": 48207,
+    "pregunta": "¿Cuántas unidades por mes vendemos hoy y a qué número queremos llegar en 2026? Solo los dos números.",
+    "contiene_en_turno": 12,
+    "respuesta": "Hoy: **~100 unidades/mes**. Fin de 2026: **1.000+ unidades/mes** (sostenido), con acumulado anual ~6.000.",
+    "hits": [
+      "100",
+      "6.000",
+      "1.000"
+    ],
+    "correcto": true,
+    "output_tokens": 61
+  },
+  {
+    "nivel": "60k",
+    "truncateAt": 70,
+    "input_tokens": 61989,
+    "pregunta": "¿Qué porcentaje exacto de awareness asistido en target mencioné como métrica? Solo el número y a qué marca lo asocié, sin más explicación.",
+    "contiene_en_turno": 16,
+    "respuesta": "90%+ de awareness asistido en target, a al menos una marca del Grupo, principalmente Juanma Tapiola y Más Dueños.",
+    "hits": [
+      "90",
+      "juanma",
+      "tapiola",
+      "más dueños"
+    ],
+    "correcto": true,
+    "output_tokens": 53
+  },
+  {
+    "nivel": "60k",
+    "truncateAt": 70,
+    "input_tokens": 61978,
+    "pregunta": "¿Cuántas unidades por mes vendemos hoy y a qué número queremos llegar en 2026? Solo los dos números.",
+    "contiene_en_turno": 12,
+    "respuesta": "Hoy: **100 dueños/mes.** Fin 2026: **1.000+ dueños/mes sostenido** (con acumulado anual de ~6.000).",
+    "hits": [
+      "100",
+      "6.000",
+      "1.000"
+    ],
+    "correcto": true,
+    "output_tokens": 59
+  }
+]

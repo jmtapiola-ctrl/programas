@@ -1,0 +1,46 @@
+{
+  "HEADER": {
+    "chars": 684,
+    "tokens": 294
+  },
+  "K_PE_DEFINICION": {
+    "chars": 1667,
+    "tokens": 701
+  },
+  "K_PE_PROPOSITO": {
+    "chars": 4251,
+    "tokens": 1853
+  },
+  "K_PE_SITUACION": {
+    "chars": 2830,
+    "tokens": 1319
+  },
+  "K_PE_ESTRATEGIA_VS_TACTICA": {
+    "chars": 2040,
+    "tokens": 913
+  },
+  "K_PE_FALLAS": {
+    "chars": 3020,
+    "tokens": 1436
+  },
+  "K_PE_CUESTIONARIO": {
+    "chars": 18900,
+    "tokens": 8479
+  },
+  "REGLAS_WIZARD": {
+    "chars": 481,
+    "tokens": 200
+  },
+  "ESTADO_ACTUAL": {
+    "chars": 865,
+    "tokens": 376
+  },
+  "PANEL_CONTRATO": {
+    "chars": 1305,
+    "tokens": 644
+  },
+  "_FULL_SYSTEM": {
+    "chars": 36276,
+    "tokens": 16200
+  }
+}

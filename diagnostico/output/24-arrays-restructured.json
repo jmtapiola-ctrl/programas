@@ -1,0 +1,131 @@
+{
+  "generated_at": "2026-05-02T01:09:24.366Z",
+  "input_tokens": 4263,
+  "output_tokens": 2790,
+  "cost_usd": 0.273195,
+  "integrity_ok": true,
+  "restructured": {
+    "metricas": [
+      {
+        "metrica": "Volumen / capacidad instalada",
+        "valor_objetivo": "1.000+ dueños/mes sostenido hacia fin de 2026; acumulado anual ~6.000",
+        "valor_actual": ""
+      },
+      {
+        "metrica": "Organización y productividad",
+        "valor_objetivo": "organización en el orden de 800-1.000 personas totales (~300-400 asesores comisionados), dimensionamiento final ajustado por impacto de capa de AI organizativa. Productividad empleados fijos al menos 2x la actual (potencialmente mayor según despliegue de AI). Productividad asesores +25% vs. actual.",
+        "valor_actual": ""
+      },
+      {
+        "metrica": "Confianza",
+        "valor_objetivo": "90%+ awareness asistido en target a al menos una marca del Grupo, principalmente Juanma Tapiola y Más Dueños. Ranking #1 en confianza vs. inmobiliarias, desarrolladores y constructoras.",
+        "valor_actual": ""
+      },
+      {
+        "metrica": "Solidez financiera",
+        "valor_objetivo": "cashflow proyectado positivo en todos los períodos hasta entrega del último departamento comprometido, con buffer mínimo del 20% en el peor momento de la curva.",
+        "valor_actual": ""
+      },
+      {
+        "metrica": "Expansión geográfica",
+        "valor_objetivo": "operando en 2+ partidos nuevos del GBA hacia fin de 2026.",
+        "valor_actual": ""
+      },
+      {
+        "metrica": "Banco de tierras",
+        "valor_objetivo": "tierras adquiridas durante 2026 suficientes para producir 12-15k dueños en 2027 (las tierras para 20k+ de 2028 se compran en 2027 condicionado a evolución macro/electoral), con foco exclusivo en escala condominio (30-50k m²) y escala 'pueblo' (150k+ m²) en segmento clase media en CABA/GBA, sin comprometer el buffer financiero del 20%.",
+        "valor_actual": ""
+      },
+      {
+        "metrica": "PAI graduado y escalado",
+        "valor_objetivo": "200 ventas/mes en sucursal piloto hacia junio-julio 2026; 3-5 sucursales con 500-1.000 ventas PAI/mes hacia fin de 2026; churn proxy validado por el PM con valor objetivo definido antes de Q3 como gate del escalamiento a sucursales adicionales.",
+        "valor_actual": ""
+      }
+    ],
+    "fuera": [
+      {
+        "item": "Cualquier segmento que no sea clase media",
+        "razon": "no high-end, no media-baja, no baja, no media-alta. No se compran terrenos para productos high-end aunque haya excedente de caja."
+      },
+      {
+        "item": "Nuevos modelos constructivos (robots, materiales nuevos, sistemas alternativos)",
+        "razon": "El foco productivo 2026 son anteproyectos perfectos y bases para proyectos ejecutivos eficientes."
+      },
+      {
+        "item": "Productos para inversores chicos o grandes",
+        "razon": "Único cliente: comprador clase media que quiere ser dueño con financiación a largo plazo."
+      },
+      {
+        "item": "Construcción del perfil empresarial/emprendedor público de Juanma Tapiola",
+        "razon": "Sí entra su perfil como 'hacedor de dueños'. Su tiempo va al cliente final, no a contenido para emprendedores."
+      },
+      {
+        "item": "Adquirir constructoras o integrar verticalmente la etapa de construcción",
+        "razon": ""
+      },
+      {
+        "item": "Asociarse con desarrolladoras chicas / terceros",
+        "razon": "Solo marcas propias controladas, por riesgo de marca dado que la confianza es el activo central."
+      },
+      {
+        "item": "M&A / adquisiciones de empresas",
+        "razon": "La integración consume banda ancha ejecutiva en momento donde la energía tiene que ir a la transformación interna."
+      },
+      {
+        "item": "Latam y mercados internacionales",
+        "razon": "sale del foco 2026; se retoma desde 2027 hacia resto de Argentina, GBA y otras provincias."
+      },
+      {
+        "item": "Compra de tierras para producción 2028 durante 2026",
+        "razon": "se difiere a 2027 condicionado a evolución macro/electoral (riesgo de no reelección Milei)."
+      }
+    ],
+    "desvios_secundarios": [
+      {
+        "descripcion": "Marca Más Dueños como vehículo masivo + máquina de medios pagos",
+        "datos": "Más Dueños sub-desarrollada, sin Director/a de Marca, sin awareness medido. Inversión actual US$100k/mes mayormente Spazios. Blitz Q3 con visión en PPT pero sin plan, equipo, responsable ni financiación dimensionada (US$3-5M en 3 meses). Secuencia obligada: sucursales completas en macrozonas → blitz."
+      },
+      {
+        "descripcion": "PAI graduado y escalado",
+        "datos": "1 piloto en Liniers (100 ventas/mes, churn 50% no validado, sin sistematizar). Objetivo: graduación junio-julio (200/mes), 3-5 sucursales con 500-1.000 ventas/mes a fin 2026, churn proxy validado por PM como gate. Sucursales acopladas a las de Más Dueños de pozo (+100m² para PAI). Modelo de sucursal aún no definido."
+      },
+      {
+        "descripcion": "Liquidez para banco de tierras 2028 + plataforma legal/fiscal",
+        "datos": "tierras 2026-2027 se autofinancian orgánicamente; tierras 2028 requieren liquidez propia inexistente. Grupo no es sujeto de crédito en estructura actual: reestructuración legal/impositiva es precondición para mercado de capitales y otras fuentes institucionales. Estructura legal/fiscal a dejar lista pero sin inscribir hasta confirmar evolución macro/electoral."
+      }
+    ],
+    "resistencias": [
+      {
+        "actor": "Absorción cultural y operativa de ~750 personas nuevas en 7 meses (mayo-diciembre 2026, ~107 personas/mes promedio). La cultura sólida actual no aplica automáticamente a la nueva masa y la velocidad agrava el riesgo. Mitigación: refuerzo del Departamento 1 (Establecimiento) con modelos robustos de onboarding apalancados en la app de Organigrama (información del puesto propio y otros, onboarding por persona, políticas clave del Grupo, videos), equipo de Onboarding y Establecimiento dimensionado a la velocidad de incorporación, y capa de AI organizativa que sustituye/reduce parte de las contrataciones planificadas.",
+        "tipo": "Interna",
+        "criticidad": "Alta"
+      },
+      {
+        "actor": "Macro acomodándose",
+        "tipo": "Externa",
+        "criticidad": "Alta"
+      },
+      {
+        "actor": "Competidores copiando el modelo",
+        "tipo": "Externa",
+        "criticidad": "Media"
+      },
+      {
+        "actor": "Reactivación temprana del crédito tradicional",
+        "tipo": "Externa",
+        "criticidad": "Media"
+      },
+      {
+        "actor": "DGIUR (Dirección General de Interpretación Urbanística) como cuello de botella regulatorio agregado",
+        "tipo": "Externa",
+        "criticidad": "Media"
+      },
+      {
+        "actor": "Reputación",
+        "tipo": "Riesgo crítico precondicional",
+        "criticidad": "Alta"
+      }
+    ]
+  },
+  "full_response": "<!--RESTRUCTURED-->\n{\n  \"metricas\": [\n    {\n      \"metrica\": \"Volumen / capacidad instalada\",\n      \"valor_objetivo\": \"1.000+ dueños/mes sostenido hacia fin de 2026; acumulado anual ~6.000\",\n      \"valor_actual\": \"\"\n    },\n    {\n      \"metrica\": \"Organización y productividad\",\n      \"valor_objetivo\": \"organización en el orden de 800-1.000 personas totales (~300-400 asesores comisionados), dimensionamiento final ajustado por impacto de capa de AI organizativa. Productividad empleados fijos al menos 2x la actual (potencialmente mayor según despliegue de AI). Productividad asesores +25% vs. actual.\",\n      \"valor_actual\": \"\"\n    },\n    {\n      \"metrica\": \"Confianza\",\n      \"valor_objetivo\": \"90%+ awareness asistido en target a al menos una marca del Grupo, principalmente Juanma Tapiola y Más Dueños. Ranking #1 en confianza vs. inmobiliarias, desarrolladores y constructoras.\",\n      \"valor_actual\": \"\"\n    },\n    {\n      \"metrica\": \"Solidez financiera\",\n      \"valor_objetivo\": \"cashflow proyectado positivo en todos los períodos hasta entrega del último departamento comprometido, con buffer mínimo del 20% en el peor momento de la curva.\",\n      \"valor_actual\": \"\"\n    },\n    {\n      \"metrica\": \"Expansión geográfica\",\n      \"valor_objetivo\": \"operando en 2+ partidos nuevos del GBA hacia fin de 2026.\",\n      \"valor_actual\": \"\"\n    },\n    {\n      \"metrica\": \"Banco de tierras\",\n      \"valor_objetivo\": \"tierras adquiridas durante 2026 suficientes para producir 12-15k dueños en 2027 (las tierras para 20k+ de 2028 se compran en 2027 condicionado a evolución macro/electoral), con foco exclusivo en escala condominio (30-50k m²) y escala 'pueblo' (150k+ m²) en segmento clase media en CABA/GBA, sin comprometer el buffer financiero del 20%.\",\n      \"valor_actual\": \"\"\n    },\n    {\n      \"metrica\": \"PAI graduado y escalado\",\n      \"valor_objetivo\": \"200 ventas/mes en sucursal piloto hacia junio-julio 2026; 3-5 sucursales con 500-1.000 ventas PAI/mes hacia fin de 2026; churn proxy validado por el PM con valor objetivo definido antes de Q3 como gate del escalamiento a sucursales adicionales.\",\n      \"valor_actual\": \"\"\n    }\n  ],\n  \"fuera\": [\n    {\n      \"item\": \"Cualquier segmento que no sea clase media\",\n      \"razon\": \"no high-end, no media-baja, no baja, no media-alta. No se compran terrenos para productos high-end aunque haya excedente de caja.\"\n    },\n    {\n      \"item\": \"Nuevos modelos constructivos (robots, materiales nuevos, sistemas alternativos)\",\n      \"razon\": \"El foco productivo 2026 son anteproyectos perfectos y bases para proyectos ejecutivos eficientes.\"\n    },\n    {\n      \"item\": \"Productos para inversores chicos o grandes\",\n      \"razon\": \"Único cliente: comprador clase media que quiere ser dueño con financiación a largo plazo.\"\n    },\n    {\n      \"item\": \"Construcción del perfil empresarial/emprendedor público de Juanma Tapiola\",\n      \"razon\": \"Sí entra su perfil como 'hacedor de dueños'. Su tiempo va al cliente final, no a contenido para emprendedores.\"\n    },\n    {\n      \"item\": \"Adquirir constructoras o integrar verticalmente la etapa de construcción\",\n      \"razon\": \"\"\n    },\n    {\n      \"item\": \"Asociarse con desarrolladoras chicas / terceros\",\n      \"razon\": \"Solo marcas propias controladas, por riesgo de marca dado que la confianza es el activo central.\"\n    },\n    {\n      \"item\": \"M&A / adquisiciones de empresas\",\n      \"razon\": \"La integración consume banda ancha ejecutiva en momento donde la energía tiene que ir a la transformación interna.\"\n    },\n    {\n      \"item\": \"Latam y mercados internacionales\",\n      \"razon\": \"sale del foco 2026; se retoma desde 2027 hacia resto de Argentina, GBA y otras provincias.\"\n    },\n    {\n      \"item\": \"Compra de tierras para producción 2028 durante 2026\",\n      \"razon\": \"se difiere a 2027 condicionado a evolución macro/electoral (riesgo de no reelección Milei).\"\n    }\n  ],\n  \"desvios_secundarios\": [\n    {\n      \"descripcion\": \"Marca Más Dueños como vehículo masivo + máquina de medios pagos\",\n      \"datos\": \"Más Dueños sub-desarrollada, sin Director/a de Marca, sin awareness medido. Inversión actual US$100k/mes mayormente Spazios. Blitz Q3 con visión en PPT pero sin plan, equipo, responsable ni financiación dimensionada (US$3-5M en 3 meses). Secuencia obligada: sucursales completas en macrozonas → blitz.\"\n    },\n    {\n      \"descripcion\": \"PAI graduado y escalado\",\n      \"datos\": \"1 piloto en Liniers (100 ventas/mes, churn 50% no validado, sin sistematizar). Objetivo: graduación junio-julio (200/mes), 3-5 sucursales con 500-1.000 ventas/mes a fin 2026, churn proxy validado por PM como gate. Sucursales acopladas a las de Más Dueños de pozo (+100m² para PAI). Modelo de sucursal aún no definido.\"\n    },\n    {\n      \"descripcion\": \"Liquidez para banco de tierras 2028 + plataforma legal/fiscal\",\n      \"datos\": \"tierras 2026-2027 se autofinancian orgánicamente; tierras 2028 requieren liquidez propia inexistente. Grupo no es sujeto de crédito en estructura actual: reestructuración legal/impositiva es precondición para mercado de capitales y otras fuentes institucionales. Estructura legal/fiscal a dejar lista pero sin inscribir hasta confirmar evolución macro/electoral.\"\n    }\n  ],\n  \"resistencias\": [\n    {\n      \"actor\": \"Absorción cultural y operativa de ~750 personas nuevas en 7 meses (mayo-diciembre 2026, ~107 personas/mes promedio). La cultura sólida actual no aplica automáticamente a la nueva masa y la velocidad agrava el riesgo. Mitigación: refuerzo del Departamento 1 (Establecimiento) con modelos robustos de onboarding apalancados en la app de Organigrama (información del puesto propio y otros, onboarding por persona, políticas clave del Grupo, videos), equipo de Onboarding y Establecimiento dimensionado a la velocidad de incorporación, y capa de AI organizativa que sustituye/reduce parte de las contrataciones planificadas.\",\n      \"tipo\": \"Interna\",\n      \"criticidad\": \"Alta\"\n    },\n    {\n      \"actor\": \"Macro acomodándose\",\n      \"tipo\": \"Externa\",\n      \"criticidad\": \"Alta\"\n    },\n    {\n      \"actor\": \"Competidores copiando el modelo\",\n      \"tipo\": \"Externa\",\n      \"criticidad\": \"Media\"\n    },\n    {\n      \"actor\": \"Reactivación temprana del crédito tradicional\",\n      \"tipo\": \"Externa\",\n      \"criticidad\": \"Media\"\n    },\n    {\n      \"actor\": \"DGIUR (Dirección General de Interpretación Urbanística) como cuello de botella regulatorio agregado\",\n      \"tipo\": \"Externa\",\n      \"criticidad\": \"Media\"\n    },\n    {\n      \"actor\": \"Reputación\",\n      \"tipo\": \"Riesgo crítico precondicional\",\n      \"criticidad\": \"Alta\"\n    }\n  ]\n}\n<!--/RESTRUCTURED-->"
+}

@@ -1,0 +1,51 @@
+{
+  "generated_at": "2026-05-02T01:25:13.656Z",
+  "input_tokens": 2355,
+  "output_tokens": 1756,
+  "cost_usd": 0.167025,
+  "integrity_ok": true,
+  "resistencias": [
+    {
+      "actor": "Absorción cultural y operativa de ~750 personas nuevas en 7 meses",
+      "descripcion": "Absorción cultural y operativa de ~750 personas nuevas en 7 meses (mayo-diciembre 2026, ~107 personas/mes promedio). La cultura sólida actual no aplica automáticamente a la nueva masa y la velocidad agrava el riesgo.",
+      "mitigacion": "Refuerzo del Departamento 1 (Establecimiento) con modelos robustos de onboarding apalancados en la app de Organigrama (información del puesto propio y otros, onboarding por persona, políticas clave del Grupo, videos), equipo de Onboarding y Establecimiento dimensionado a la velocidad de incorporación, y capa de AI organizativa que sustituye/reduce parte de las contrataciones planificadas.",
+      "tipo": "Interna",
+      "criticidad": "Alta"
+    },
+    {
+      "actor": "Macro acomodándose",
+      "descripcion": "Parte del segmento clase media migra al crédito tradicional cuando se reactive, y entran nuevos competidores institucionales (incluso internacionales) atraídos por el modelo macroeconómico. Es la amenaza más grande y la razón principal para apurar la ejecución 2026 y consolidar el moat antes de que llegue la competencia.",
+      "mitigacion": "Velocidad de ejecución 2026 + moat JMT como autoridad #1 del 'hacer dueños'.",
+      "tipo": "Externa",
+      "criticidad": "Alta"
+    },
+    {
+      "actor": "Competidores copiando el modelo",
+      "descripcion": "'Mosquito' (Portland, anunció 222 cuotas hace ~1 año pero sin movimiento concreto, demasiados frentes, posiblemente sin capacidad de ejecutar), IRSA (volviendo a desarrollar, cree en el nuevo modelo, haciendo movimientos), otros potenciales compradores de tierras grandes en lugares intermedios.",
+      "mitigacion": "Blitz Q3 + posicionamiento de JMT como autoridad indiscutida del 'cómo ser dueño en Argentina' (moat reputacional difícil de replicar).",
+      "tipo": "Externa",
+      "criticidad": "Media"
+    },
+    {
+      "actor": "Reactivación temprana del crédito tradicional",
+      "descripcion": "Parte del segmento clase media migra antes de que el Grupo termine de capturarlo.",
+      "mitigacion": "Hay base de clase media-baja sin acceso al crédito tradicional por años (requisitos bancarios + anticipos + sueldos en blanco) que mantiene el mercado del Grupo durante 2-3 años aunque el crédito vuelva.",
+      "tipo": "Externa",
+      "criticidad": "Media"
+    },
+    {
+      "actor": "DGIUR (Dirección General de Interpretación Urbanística) como cuello de botella regulatorio",
+      "descripcion": "Etapa obligatoria en la mayoría de los terrenos en CABA, sin DGIUR resuelta no hay anteproyecto, mientras corre la opción de tierra. Con 5 macrozonas opcionando simultáneamente, DGIUR puede frenar varias macrozonas al mismo tiempo. Hoy se monitorea con contactos que aceleraron casos puntuales pero sin control sistémico.",
+      "mitigacion": "Incorporar al Gerente de Asuntos Institucionales más temprano de lo planeado, con foco principal en desarrollar la línea DGIUR a escala (relación institucional, seguimiento sistémico, aceleración) además del rol original de aceitar municipios GBA para 2027.",
+      "tipo": "Externa",
+      "criticidad": "Media"
+    },
+    {
+      "actor": "Reputación",
+      "descripcion": "La confianza del público es el activo central del propósito y se sostiene en (a) entregar los edificios prometidos con buena calidad, (b) reviews Google #1 en Argentina (2.600+ con 4.7 estrellas), (c) cumplimiento de cronograma de obras (inicios, avances y entregas en fecha). Si se rompe por incidente grave de construcción, escándalo o retrasos sistemáticos, todo el plan se cae.",
+      "mitigacion": "Tratado como precondición/riesgo crítico (no como objetivo del plan): proteger explícitamente a la División de Producción de la presión de escalar 10x para que no comprima tiempos ni baje estándares. Métricas de guarda: rating Google ≥ 4.7, reviews creciendo, cumplimiento de cronograma de obras (% iniciadas/avanzadas/terminadas en fecha), cero incidentes graves.",
+      "tipo": "Riesgo crítico precondicional",
+      "criticidad": "Alta"
+    }
+  ]
+}

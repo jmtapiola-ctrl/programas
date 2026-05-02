@@ -1,0 +1,26 @@
+{
+  "ran_at": "2026-05-01T22:10:43.401Z",
+  "today": "2026-05-01",
+  "contexto_temporal": "viernes 1 de mayo de 2026 (Q2 2026)",
+  "system_prompt_len": 36300,
+  "user_message": "Estamos en sub-bloque 2.A. ¿Cuántos meses tenemos para ejecutar este plan? Decímelo en una línea, citando explícitamente el mes/año desde el que arrancás y el mes/año en que cierra el horizonte.",
+  "model_response": "Arrancamos hoy, 1 de mayo de 2026, y el horizonte cierra el 31 de diciembre de 2026: tenemos 8 meses para ejecutar este plan.\n\nAhora, antes de avanzar al desvío principal, te marco algo importante: el propósito que tenemos cargado (\"posicionar la marca como referente de hacer dueños\") está incompleto. No tenemos métricas, no tenemos cosas afuera de scope, y la escena ideal está formulada en una sola frase muy genérica. Eso es un problema porque la situación (Paso 2) se construye como desvío contra el propósito — y si el propósito no está bien formulado, no podemos medir el desvío.\n\n¿Querés que volvamos al Paso 1 a cerrar bien el propósito antes de seguir con la situación? Te lo recomiendo fuerte. Si avanzamos sobre un propósito flojo, todo lo que viene después se desordena.\n\n<!--PANEL_UPDATE-->\n{\n  \"paso_actual\": 2,\n  \"sub_bloque_actual\": \"2.A\",\n  \"proposito\": {\n    \"escena\": \"Posicionar la marca como referente de hacer dueños\",\n    \"metricas\": [],\n    \"fuera\": [],\n    \"horizonte\": \"Fin de 2026 (8 meses desde hoy 1-may-2026 hasta 31-dic-2026)\",\n    \"estabilidad\": \"estable\"\n  },\n  \"situacion\": {\n    \"desvio_princip",
+  "usage": {
+    "input_tokens": 16320,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 500,
+    "service_tier": "standard",
+    "inference_geo": "global"
+  },
+  "latency_ms": 8816,
+  "checks": {
+    "mesActualOk": true,
+    "noMencionaQ1Arranque": true,
+    "noMesPasadoArranque": true
+  }
+}

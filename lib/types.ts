@@ -217,10 +217,118 @@ export function getTomorrow(): string {
   return d.toISOString().split('T')[0]
 }
 
+// Devuelve la fecha de hoy en zona horaria de Argentina (UTC-3),
+// formato ISO YYYY-MM-DD. No depende de la TZ del runtime (Vercel = UTC).
+export function getTodayArg(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
+
+// Descripción del momento actual en Argentina, lista para inyectar al system prompt.
+// Ej: "jueves 30 de abril de 2026 (Q2 2026)"
+export function getContextoTemporalArg(): string {
+  const ahora = new Date()
+  const tz = 'America/Argentina/Buenos_Aires'
+  const dia = new Intl.DateTimeFormat('es-AR', { timeZone: tz, weekday: 'long' }).format(ahora)
+  const fecha = new Intl.DateTimeFormat('es-AR', { timeZone: tz, day: 'numeric', month: 'long', year: 'numeric' }).format(ahora)
+  const mesNum = parseInt(new Intl.DateTimeFormat('en-CA', { timeZone: tz, month: '2-digit' }).format(ahora), 10)
+  const año = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(ahora)
+  const trimestre = Math.ceil(mesNum / 3)
+  return `${dia} ${fecha} (Q${trimestre} ${año})`
+}
+
 export function esObjetivoEjecutable(tipo: string): boolean {
   return tipo !== 'Vital'
 }
 
 export function esObjetivoContable(tipo: string): boolean {
   return tipo !== 'Vital'
+}
+
+// ─── Planes Estratégicos ──────────────────────────────────────────────────────
+
+export type TipoPlanEstrategico = 'Sr' | 'Jr'
+export type EstadoPlanEstrategico = 'Borrador' | 'En entrevista' | 'Completado' | 'Archivado'
+export type AlineacionSr = 'Verde' | 'Amarillo' | 'Rojo'
+
+export interface MetricaPE { metrica: string; valor_objetivo: string; valor_actual: string }
+export interface FueraDeScopePE { item: string; razon: string }
+export interface DesvioSecundarioPE { descripcion: string; datos: string }
+export interface ResistenciaPE {
+  actor: string         // QUIÉN o QUÉ resiste (frase corta)
+  descripcion: string   // POR QUÉ es resistencia (párrafo explicativo)
+  mitigacion: string    // CÓMO se maneja (vacío si no se definió)
+  tipo: string          // "Interna" / "Externa" / "Riesgo crítico precondicional"
+  criticidad: 'Alta' | 'Media' | 'Baja'
+}
+
+export interface PropositorPE {
+  escena: string
+  metricas: MetricaPE[]
+  fuera: FueraDeScopePE[]
+  horizonte: string
+  estabilidad: string
+  alineacion_sr?: AlineacionSr
+}
+
+export interface SituacionPE {
+  desvio_principal: string
+  desvio_cuantificado: string
+  desvios_secundarios: DesvioSecundarioPE[]
+  causa_raiz: string
+  consecuencia_6m: string
+  consecuencia_12m: string
+  recursos_actuales: string
+  recursos_faltantes: string
+  intentos_previos: string
+  resistencias: ResistenciaPE[]
+}
+
+export interface PanelUpdatePE {
+  paso_actual: number
+  sub_bloque_actual: string
+  proposito: PropositorPE
+  situacion: SituacionPE
+  datos_faltantes: string[]
+}
+
+export interface PlanEstrategico {
+  id: string
+  nombre: string
+  area: string
+  tipo: TipoPlanEstrategico
+  plan_sr_id?: string
+  plan_sr_nombre?: string
+  estado: EstadoPlanEstrategico
+  version: number
+  responsable_id: string
+  horizonte?: string
+  proposito?: PropositorPE
+  situacion?: SituacionPE
+  datos_faltantes: string[]
+}
+
+export interface TurnoPE {
+  rol: 'model' | 'user'
+  contenido: string
+  timestamp: string
+  paso: number
+}
+
+export interface EntrevistaPE {
+  id: string
+  plan_id: string
+  estado: 'En curso' | 'Pausada' | 'Completada'
+  paso_actual: number
+  sub_bloque_actual: string
+  historial: TurnoPE[]
+  ultima_actividad: string
+  // Tracking de salud del PANEL_UPDATE (Fase 2 instrumentación)
+  ultimo_panel_update_ok?: string                  // ISO datetime, último turno donde el PANEL_UPDATE se procesó OK
+  turnos_sin_panel_consecutivos?: number           // contador; >=3 dispara panel_unhealthy
+  retries_panel_update_acumulados?: number         // telemetría: total de retries para esta entrevista
 }

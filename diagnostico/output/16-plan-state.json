@@ -1,0 +1,121 @@
+{
+  "checked_at": "2026-05-01T22:28:14.873Z",
+  "plan_id": "recFMWxoE5gTQQrf7",
+  "fields": {
+    "Nombre": "Plan en redacción",
+    "Tipo": "Sr",
+    "Estado": "En entrevista",
+    "Version": 1,
+    "Responsable": [
+      "reczcjwNE4PVLxjVF"
+    ],
+    "Horizonte": "Fin de 2026",
+    "Proposito Escena": "Transformar a Terravinci en la organización líder e indiscutida de hacer dueños en Argentina. Capaz de generar más de 1.000 dueños por mes de manera sostenida hacia fin de 2026 (con un acumulado anual del orden de 6.000), con la confianza del público como activo central, en una posición segura frente a la potencial reactivación del crédito tradicional, y con la plataforma operativa, financiera y de marca lista para penetrar el resto de Argentina (GBA y otras provincias) desde 2027. Esto requiere refundar el Grupo: pasar de 250 a más de 1.000 personas, de 3 empresas a una estructura multi-empresa coordinada, y de una capacidad de ejecución artesanal a una industrial.",
+    "Proposito Metricas": "[\"Volumen / capacidad instalada: 1.000+ dueños/mes sostenido hacia fin de 2026; acumulado anual ~6.000.\",\"Organización y productividad: 1.000+ personas totales (~300-400 asesores comisionados). Productividad empleados fijos 2x la actual. Productividad asesores +25% vs. actual.\",\"Confianza: 90%+ awareness asistido en target a al menos una marca del Grupo (principalmente Juanma Tapiola y Más Dueños). Ranking #1 en confianza vs. inmobiliarias, desarrolladores y constructoras.\",\"Solidez financiera: cashflow proyectado positivo en todos los períodos hasta entrega del último departamento comprometido, con buffer mínimo del 20% en el peor momento de la curva.\",\"Expansión geográfica: operando en 2+ partidos nuevos del GBA hacia fin de 2026.\"]",
+    "Proposito Fuera": "[]",
+    "Situacion Desvios Secundarios": "[]",
+    "Situacion Resistencias": "[]",
+    "Datos Faltantes": "[]",
+    "entrevistas_pe": [
+      "recDkuVIOeqsMMhJj"
+    ]
+  },
+  "status": [
+    {
+      "campo": "Nombre",
+      "estado": "POBLADO",
+      "preview": "\"Plan en redacción\""
+    },
+    {
+      "campo": "Area",
+      "estado": "NO_EXISTE",
+      "preview": "(field not present in record)"
+    },
+    {
+      "campo": "Estado",
+      "estado": "POBLADO",
+      "preview": "\"En entrevista\""
+    },
+    {
+      "campo": "Horizonte",
+      "estado": "POBLADO",
+      "preview": "\"Fin de 2026\""
+    },
+    {
+      "campo": "Proposito Escena",
+      "estado": "POBLADO",
+      "preview": "\"Transformar a Terravinci en la organización líder e indiscutida de hacer dueños en Argentina. Capaz de generar más de 1....\""
+    },
+    {
+      "campo": "Proposito Metricas",
+      "estado": "POBLADO",
+      "preview": "\"[\"Volumen / capacidad instalada: 1.000+ dueños/mes sostenido hacia fin de 2026; acumulado anual ~6.000.\",\"Organización y...\""
+    },
+    {
+      "campo": "Proposito Fuera",
+      "estado": "VACÍO",
+      "preview": "[]"
+    },
+    {
+      "campo": "Proposito Estabilidad",
+      "estado": "NO_EXISTE",
+      "preview": "(field not present in record)"
+    },
+    {
+      "campo": "Situacion Desvio Principal",
+      "estado": "NO_EXISTE",
+      "preview": "(field not present in record)"
+    },
+    {
+      "campo": "Situacion Desvio Cuantificado",
+      "estado": "NO_EXISTE",
+      "preview": "(field not present in record)"
+    },
+    {
+      "campo": "Situacion Desvios Secundarios",
+      "estado": "VACÍO",
+      "preview": "[]"
+    },
+    {
+      "campo": "Situacion Causa Raiz",
+      "estado": "NO_EXISTE",
+      "preview": "(field not present in record)"
+    },
+    {
+      "campo": "Situacion Consecuencia 6m",
+      "estado": "NO_EXISTE",
+      "preview": "(field not present in record)"
+    },
+    {
+      "campo": "Situacion Consecuencia 12m",
+      "estado": "NO_EXISTE",
+      "preview": "(field not present in record)"
+    },
+    {
+      "campo": "Situacion Recursos Actuales",
+      "estado": "NO_EXISTE",
+      "preview": "(field not present in record)"
+    },
+    {
+      "campo": "Situacion Recursos Faltantes",
+      "estado": "NO_EXISTE",
+      "preview": "(field not present in record)"
+    },
+    {
+      "campo": "Situacion Intentos Previos",
+      "estado": "NO_EXISTE",
+      "preview": "(field not present in record)"
+    },
+    {
+      "campo": "Situacion Resistencias",
+      "estado": "VACÍO",
+      "preview": "[]"
+    },
+    {
+      "campo": "Datos Faltantes",
+      "estado": "VACÍO",
+      "preview": "[]"
+    }
+  ],
+  "escenario": "c"
+}
