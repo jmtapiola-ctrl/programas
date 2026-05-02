@@ -152,3 +152,26 @@ npm run dev          # servidor local en http://localhost:3000
 npm run build        # build de producción
 npm run lint         # verificar errores
 ```
+
+## Aprendizajes del proyecto
+
+Lecciones operativas acumuladas que aplican a cualquier feature futuro. Los aprendizajes específicos a un feature van en su rama; acá solo lo que es transversal al proyecto.
+
+### Cambios de schema "preparatorios" deployados antes que el feature consumidor
+
+Cuando se mergean a `main` cambios de schema (campo nuevo en JSON estructurado, tabla nueva, columna nueva) **antes** de que el feature que los consume esté implementado:
+
+- El código que introduce el campo **debe llevar un comentario `// TODO:` explícito** indicando dónde se va a consumir y en qué feature/branch.
+- Formato sugerido: `// TODO: este campo se consume en feat/<branch> (Fase N) — descripción breve del flujo. Hasta que ese feature exista, el campo se emite/persiste sin uso visible.`
+- Razón: futuros mantenedores que hagan cold-read del código no se confunden con código sin uso aparente, ni lo borran pensando que es legacy.
+- Aplicar el TODO en TODOS los puntos del código donde el campo se introduce (definición de tipo, validación en parser, instrucciones al modelo, etc.), no solo en uno.
+
+Origen: feat/audit-reviewer (Fase 0) merged a `main` con el campo `cierre_sugerido` en `PanelUpdatePE` antes de que la UI/endpoint que lo consume estuvieran implementados.
+
+### El filtro `paso_actual ≤ N` no es confiable como corte histórico
+
+El campo `paso_actual` de las entrevistas PE se actualiza con el `PANEL_UPDATE` del modelo y tiene **lag**: a veces el modelo discute material del Paso N+1 con `paso_actual=N`, o vuelve a Paso N con `paso_actual=N+1`.
+
+- Para tests sintéticos sobre datos históricos del Plan Sr de Terravinci, usar **cortes manuales hardcoded** validados por contenido del último turno (ej: turno declara explícitamente "Paso N — completo").
+- En el feature de auditoría, este problema se resuelve usando la marca explícita `rol=snapshot` que se crea al cerrar definitivamente un Paso. Ese snapshot **es** el corte real.
+- Origen: smoke 0.2 del feat/audit-reviewer falló en run 1 por contaminación del input (filtro `paso ≤ 1` devolvió turnos del Paso 2).

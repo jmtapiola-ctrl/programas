@@ -160,6 +160,17 @@ export function parsePanelUpdate(fullResponse: string): ParseResult {
     })
   }
 
+  // cierre_sugerido (opcional, default false implícito).
+  // Ausencia: permitido — necesario para rehidratar PANEL_UPDATEs viejos sin el campo.
+  // Presencia: tiene que ser boolean estricto (no string truthy/falsy, no null).
+  // TODO: este campo se consume en feat/audit-reviewer (Fase 1+2) — el chat route
+  // detecta cierre_sugerido=true para transicionar sub_estado_paso a 'cierre_sugerido'
+  // y el frontend muestra botón "Cerrar Paso N y revisar". Hasta que ese feature
+  // exista, el campo se emite y persiste sin uso visible para el usuario.
+  if (parsed?.cierre_sugerido !== undefined && typeof parsed?.cierre_sugerido !== 'boolean') {
+    errors.push(`cierre_sugerido (si presente) must be boolean true/false, got ${parsed?.cierre_sugerido === null ? 'null' : typeof parsed?.cierre_sugerido}`)
+  }
+
   if (errors.length > 0) {
     return { ok: false, reason: 'invalid_shape', errors, raw }
   }

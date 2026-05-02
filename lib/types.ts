@@ -294,6 +294,11 @@ export interface PanelUpdatePE {
   proposito: PropositorPE
   situacion: SituacionPE
   datos_faltantes: string[]
+  // true solo cuando el modelo considera, según su criterio, que el Paso actual
+  // está conceptualmente cerrado (todos los sub-bloques cubiertos, decisiones
+  // confirmadas, datos críticos registrados). Opcional con default false implícito
+  // para no romper rehidratación de PANEL_UPDATEs viejos sin el campo.
+  cierre_sugerido?: boolean
 }
 
 export interface PlanEstrategico {

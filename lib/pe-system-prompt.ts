@@ -13,6 +13,12 @@ import {
 } from './knowledge-pe'
 import { getContextoTemporalArg } from './types'
 
+// TODO: el campo cierre_sugerido del PANEL_UPDATE (sumado al schema y al bloque
+// DETECCIÓN DE CIERRE DE PASO más abajo) se consume en feat/audit-reviewer
+// (Fase 1+2) — el chat route detecta cierre_sugerido=true para transicionar
+// sub_estado_paso a 'cierre_sugerido' y el frontend muestra botón "Cerrar Paso N
+// y revisar". Hasta que ese feature exista, el modelo emite el campo y se
+// persiste, pero no genera UI ni transición de estado.
 export function buildSystemPrompt(plan: any, planSr: any | null): string {
   const esSr = plan.tipo === 'Sr'
 
@@ -88,7 +94,8 @@ Al final de CADA respuesta tuya, sin excepción, emití exactamente este bloque 
     "intentos_previos": "<string>",
     "resistencias": [<objetos {actor, descripcion, mitigacion, tipo, criticidad}>]
   },
-  "datos_faltantes": [<strings>]
+  "datos_faltantes": [<strings>],
+  "cierre_sugerido": <boolean: true SOLO si considerás, según TU criterio, que el Paso actual está conceptualmente cerrado; false en cualquier otro turno>
 }
 <!--/PANEL_UPDATE-->
 
@@ -107,6 +114,22 @@ SCHEMA DE ITEMS POR ARRAY (CRÍTICO — emitir strings sueltos rompe el panel):
 - desvios_secundarios[i] = {"descripcion":"<nombre/título corto del desvío>", "datos":"<datos cuantitativos y descripción concreta>"}
 - resistencias[i] = {"actor":"<frase corta: QUIÉN o QUÉ resiste>", "descripcion":"<POR QUÉ es resistencia, párrafo>", "mitigacion":"<CÓMO se maneja, vacío \"\" si no se definió>", "tipo":"<'Interna' | 'Externa' | 'Riesgo crítico precondicional'>", "criticidad":"<'Alta' | 'Media' | 'Baja'>"}
 - datos_faltantes[i] = "<string>" (acá sí van strings sueltos, no objetos)
+
+DETECCIÓN DE CIERRE DE PASO — CRITERIO PROPIO:
+
+Emití "cierre_sugerido": true en el PANEL_UPDATE de un turno SOLO si se cumplen TODAS estas condiciones:
+1. Todos los sub-bloques del Paso actual fueron cubiertos (Paso 1 = 1.A, 1.B, 1.C, 1.D, 1.E; Paso 2 = 2.A..2.G).
+2. Cada sub-bloque tiene contenido real declarado por el usuario, no solo "lo discutimos en general".
+3. Las decisiones explícitas del usuario fueron confirmadas (no solo mencionadas), y los acuerdos quedan reflejados en el estado acumulado del PANEL_UPDATE.
+4. No quedan datos faltantes críticos sin marcar en "datos_faltantes".
+
+En cualquier otro turno, emití "cierre_sugerido": false.
+
+DISCREPANCIA CON EL USUARIO — ES TU CRITERIO, NO EL DEL USUARIO:
+
+Si el usuario afirma o sugiere cierre del Paso ("listo, cerralo", "avancemos", "ya está") pero vos ves que las 4 condiciones de arriba NO se cumplen, igualmente emití "cierre_sugerido": false y respondé conversacionalmente nombrando concretamente qué falta resolver antes de cerrar. Tu rol es proteger la calidad del cierre, no complacer.
+
+Tampoco al revés: NO emitas true para complacer al usuario si el Paso está incompleto. La confirmación final es del usuario vía botón explícito en la UI, pero ese botón recién aparece cuando vos sugerís cierre.
 
 Ejemplo de PANEL_UPDATE bien formado (mid-entrevista, sub-bloque 2.A, Plan Sr):
 
@@ -143,7 +166,8 @@ Ejemplo de PANEL_UPDATE bien formado (mid-entrevista, sub-bloque 2.A, Plan Sr):
       {"actor":"Equipo de Producción","descripcion":"La presión por escalar 10x puede comprimir tiempos y bajar estándares de calidad de obra","mitigacion":"Proteger explícitamente a la División de Producción de la presión de escalar; mantener métricas de guarda","tipo":"Interna","criticidad":"Alta"}
     ]
   },
-  "datos_faltantes": ["Awareness baseline","Inversión blitz Q3"]
+  "datos_faltantes": ["Awareness baseline","Inversión blitz Q3"],
+  "cierre_sugerido": false
 }
 <!--/PANEL_UPDATE-->
 
@@ -207,6 +231,7 @@ Antes de responder al último mensaje del usuario, recordá:
 2. Aunque en el historial NO veas tus PANEL_UPDATEs anteriores (el sistema los strippea), DEBÉS emitirlo igual en este turno.
 3. El bloque va al final, después de la respuesta conversacional.
 4. Si el turno es trivial ("ok", confirmación, transición), igual emitís el bloque con el estado acumulado completo del plan.
+5. El campo "cierre_sugerido" es OBLIGATORIO en cada PANEL_UPDATE. Default false; solo true si las 4 condiciones del bloque "DETECCIÓN DE CIERRE DE PASO" se cumplen y vos lo confirmás (no solo el usuario).
 
 Procedé.`
 }
