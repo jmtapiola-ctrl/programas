@@ -993,22 +993,37 @@ export async function appendReviewerTurno(
 }
 
 /**
- * Persiste decisiones del usuario + snapshot pre-apply en un turno reviewer
- * existente. Se llama tras el apply changes step.
+ * Persiste SOLO el array de decisiones del usuario en un turno reviewer existente.
+ * Se llama desde el PATCH /audit/[turno_id]/decision en cada cambio que el user
+ * hace en Pantalla 3. NO toca snapshot pre-apply ni métricas de apply — eso es
+ * exclusivo de updateReviewerDecisionesAndApply (Fase 4).
  */
-export async function updateReviewerDecisiones(
+export async function updateReviewerDecisionesOnly(
+  reviewerTurnoId: string,
+  decisiones: DecisionUsuario[],
+): Promise<void> {
+  await updateRecord(TABLA_TURNOS_PE, reviewerTurnoId, {
+    [TURNOS_FIELD_REVIEWER_DECISIONES]: JSON.stringify(decisiones),
+  })
+}
+
+/**
+ * Persiste decisiones FINALES + snapshot pre-apply + métricas de la llamada de
+ * apply changes (Opus). Se llama desde el endpoint /apply (Fase 4) tras procesar
+ * todas las decisiones aprobadas.
+ */
+export async function updateReviewerDecisionesAndApply(
   reviewerTurnoId: string,
   decisiones: DecisionUsuario[],
   snapshotPreApply: { proposito?: PropositorPE; situacion?: SituacionPE; datos_faltantes: string[] },
   applyMetrics: { costo_usd: number; latencia_ms: number },
 ): Promise<void> {
-  const fields: Record<string, any> = {
+  await updateRecord(TABLA_TURNOS_PE, reviewerTurnoId, {
     [TURNOS_FIELD_REVIEWER_DECISIONES]: JSON.stringify(decisiones),
     [TURNOS_FIELD_REVIEWER_SNAPSHOT_PRE_APPLY]: JSON.stringify(snapshotPreApply),
     [TURNOS_FIELD_APPLY_COSTO]: applyMetrics.costo_usd,
     [TURNOS_FIELD_APPLY_LATENCIA]: applyMetrics.latencia_ms,
-  }
-  await updateRecord(TABLA_TURNOS_PE, reviewerTurnoId, fields)
+  })
 }
 
 /**
