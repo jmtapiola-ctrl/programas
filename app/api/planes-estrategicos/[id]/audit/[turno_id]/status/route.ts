@@ -19,7 +19,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getEntrevistaPE, getReviewerTurnos } from '@/lib/airtable'
+import { getEntrevistaPE, getReviewerTurnos, updateSubEstadoPaso, incrementAuditoriasPaso } from '@/lib/airtable'
 
 export async function GET(
   _req: NextRequest,
@@ -56,8 +56,63 @@ export async function GET(
     })
   }
 
+  // ─── AUTO-CORRECCIÓN del estado inconsistente (caso 2 del rollback) ───
+  //
+  // Si el sub_estado_paso es 'auditoria_en_proceso' pero hay un turno reviewer
+  // persistido con report válido (no skipped, no failed), significa que el flow
+  // del audit/start crashó entre `appendReviewerTurno` y la transición final
+  // `auditoria_en_proceso → auditoria_completa`.
+  //
+  // Auto-corrección: transicionar a 'auditoria_completa' + incrementar counter
+  // (que tampoco se incrementó en el flow original porque venía después).
+  // Es idempotente: si el counter ya está en el valor correcto, el guard del
+  // helper rechaza y seguimos sin error.
+  const meta = reviewer.report?.meta
+  const justif = meta?.justificacion_confianza ?? ''
+  const isSkipped = /skipped/i.test(justif)
+  const isFailed = /failed/i.test(justif)
+  const reportEsValido = !isSkipped && !isFailed && (reviewer.report?.errors?.length > 0 || reviewer.report?.questions?.length > 0)
+
+  let subEstadoFinal = entrevista.sub_estado_paso ?? 'en_curso'
+  let autoCorregido = false
+
+  if (subEstadoFinal === 'auditoria_en_proceso' && reportEsValido) {
+    try {
+      await updateSubEstadoPaso(entrevista.id, 'auditoria_en_proceso', 'auditoria_completa')
+      // Sumar también el counter si todavía no se incrementó. Lo verificamos
+      // por el counter actual vs el bloque auditado: si bloque=1 y counter=0,
+      // pero hay un report valido en este turno, claramente el counter quedó atrás.
+      const counterField = reviewer.report?.meta?.cross_block_changes_total === 0  // proxy: bloque 1 audit
+        ? 'auditorias_paso_1_count'
+        : 'auditorias_paso_2_count'
+      // Inferir paso del audit del propio turno (más robusto que el proxy):
+      // getReviewerTurnos ya filtró por paso, pero acá tenemos paso del query.
+      // Usamos el paso que devolvió el reviewer del lookup arriba.
+      const auditPaso = revPaso1.find(r => r.airtableId === turnoId) ? 1 : 2
+      const currentCount = (entrevista[auditPaso === 1 ? 'auditorias_paso_1_count' : 'auditorias_paso_2_count'] ?? 0) as number
+      // Si el counter es < cantidad de turnos reviewer no-failed/skipped del Paso, incrementar.
+      const reviewerTurnosDelPaso = auditPaso === 1 ? revPaso1 : revPaso2
+      const successCount = reviewerTurnosDelPaso.filter(r => {
+        const j = r.report?.meta?.justificacion_confianza ?? ''
+        return !/skipped|failed/i.test(j)
+      }).length
+      if (currentCount < successCount) {
+        await incrementAuditoriasPaso(entrevista.id, auditPaso as 1 | 2, currentCount).catch(() => undefined)
+      }
+      subEstadoFinal = 'auditoria_completa'
+      autoCorregido = true
+      console.log(`[audit/status] auto-corregido: entrevista=${entrevista.id} paso=${auditPaso} estado auditoria_en_proceso → auditoria_completa (turno reviewer ${turnoId} ya persistido)`)
+      // Tipo helper para silenciar el unused (counterField):
+      void counterField
+    } catch (e) {
+      // Si el guard rechazó (ej: race condition donde otro request ya transicionó),
+      // simplemente reportamos el estado actual sin auto-corregir.
+      console.warn(`[audit/status] auto-corrección falló (probable race condition):`, e instanceof Error ? e.message : String(e))
+    }
+  }
+
   return NextResponse.json({
-    sub_estado_paso: entrevista.sub_estado_paso ?? 'en_curso',
+    sub_estado_paso: subEstadoFinal,
     report: reviewer.report,
     decisiones: reviewer.decisiones ?? null,
     metrics: {
@@ -65,10 +120,8 @@ export async function GET(
       latencia_ms: reviewer.latencia_ms,
       retry_count: reviewer.retry_count,
     },
-    // skipped/failed no están directamente expuestos por getReviewerTurnos —
-    // se pueden inferir del shape del report (skipped tiene errors=questions=0
-    // + justificacion menciona "Skipped" o "Failed").
-    skipped: /skipped/i.test(reviewer.report?.meta?.justificacion_confianza ?? ''),
-    failed: /failed/i.test(reviewer.report?.meta?.justificacion_confianza ?? ''),
+    skipped: isSkipped,
+    failed: isFailed,
+    auto_corregido: autoCorregido || undefined,
   })
 }

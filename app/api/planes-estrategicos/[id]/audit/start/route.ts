@@ -304,8 +304,13 @@ async function handleAudit(
     return
   }
 
-  // ── Increment counter + transicionar a auditoria_en_proceso ──
-  await incrementAuditoriasPaso(entrevista.id, paso as 1 | 2, currentCount)
+  // ── Transicionar a auditoria_en_proceso (protección anti-doble-disparo) ──
+  // El counter NO se incrementa acá — se incrementa solo si la audit completa
+  // exitosamente más abajo. Razón: failures (cap excedido, parser inválido,
+  // timeout) NO deben consumir el slot del usuario, que tiene 3 audits por Paso.
+  // La protección anti-doble-disparo viene del estado: si una segunda llamada
+  // llega mientras esta está corriendo, el guard de updateSubEstadoPaso rechaza
+  // la transición desde 'esperando_auditoria' (el estado ya es 'auditoria_en_proceso').
   await updateSubEstadoPaso(entrevista.id, 'esperando_auditoria', 'auditoria_en_proceso')
 
   send({ type: 'progress', etapa: 'cargando_inputs', elapsed_ms: 0 })
@@ -393,7 +398,9 @@ async function handleAudit(
         code: result.reason,
         detail: result.details,
         metrics: result.metrics,
-        retry_available: currentCount + 1 < 3,
+        // Counter NO se incrementó (failures no consumen slot), entonces hay
+        // retry disponible mientras currentCount < 3 (validado al inicio del flow).
+        retry_available: currentCount < 3,
       })
       return
     }
@@ -423,12 +430,19 @@ async function handleAudit(
         code: 'invalid_shape',
         detail: validation.errors.join(' | '),
         metrics: result.metrics,
-        retry_available: currentCount + 1 < 3,
+        // Counter NO se incrementó (failures no consumen slot), entonces hay
+        // retry disponible mientras currentCount < 3 (validado al inicio del flow).
+        retry_available: currentCount < 3,
       })
       return
     }
 
-    // ── Éxito: persistir turno reviewer + transicionar ──
+    // ── Éxito: persistir turno reviewer + incrementar counter + transicionar ──
+    //
+    // Orden: turno reviewer primero (es el dato más valioso), después counter,
+    // después transición. Si crashea entre el turno y la transición, el GET
+    // /audit/[turno_id]/status detecta la inconsistencia (estado en proceso +
+    // turno reviewer reciente con report válido) y auto-corrige.
     const reviewerTurno = await appendReviewerTurno(entrevista.id, allTurnos.length, {
       paso,
       bloqueAuditado: paso,
@@ -438,6 +452,9 @@ async function handleAudit(
       latencia_ms: result.metrics.latency_ms,
       retry_count: result.metrics.retries_used,
     })
+
+    // Counter solo se incrementa tras éxito real — failures NO consumen slot.
+    await incrementAuditoriasPaso(entrevista.id, paso as 1 | 2, currentCount)
 
     await updateSubEstadoPaso(entrevista.id, 'auditoria_en_proceso', 'auditoria_completa')
 

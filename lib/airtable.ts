@@ -876,7 +876,14 @@ export async function updateEntrevistaPE(id: string, data: {
 // por la API con `typecast: true`. Mientras no estén pre-agregadas, typecast las
 // crea en el primer createRecord. Una vez creadas, typecast es no-op (idempotente).
 
-const SUB_ESTADO_TRANSICIONES_VALIDAS: Record<SubEstadoPaso, SubEstadoPaso[]> = {
+/**
+ * Máquina de estados del flow de cierre+auditoría. Mapea cada estado al
+ * conjunto de estados a los que se puede transicionar desde él.
+ *
+ * Exportado para tests unitarios y para que el frontend pueda hacer
+ * pre-checks sin tener que llamar al backend.
+ */
+export const SUB_ESTADO_TRANSICIONES_VALIDAS: Record<SubEstadoPaso, SubEstadoPaso[]> = {
   en_curso: ['cierre_sugerido'],
   cierre_sugerido: ['esperando_auditoria', 'en_curso'],          // user puede volver a entrevistar
   esperando_auditoria: ['auditoria_en_proceso', 'completo'],     // o skip directo
@@ -885,6 +892,14 @@ const SUB_ESTADO_TRANSICIONES_VALIDAS: Record<SubEstadoPaso, SubEstadoPaso[]> = 
   aplicando_cambios: ['esperando_aprobacion_final'],
   esperando_aprobacion_final: ['completo', 'aplicando_cambios', 'auditoria_en_proceso'], // re-audit o re-apply
   completo: [],  // estado terminal del Paso
+}
+
+/**
+ * Función pura: ¿es válida la transición `desde → hasta` según la máquina
+ * de estados? Útil para pre-checks en frontend y para tests unitarios sin red.
+ */
+export function isValidTransition(desde: SubEstadoPaso, hasta: SubEstadoPaso): boolean {
+  return SUB_ESTADO_TRANSICIONES_VALIDAS[desde]?.includes(hasta) ?? false
 }
 
 /**
