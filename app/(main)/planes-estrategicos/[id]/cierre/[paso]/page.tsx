@@ -1,4 +1,7 @@
-// Pantalla 1 — `/planes-estrategicos/[id]/cierre/paso-[paso]`
+// Pantalla 1 — `/planes-estrategicos/[id]/cierre/[paso]`
+// URL real: `/planes-estrategicos/<id>/cierre/1` (paso = 1, 2, ...)
+// El folder usa `[paso]` literal (dynamic segment), NO `paso-[paso]` —
+// Next App Router solo soporta dynamic segments que ocupan el folder entero.
 //
 // Vista del paso cerrado (filtrada al Paso solamente, no plan completo) +
 // 2 botones (Auditar / Saltar) renderizados por AuditFlowClient.

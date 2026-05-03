@@ -6,7 +6,7 @@
 // el chat route).
 //
 // Body: { paso: number }
-// Devuelve: { ok: true, redirect: '/planes-estrategicos/[id]/cierre/paso-N' }
+// Devuelve: { ok: true, redirect: '/planes-estrategicos/[id]/cierre/N' }
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
@@ -67,6 +67,6 @@ export async function POST(
 
   return NextResponse.json({
     ok: true,
-    redirect: `/planes-estrategicos/${planId}/cierre/paso-${paso}`,
+    redirect: `/planes-estrategicos/${planId}/cierre/${paso}`,
   })
 }

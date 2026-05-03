@@ -4,7 +4,7 @@
 // NO usar para polling continuo en el flujo normal — la primera vista del
 // flujo (Pantalla 2 modal) consume el SSE de /audit/start. Este endpoint
 // solo sirve cuando el usuario cierra el tab y vuelve más tarde a la URL
-// `/cierre/paso-N` (Pantalla 1) o `/cierre/paso-N/final` (Pantalla 4).
+// `/cierre/N` (Pantalla 1) o `/cierre/N/final` (Pantalla 4).
 //
 // Devuelve:
 //   {

@@ -5,7 +5,7 @@
 // + entrevista + 6-8 turnos sintéticos + propósito mock.
 //
 // Setea estado base: sub_estado_paso='esperando_auditoria', paso_actual=1.
-// Permite navegar a /planes-estrategicos/[id]/cierre/paso-1 y ver Pantalla 1.
+// Permite navegar a /planes-estrategicos/[id]/cierre/1 y ver Pantalla 1.
 //
 // Flag --with-report:
 //   Además crea un turno reviewer con report mock + setea estado en
@@ -348,7 +348,7 @@ async function main() {
   console.log(`\n  npm run dev`)
   console.log(`\n  Después abrí en el browser:`)
   console.log(`\n    Pantalla 1 (botones Auditar/Saltar):`)
-  console.log(`      http://localhost:3000/planes-estrategicos/${planId}/cierre/paso-1`)
+  console.log(`      http://localhost:3000/planes-estrategicos/${planId}/cierre/1`)
   if (WITH_REPORT) {
     console.log(`\n    Pantalla 3 (hidratación con report mock):`)
     console.log(`      Misma URL — el server component detecta auditoria_completa y arranca en P3 directo.`)
