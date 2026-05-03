@@ -245,3 +245,42 @@ Cuando el usuario reporta un bug observando datos en Airtable / Vercel / cualqui
   - `app/(main)/planes-estrategicos/[id]/cierre/[paso]/final/page.tsx` (Pantalla 4) — **YA FIXEADO** con `?from_apply=1`.
   - `app/(main)/planes-estrategicos/[id]/vista/page.tsx` — lee al cargar vista de prestigio. Sin guards estrictos, riesgo bajo.
 - **Alternativa más radical (no aplicada):** refactorizar `getEntrevistaPE` para usar `fetchOne` cuando el plan tiene el linked `entrevistas_pe` ID. Cambiaría el read pattern de list a single-record (strong consistency). Mejora estructural pero invasiva.
+
+## Backlog activo — features pausados
+
+### Split de CLAUDE.md en docs/ — pendiente post-Paso 3+4
+
+**Decidido 2026-05-03:** CLAUDE.md creció a ~280 líneas. Split aprobado pero postergado hasta terminar Paso 3 + Paso 4 (esos van a generar aprendizajes nuevos que conviene incorporar de una sola vez).
+
+**Plan del split:**
+- `CLAUDE.md` queda en ~80 líneas: stack + env + reglas de negocio + diseño + tabla "Antes de empezar tarea X".
+- `docs/AIRTABLE.md`: schemas con field IDs de las 5 tablas.
+- `docs/LEARNINGS.md`: los 7 aprendizajes operativos actuales + nueva sección "Patrones recurrentes del proyecto" (eventual consistency en Airtable list reads, PANEL_UPDATE se silencia si turnos previos no lo emitieron, apply determinístico requiere cita textual exacta, etc. — capturar patrones generales, no eventos puntuales).
+- `docs/BACKLOG.md`: este backlog actual (Organigrama + cualquier otro pausado).
+
+**Mitigaciones para evitar que el split rompa contexto:**
+1. **Cross-references inline en CLAUDE.md**, no solo tabla. Cada sección que cita un doc debe linkear ("para detalles de cierre de Pasos: ver `docs/LEARNINGS.md` sección Cierres"). Patrón: la sección queda corta en CLAUDE.md, el detalle vive en el doc.
+2. **Sección "Antes de empezar tarea X"** organizada por trigger concreto (no tabla genérica): "antes de tocar Airtable schema → AIRTABLE.md", "antes de cierres de Paso → LEARNINGS.md sección cierres", "si triagéas bug del usuario → LEARNINGS.md sección triage", "antes de retomar Organigrama → BACKLOG.md sección Organigrama". Cada trigger debe ser específico, no "cuando sea relevante".
+
+**Cuándo retomar:** después de Paso 3+4 implementados, antes de retomar Organigrama (Hito 2).
+
+### Feature Organigrama integrado al wizard PE — pausado 2026-05-03
+
+Pausa decidida porque Lu (asistente de Juan) está completando el organigrama esta semana, incluyendo decisiones estructurales pendientes (si Studio Terravinci, Más Dueños, División Hacedora son entidades nuevas o áreas dentro de Terravinci). Implementar ahora y migrar después sería más caro que postergar.
+
+**V1 de la app avanza sin Organigrama integrado:** Paso 3 con sub-bloque 3.0.A en texto libre + dueños del Inventario como strings.
+
+**Hitos pendientes cuando se retome (post-V1):**
+- Hito 2: integración básica (modal "jugadores" + @mention de áreas + sub-bloque 3.0.A estructurado).
+- Hito 3: vinculación automática sugerida por el modelo durante la entrevista, usando datos ricos del organigrama (PFV, Propósito, Descripción Breve, Funciones).
+
+**Trabajo de investigación ya hecho (no re-investigar):**
+- Airtable canónico identificado: base `appQNQlrJweag2J1U` (DISTINTA de Programas `apprq0pL8aiCNMZvv`). Tablas Areas (`tblUSk7Lcwt6z4ozE`), Personas (`tblLcCXARSg76fYvo`), Entidades, Niveles. Filtro real de archivado es checkbox `Inactiva`, NO `Status='Archivada'`.
+- App vive en `c:\Proyectos\organigrama-app`. Auth Clerk multi-app vía `publicMetadata.apps.<app>.role` — Programas podría usar el mismo Clerk con `apps.programas.role`. Endpoints existentes consumibles: `GET /api/areas|/personas|/entities|/niveles`, todos con `verifyViewer` (cualquier user logueado pasa).
+- 4 decisiones técnicas cerradas: snapshot híbrido (live read durante entrevista, snapshot embebido al cerrar Paso), áreas pendientes como "vacancia pendiente de validación" (no auto-create), endpoint dedicado `/api/areas/active-summary` a sumar a Organigrama, token compartido como mecanismo de auth entre apps.
+- 5 áreas a crear identificadas para Lu: División Hacedora de Dueños, Área de Tierras (Carozza), Equipo de AI organizativa, Studio Terravinci (viralidad JMT), Marca Más Dueños.
+- 3 entidades pendientes de aclarar (decisión de Lu): Studio Terravinci, Más Dueños, División Hacedora — ¿entidad nueva o área?
+- Excel de mapping de Juan: 14 personas + 40 áreas, 12 con `recXXX` ya identificados.
+
+**Caveat técnico clave para cualquier integración futura:**
+El Plan Sr usa **nicknames informales** ("Randy", "Charly", "Vicky", "Lu", "Nico", "Romi", "Gus Grispo") mientras que el organigrama tiene **nombres formales completos** ("Santiago Tosco", "Lucas Mercado", "Juan Manuel Tapiola"). Cross-check directo de nombres no resuelve el match — varios nicknames tienen 0 matches o múltiples candidatos ambiguos. Cualquier integración requiere **mapeo manual** (Excel de Juan / Lu) o un campo nuevo "Aliases" en Personas. NO asumir que se puede auto-resolver con fuzzy match.
