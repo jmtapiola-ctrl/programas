@@ -11,9 +11,16 @@
 //   Además crea un turno reviewer con report mock + setea estado en
 //   'auditoria_completa'. Permite hidratar directo a Pantalla 3 sin gastar OpenAI.
 //
+// Flag --with-report-applied:
+//   Como --with-report PERO simula que el user ya procesó las decisiones y se
+//   aplicaron. El plan tiene cambios visibles, el reviewer turn tiene
+//   snapshotPreApply + decisiones persistidas, estado: esperando_aprobacion_final.
+//   Permite ver Pantalla 4 con diff completo sin gastar OpenAI ni Opus.
+//
 // Uso:
 //   npx tsx --env-file=.env.local diagnostico/scripts/35-seed-test-audit-state.mjs
 //   npx tsx --env-file=.env.local diagnostico/scripts/35-seed-test-audit-state.mjs --with-report
+//   npx tsx --env-file=.env.local diagnostico/scripts/35-seed-test-audit-state.mjs --with-report-applied
 //
 // Salida: imprime URLs para navegar + IDs creados.
 
@@ -28,7 +35,8 @@ const TABLA_TURNOS_PE = 'tblWxPv53CRscq18w'
 
 const PLAN_NOMBRE = 'TESTING audit-reviewer Fase 3'
 const USER_EMAIL = 'jmtapiola@gmail.com'
-const WITH_REPORT = process.argv.includes('--with-report')
+const WITH_REPORT_APPLIED = process.argv.includes('--with-report-applied')
+const WITH_REPORT = WITH_REPORT_APPLIED || process.argv.includes('--with-report')
 
 if (!BASE_ID || !API_KEY) {
   console.error('FATAL: faltan AIRTABLE_BASE_ID o AIRTABLE_API_KEY en environment')
@@ -266,40 +274,126 @@ const REPORT_MOCK = {
   },
 }
 
-async function createReviewerTurno(entrevistaId, indice) {
-  await api('POST', `/${TABLA_TURNOS_PE}`, {
-    records: [{
-      fields: {
-        'Etiqueta': `${String(indice).padStart(4, '0')}|reviewer`,
-        'Entrevista': [entrevistaId],
-        'Indice': indice,
-        'Rol': 'reviewer',
-        'Contenido': JSON.stringify(REPORT_MOCK),
-        'Timestamp': new Date().toISOString(),
-        'Paso': 1,
-        'Reviewer Bloque Auditado': 1,
-        'Reviewer Modelo': 'gpt-5.5 (MOCK)',
-        'Reviewer Errores Total': REPORT_MOCK.errors.length,
-        'Reviewer Preguntas Total': REPORT_MOCK.questions.length,
-        'Reviewer Costo USD': 0,
-        'Reviewer Latencia MS': 0,
-        'Reviewer Retry Count': 0,
-        'Reviewer Skipped': false,
-        'Reviewer Failed': false,
-      },
-    }],
-    typecast: true,
+async function createReviewerTurno(entrevistaId, indice, applied = false) {
+  // Si applied=true, populamos snapshotPreApply + decisiones del usuario +
+  // métricas de apply fake. Permite ver Pantalla 4 con diff completo.
+  const fields = {
+    'Etiqueta': `${String(indice).padStart(4, '0')}|reviewer`,
+    'Entrevista': [entrevistaId],
+    'Indice': indice,
+    'Rol': 'reviewer',
+    'Contenido': JSON.stringify(REPORT_MOCK),
+    'Timestamp': new Date().toISOString(),
+    'Paso': 1,
+    'Reviewer Bloque Auditado': 1,
+    'Reviewer Modelo': 'gpt-5.5 (MOCK)',
+    'Reviewer Errores Total': REPORT_MOCK.errors.length,
+    'Reviewer Preguntas Total': REPORT_MOCK.questions.length,
+    'Reviewer Costo USD': applied ? 0.45 : 0,
+    'Reviewer Latencia MS': applied ? 152000 : 0,
+    'Reviewer Retry Count': 0,
+    'Reviewer Skipped': false,
+    'Reviewer Failed': false,
+  }
+  if (applied) {
+    fields['Reviewer Decisiones JSON'] = JSON.stringify(DECISIONES_MOCK)
+    fields['Reviewer Snapshot Pre Apply JSON'] = JSON.stringify(SNAPSHOT_PRE_APPLY_MOCK)
+    fields['Apply Changes Cost USD'] = 0.32
+    fields['Apply Changes Latency MS'] = 18500
+  }
+  await api('POST', `/${TABLA_TURNOS_PE}`, { records: [{ fields }], typecast: true })
+  console.log(applied
+    ? `  ✔ Turno reviewer creado con report + decisiones + snapshot pre-apply (Pantalla 4)`
+    : `  ✔ Turno reviewer creado con report mock (3 errores + 3 preguntas)`)
+}
+
+// ─── Mocks adicionales para --with-report-applied ────────────────────────────
+
+const DECISIONES_MOCK = [
+  // Errors aprobados.
+  { hallazgo_id: 'E01', tipo: 'error', decision: 'aprobado_con_cambios',
+    texto_editado: 'Métricas: 4 de 4 pantallas validadas con mocks deterministicos (no con OpenAI real — eso es Fase 4 smoke).' },
+  { hallazgo_id: 'E02', tipo: 'error', decision: 'aprobado',
+    texto_editado: undefined },
+  // Error ignorado.
+  { hallazgo_id: 'E03', tipo: 'error', decision: 'ignorado' },
+  // Pregunta respondida.
+  { hallazgo_id: 'Q01', tipo: 'pregunta', decision: 'respondido',
+    respuesta_usuario: 'Validación = abrir cada pantalla + interactuar con cada hallazgo del modal + verificar que el footer se habilita correctamente cuando todos los hallazgos están procesados.' },
+  // Preguntas ignoradas.
+  { hallazgo_id: 'Q02', tipo: 'pregunta', decision: 'ignorado' },
+  { hallazgo_id: 'Q03', tipo: 'pregunta', decision: 'ignorado' },
+]
+
+// Snapshot del PROPÓSITO ORIGINAL (antes de los cambios). Pantalla 4 lo
+// compara contra el plan actualizado (que va a tener los cambios visibles)
+// para calcular qué campos están modificados.
+const SNAPSHOT_PRE_APPLY_MOCK = {
+  proposito: {
+    escena: 'Transformar el área de testing en motor de validación robusto, capaz de validar las 4 pantallas del audit-reviewer end-to-end con mocks deterministicos.',
+    metricas: [
+      { metrica: 'Pantallas validadas', valor_objetivo: '4 de 4', valor_actual: '0' },
+      { metrica: 'Cobertura de bugs visuales', valor_objetivo: '100%', valor_actual: '' },
+    ],
+    fuera: [
+      { item: 'Validación de OpenAI integration', razon: 'es Fase 4 smoke real' },
+    ],
+    horizonte: 'Fin 2026 (mock)',
+    estabilidad: 'Estable durante la Fase 3.',
+  },
+  situacion: undefined,
+  datos_faltantes: [],
+}
+
+// Plan APLICADO (con los cambios derivados de las decisiones aprobadas +
+// la respuesta del usuario integrada). Es lo que el endpoint /apply hubiera
+// generado tras procesar las DECISIONES_MOCK.
+const PLAN_APPLIED_MOCK = {
+  // Escena: cambiada para incluir el texto editado del E01.
+  escena: 'Transformar el área de testing en motor de validación robusto, capaz de validar las 4 pantallas del audit-reviewer end-to-end con mocks deterministicos. Validación = abrir cada pantalla + interactuar con cada hallazgo del modal + verificar que el footer se habilita correctamente cuando todos los hallazgos están procesados.',
+  metricas: [
+    // Métrica 1 modificada (E01: cita textual reemplazada).
+    { metrica: 'Pantallas validadas', valor_objetivo: '4 de 4 pantallas validadas con mocks deterministicos (no con OpenAI real — eso es Fase 4 smoke).', valor_actual: '0' },
+    // Métrica 2 modificada (E02: aprobado sin edición → cambio_propuesto del reviewer aplicado).
+    { metrica: 'Cobertura de bugs visuales', valor_objetivo: 'Reformular como "Bugs visuales detectados: ≤ N permitidos" o aclarar el criterio.', valor_actual: '' },
+  ],
+  // Fuera intacto (no hubo decisión sobre fuera).
+  fuera: [
+    { item: 'Validación de OpenAI integration', razon: 'es Fase 4 smoke real' },
+  ],
+  // Horizonte intacto.
+  horizonte: 'Fin 2026 (mock)',
+  estabilidad: 'Estable durante la Fase 3.',
+}
+
+// ─── 7b) Aplicar PLAN_APPLIED_MOCK al plan (solo --with-report-applied) ─────
+
+async function aplicarCambiosMockAlPlan(planId) {
+  assertNotPilot(planId)
+  await api('PATCH', `/${TABLA_PLANES_PE}/${planId}`, {
+    fields: {
+      'Proposito Escena': PLAN_APPLIED_MOCK.escena,
+      'Proposito Metricas': JSON.stringify(PLAN_APPLIED_MOCK.metricas),
+      'Proposito Fuera': JSON.stringify(PLAN_APPLIED_MOCK.fuera),
+      'Horizonte': PLAN_APPLIED_MOCK.horizonte,
+      'Proposito Estabilidad': PLAN_APPLIED_MOCK.estabilidad,
+    },
   })
-  console.log(`  ✔ Turno reviewer creado con report mock (3 errores + 3 preguntas)`)
+  console.log(`  ✔ Plan modificado con cambios aplicados (escena + 2 métricas editadas)`)
 }
 
 // ─── 8) Setear estado de entrevista ──────────────────────────────────────────
 
 async function setEntrevistaState(entrevistaId, withReport) {
+  const subEstado = WITH_REPORT_APPLIED
+    ? 'esperando_aprobacion_final'
+    : withReport
+    ? 'auditoria_completa'
+    : 'esperando_auditoria'
   const fields = {
     'Paso Actual': 1,
     'Sub Bloque Actual': '1.E',
-    'Sub Estado Paso': withReport ? 'auditoria_completa' : 'esperando_auditoria',
+    'Sub Estado Paso': subEstado,
     'Auditorias Paso 1 Count': withReport ? 1 : 0,
     'Ultima Actividad': new Date().toISOString(),
   }
@@ -311,8 +405,13 @@ async function setEntrevistaState(entrevistaId, withReport) {
 
 async function main() {
   console.log('═'.repeat(72))
-  console.log(`Seed test audit state — feat/audit-reviewer (Fase 3 visual check)`)
-  console.log(`Scenario: ${WITH_REPORT ? 'paso_1_auditoria_completa (con report mock)' : 'paso_1_esperando_auditoria (botones)'}`)
+  console.log(`Seed test audit state — feat/audit-reviewer`)
+  const scenarioLabel = WITH_REPORT_APPLIED
+    ? 'paso_1_esperando_aprobacion_final (Pantalla 4 con diff)'
+    : WITH_REPORT
+    ? 'paso_1_auditoria_completa (Pantalla 3 con report mock)'
+    : 'paso_1_esperando_auditoria (Pantalla 1 con botones)'
+  console.log(`Scenario: ${scenarioLabel}`)
   console.log('═'.repeat(72))
 
   console.log('\n1. Buscando usuario...')
@@ -335,8 +434,13 @@ async function main() {
   const turnosCount = await createTurnos(entrevistaId)
 
   if (WITH_REPORT) {
-    console.log('\n7. Creando turno reviewer con report mock...')
-    await createReviewerTurno(entrevistaId, turnosCount)
+    console.log(`\n7. Creando turno reviewer ${WITH_REPORT_APPLIED ? 'con decisiones + snapshot pre-apply' : 'con report mock'}...`)
+    await createReviewerTurno(entrevistaId, turnosCount, WITH_REPORT_APPLIED)
+  }
+
+  if (WITH_REPORT_APPLIED) {
+    console.log('\n7b. Aplicando cambios mock al plan (escena editada + 2 métricas modificadas)...')
+    await aplicarCambiosMockAlPlan(planId)
   }
 
   console.log('\n8. Seteando estado de entrevista...')
@@ -347,16 +451,28 @@ async function main() {
   console.log('═'.repeat(72))
   console.log(`\n  npm run dev`)
   console.log(`\n  Después abrí en el browser:`)
-  console.log(`\n    Pantalla 1 (botones Auditar/Saltar):`)
-  console.log(`      http://localhost:3000/planes-estrategicos/${planId}/cierre/1`)
-  if (WITH_REPORT) {
-    console.log(`\n    Pantalla 3 (hidratación con report mock):`)
-    console.log(`      Misma URL — el server component detecta auditoria_completa y arranca en P3 directo.`)
+  if (WITH_REPORT_APPLIED) {
+    console.log(`\n    Pantalla 4 (resumen actualizado con diff visible):`)
+    console.log(`      http://localhost:3000/planes-estrategicos/${planId}/cierre/1/final`)
+    console.log(`\n    Cambios aplicados visibles:`)
+    console.log(`      - Escena ideal: extendida con respuesta a Q01 (criterio de validación).`)
+    console.log(`      - Métrica 1 "Pantallas validadas": valor_objetivo editado (E01 aprobado_con_cambios).`)
+    console.log(`      - Métrica 2 "Cobertura de bugs visuales": valor_objetivo modificado (E02 aprobado).`)
+    console.log(`      - E03 ignorado, Q02+Q03 ignoradas, Q01 respondida e integrada.`)
+    console.log(`\n    Toggle "Solo cambios | Plan completo" para ver ambos modos.`)
+    console.log(`    3 botones: Aceptar y avanzar / Comentar / Re-auditar (1 audit usado, 2 restantes).`)
   } else {
-    console.log(`\n    Pantalla 2 (modal "Auditoría en proceso"):`)
-    console.log(`      Click "Auditar" en Pantalla 1 — va a llamar a OpenAI real (~$0.50).`)
-    console.log(`      Para ver P2 sin gastar, re-correr este script con --with-report y luego`)
-    console.log(`      hacer "Re-auditar" desde P3.`)
+    console.log(`\n    Pantalla 1 (botones Auditar/Saltar):`)
+    console.log(`      http://localhost:3000/planes-estrategicos/${planId}/cierre/1`)
+    if (WITH_REPORT) {
+      console.log(`\n    Pantalla 3 (hidratación con report mock):`)
+      console.log(`      Misma URL — el server component detecta auditoria_completa y arranca en P3 directo.`)
+    } else {
+      console.log(`\n    Pantalla 2 (modal "Auditoría en proceso"):`)
+      console.log(`      Click "Auditar" en Pantalla 1 — va a llamar a OpenAI real (~$0.50).`)
+      console.log(`      Para ver P2 sin gastar, re-correr este script con --with-report y luego`)
+      console.log(`      hacer "Re-auditar" desde P3.`)
+    }
   }
   console.log(`\n  Vista de prestigio (Pieza 4) del mismo plan dummy:`)
   console.log(`      http://localhost:3000/planes-estrategicos/${planId}/vista`)

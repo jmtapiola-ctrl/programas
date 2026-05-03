@@ -1076,29 +1076,33 @@ export async function getReviewerTurnos(
   applyCostoUsd: number
   applyLatenciaMs: number
 }>> {
+  // IMPORTANTE: Airtable devuelve r.fields con los NOMBRES como keys (no field
+  // IDs) cuando NO se pasa returnFieldsByFieldId=true. Por convención del
+  // proyecto, los reads usan nombres y los writes (POST/PATCH bodies) usan
+  // field IDs. Mantener la convención.
   const params = `sort[0][field]=${TURNOS_FIELD_INDICE}&sort[0][direction]=asc`
   const records = await fetchAll(TABLA_TURNOS_PE, params)
   return records
     .filter(r => {
-      const rolName = r.fields?.[TURNOS_FIELD_ROL]?.name ?? r.fields?.['Rol']
-      const ent: string[] = r.fields?.[TURNOS_FIELD_ENTREVISTA] ?? r.fields?.['Entrevista'] ?? []
-      const turnoPaso = r.fields?.[TURNOS_FIELD_REVIEWER_BLOQUE] ?? r.fields?.['Reviewer Bloque Auditado']
+      const rolName = r.fields?.['Rol']?.name ?? r.fields?.['Rol']
+      const ent: string[] = r.fields?.['Entrevista'] ?? []
+      const turnoPaso = r.fields?.['Reviewer Bloque Auditado']
       return rolName === 'reviewer' && ent.includes(entrevistaId) && turnoPaso === paso
     })
     .map(r => ({
       airtableId: r.id,
-      report: safeParseJson(r.fields?.[TURNOS_FIELD_CONTENIDO] ?? r.fields?.['Contenido'], { errors: [], questions: [], cross_block_changes: [], meta: {} }),
-      decisiones: r.fields?.[TURNOS_FIELD_REVIEWER_DECISIONES]
-        ? safeParseJson(r.fields[TURNOS_FIELD_REVIEWER_DECISIONES], [])
+      report: safeParseJson(r.fields?.['Contenido'], { errors: [], questions: [], cross_block_changes: [], meta: {} }),
+      decisiones: r.fields?.['Reviewer Decisiones JSON']
+        ? safeParseJson(r.fields['Reviewer Decisiones JSON'], [])
         : undefined,
-      snapshotPreApply: r.fields?.[TURNOS_FIELD_REVIEWER_SNAPSHOT_PRE_APPLY]
-        ? safeParseJson(r.fields[TURNOS_FIELD_REVIEWER_SNAPSHOT_PRE_APPLY], null) ?? undefined
+      snapshotPreApply: r.fields?.['Reviewer Snapshot Pre Apply JSON']
+        ? safeParseJson(r.fields['Reviewer Snapshot Pre Apply JSON'], null) ?? undefined
         : undefined,
-      costo_usd: r.fields?.[TURNOS_FIELD_REVIEWER_COSTO] ?? 0,
-      latencia_ms: r.fields?.[TURNOS_FIELD_REVIEWER_LATENCIA] ?? 0,
-      retry_count: r.fields?.[TURNOS_FIELD_REVIEWER_RETRY_COUNT] ?? 0,
-      applyCostoUsd: r.fields?.[TURNOS_FIELD_APPLY_COSTO] ?? 0,
-      applyLatenciaMs: r.fields?.[TURNOS_FIELD_APPLY_LATENCIA] ?? 0,
+      costo_usd: r.fields?.['Reviewer Costo USD'] ?? 0,
+      latencia_ms: r.fields?.['Reviewer Latencia MS'] ?? 0,
+      retry_count: r.fields?.['Reviewer Retry Count'] ?? 0,
+      applyCostoUsd: r.fields?.['Apply Changes Cost USD'] ?? 0,
+      applyLatenciaMs: r.fields?.['Apply Changes Latency MS'] ?? 0,
     }))
 }
 
@@ -1110,15 +1114,16 @@ export async function getSnapshotPaso(
   entrevistaId: string,
   paso: number,
 ): Promise<SnapshotPaso | null> {
+  // Mismo patrón que getReviewerTurnos: reads usan nombres, no field IDs.
   const params = `sort[0][field]=${TURNOS_FIELD_INDICE}&sort[0][direction]=asc`
   const records = await fetchAll(TABLA_TURNOS_PE, params)
   const match = records.find(r => {
-    const rolName = r.fields?.[TURNOS_FIELD_ROL]?.name ?? r.fields?.['Rol']
-    const ent: string[] = r.fields?.[TURNOS_FIELD_ENTREVISTA] ?? r.fields?.['Entrevista'] ?? []
-    const snapshotPaso = r.fields?.[TURNOS_FIELD_SNAPSHOT_PASO] ?? r.fields?.['Snapshot Paso']
+    const rolName = r.fields?.['Rol']?.name ?? r.fields?.['Rol']
+    const ent: string[] = r.fields?.['Entrevista'] ?? []
+    const snapshotPaso = r.fields?.['Snapshot Paso']
     return rolName === 'snapshot' && ent.includes(entrevistaId) && snapshotPaso === paso
   })
   if (!match) return null
-  const raw = match.fields?.[TURNOS_FIELD_SNAPSHOT_RESUMEN] ?? match.fields?.['Snapshot Resumen JSON']
+  const raw = match.fields?.['Snapshot Resumen JSON']
   return safeParseJson(raw, null)
 }

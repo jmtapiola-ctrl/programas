@@ -39,12 +39,16 @@ Reglas:
 - Si el comentario es ambiguo, interpretá conservadoramente (cambio mínimo).
 - Mantené el shape de los items en arrays (metricas/fuera/desvios_secundarios/resistencias).
 
-OUTPUT (JSON estricto, sin markdown):
-{
-  "proposito": { "escena":"...", "metricas":[...], "fuera":[...], "horizonte":"...", "estabilidad":"..." },
-  "situacion": { "desvio_principal":"...", "desvio_cuantificado":"...", "desvios_secundarios":[...], "causa_raiz":"...", "consecuencia_6m":"...", "consecuencia_12m":"...", "recursos_actuales":"...", "recursos_faltantes":"...", "intentos_previos":"...", "resistencias":[...] },
-  "datos_faltantes": [...]
-}
+OUTPUT (JSON estricto, sin markdown — PATCH SEMANTICS):
+
+Devolvés un JSON con SOLO las top-level keys que querés actualizar. Las keys
+que NO emitas se mantienen tal cual están. Top-level keys posibles:
+\`proposito\`, \`situacion\`, \`datos_faltantes\`.
+
+Si emitís \`proposito\`, debe ser el OBJETO COMPLETO con las 5 props.
+Si emitís \`situacion\`, debe ser el OBJETO COMPLETO con las 10 props.
+Si emitís \`datos_faltantes\`, debe ser el ARRAY COMPLETO de strings.
+Si el comentario no requiere cambios, devolvé {}.
 
 Shape de items:
 - metricas[i] = {metrica, valor_objetivo, valor_actual}
@@ -119,16 +123,21 @@ Aplicá el comentario al resumen y devolvé el JSON actualizado completo.`
 
   try {
     const start = Date.now()
-    const resp = await anthropic.messages.create({
+    // Streaming required (mismo patrón que /apply — SDK rechaza non-streaming
+    // si max_tokens podría llevar runtime > 10 min).
+    const stream = anthropic.messages.stream({
       model: 'claude-opus-4-7',
-      max_tokens: 16000,
+      // 32k necesario: Opus reescribe el resumen completo + reasoning interno.
+      // 16k era insuficiente (descubierto en smoke real end-to-end del apply).
+      max_tokens: 32000,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMsg }],
     })
+    const finalMsg = await stream.finalMessage()
     const latency = Date.now() - start
-    const cost = (resp.usage.input_tokens * OPUS_INPUT_PER_M + resp.usage.output_tokens * OPUS_OUTPUT_PER_M) / 1_000_000
+    const cost = (finalMsg.usage.input_tokens * OPUS_INPUT_PER_M + finalMsg.usage.output_tokens * OPUS_OUTPUT_PER_M) / 1_000_000
 
-    const text = resp.content
+    const text = finalMsg.content
       .filter((c): c is Anthropic.TextBlock => c.type === 'text')
       .map(c => c.text)
       .join('\n')
@@ -143,21 +152,26 @@ Aplicá el comentario al resumen y devolvé el JSON actualizado completo.`
       }
     }
 
-    if (!parsed?.proposito || !parsed?.situacion || !Array.isArray(parsed?.datos_faltantes)) {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return NextResponse.json({
-        error: 'Opus devolvió output inválido para el comentario.',
+        error: 'Opus devolvió output no parseable como objeto JSON.',
         opus_response_preview: text.slice(0, 500),
         apply_metrics: { costo_usd: cost, latencia_ms: latency },
       }, { status: 500 })
     }
 
-    // Persistir resumen actualizado.
-    await updatePlanEstrategico(planId, {
-      proposito: parsed.proposito as PropositorPE,
-      situacion: parsed.situacion as SituacionPE,
-      datos_faltantes: parsed.datos_faltantes as string[],
-      ...(parsed.proposito?.horizonte ? { horizonte: parsed.proposito.horizonte } : {}),
-    })
+    // Persistir resumen actualizado con patch semantics: solo updateamos las
+    // top-level keys que Opus emitió.
+    const patchUpdates: Parameters<typeof updatePlanEstrategico>[1] = {}
+    if (parsed.proposito) {
+      patchUpdates.proposito = parsed.proposito as PropositorPE
+      if (parsed.proposito.horizonte) patchUpdates.horizonte = parsed.proposito.horizonte
+    }
+    if (parsed.situacion) patchUpdates.situacion = parsed.situacion as SituacionPE
+    if (Array.isArray(parsed.datos_faltantes)) patchUpdates.datos_faltantes = parsed.datos_faltantes as string[]
+    if (Object.keys(patchUpdates).length > 0) {
+      await updatePlanEstrategico(planId, patchUpdates)
+    }
 
     const proximaIteracion = iteracion + 1
     const nudgeProximo = proximaIteracion >= MAX_ITERACIONES

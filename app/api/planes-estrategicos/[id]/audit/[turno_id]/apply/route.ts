@@ -130,19 +130,26 @@ export async function POST(
       })
 
       const start = Date.now()
-      const resp = await anthropic.messages.create({
+      // Streaming required: SDK Anthropic rechaza non-streaming cuando
+      // max_tokens podría llevar a runtime > 10 min. Con 32k + Opus reasoning
+      // entra en ese rango. messages.stream() resuelve el cap.
+      const stream = anthropic.messages.stream({
         model: 'claude-opus-4-7',
-        max_tokens: 16000,
+        // 32k necesario: Opus reescribe el resumen completo del Bloque + reasoning
+        // interno consume tokens. 16k era insuficiente y truncaba el JSON output
+        // (descubierto en smoke real end-to-end).
+        max_tokens: 32000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
       })
+      const finalMsg = await stream.finalMessage()
       opusLatency = Date.now() - start
 
-      const inputTokens = resp.usage.input_tokens
-      const outputTokens = resp.usage.output_tokens
+      const inputTokens = finalMsg.usage.input_tokens
+      const outputTokens = finalMsg.usage.output_tokens
       opusCost = (inputTokens * OPUS_INPUT_PER_M + outputTokens * OPUS_OUTPUT_PER_M) / 1_000_000
 
-      const text = resp.content
+      const text = finalMsg.content
         .filter((c): c is Anthropic.TextBlock => c.type === 'text')
         .map(c => c.text)
         .join('\n')
@@ -159,33 +166,32 @@ export async function POST(
         }
       }
 
-      if (!parsed || typeof parsed !== 'object') {
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
         // Rollback: el output de Opus fue inválido, no actualizamos el plan.
         await updateSubEstadoPaso(entrevista.id, 'aplicando_cambios', 'auditoria_completa').catch(() => undefined)
         return NextResponse.json({
-          error: 'Opus devolvió output no parseable. No se aplicaron las respuestas a preguntas.',
+          error: 'Opus devolvió output no parseable como objeto JSON.',
           opus_response_preview: text.slice(0, 500),
           apply_metrics: { costo_usd: opusCost, latencia_ms: opusLatency },
         }, { status: 500 })
       }
 
-      // Validación shallow: debe tener proposito, situacion, datos_faltantes.
-      if (!parsed.proposito || !parsed.situacion || !Array.isArray(parsed.datos_faltantes)) {
-        await updateSubEstadoPaso(entrevista.id, 'aplicando_cambios', 'auditoria_completa').catch(() => undefined)
-        return NextResponse.json({
-          error: 'Output de Opus no cumple el shape esperado (proposito + situacion + datos_faltantes).',
-          apply_metrics: { costo_usd: opusCost, latencia_ms: opusLatency },
-        }, { status: 500 })
-      }
-
-      // Aplicar el output de Opus al plan.
+      // Patch semantics (post smoke real): Opus solo emite las top-level keys
+      // que cambian. Las que no emite se mantienen tal cual. Esto evita que
+      // Opus reescriba el plan entero y se quede sin tokens (falla observada
+      // con planes chicos donde el modelo igual emitía documento completo).
       planTrabajado = {
         ...planTrabajado,
-        proposito: parsed.proposito as PropositorPE,
-        situacion: parsed.situacion as SituacionPE,
-        datos_faltantes: parsed.datos_faltantes as string[],
+        ...(parsed.proposito ? { proposito: parsed.proposito as PropositorPE } : {}),
+        ...(parsed.situacion ? { situacion: parsed.situacion as SituacionPE } : {}),
+        ...(Array.isArray(parsed.datos_faltantes) ? { datos_faltantes: parsed.datos_faltantes as string[] } : {}),
       }
-      fieldsModificados.push(`(opus) ${split.questionsRespondidas.length} questions integrated`)
+      const opusKeys = Object.keys(parsed)
+      fieldsModificados.push(
+        opusKeys.length === 0
+          ? `(opus) ${split.questionsRespondidas.length} questions: sin cambios necesarios`
+          : `(opus) ${split.questionsRespondidas.length} questions integradas en: ${opusKeys.join(', ')}`,
+      )
     }
 
     // ── 3. Persistir plan actualizado ──

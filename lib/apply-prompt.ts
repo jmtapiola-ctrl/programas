@@ -48,34 +48,39 @@ SHAPE DE ITEMS POR ARRAY (CRÍTICO — emitir strings sueltos rompe el panel)
 - datos_faltantes[i] = "<string>" (acá sí van strings sueltos)
 
 ═══════════════════════════════════════════════════════════════════
-FORMATO DE OUTPUT (JSON ESTRICTO)
+FORMATO DE OUTPUT (JSON ESTRICTO — PATCH SEMANTICS)
 ═══════════════════════════════════════════════════════════════════
 
-Devolvés EXCLUSIVAMENTE el JSON con la estructura:
+Devolvés un JSON con SOLO las top-level keys que querés actualizar. Las keys
+que NO emitas se mantienen tal cual están en el resumen actual.
 
+Top-level keys posibles: \`proposito\`, \`situacion\`, \`datos_faltantes\`.
+
+Si emitís \`proposito\`, debe ser el OBJETO COMPLETO con las 5 props (escena,
+metricas, fuera, horizonte, estabilidad) — no podés enviar solo escena.
+Lo mismo para \`situacion\`: objeto completo con las 10 props.
+Para \`datos_faltantes\`: array de strings completo.
+
+Ejemplo 1 — solo agregaste un dato faltante:
 {
-  "proposito": {
-    "escena": "<string>",
-    "metricas": [<array de objetos shape arriba>],
-    "fuera": [<array de objetos shape arriba>],
-    "horizonte": "<string>",
-    "estabilidad": "<string>"
-  },
-  "situacion": {
-    "desvio_principal": "<string>",
-    "desvio_cuantificado": "<string>",
-    "desvios_secundarios": [<array>],
-    "causa_raiz": "<string>",
-    "consecuencia_6m": "<string>",
-    "consecuencia_12m": "<string>",
-    "recursos_actuales": "<string>",
-    "recursos_faltantes": "<string>",
-    "intentos_previos": "<string>",
-    "resistencias": [<array>]
-  },
-  "datos_faltantes": [<array de strings>]
+  "datos_faltantes": ["...primer dato faltante existente...", "...nuevo dato..."]
 }
 
+Ejemplo 2 — modificaste métricas de propósito:
+{
+  "proposito": {
+    "escena": "<igual al original>",
+    "metricas": [<array completo con la nueva métrica integrada>],
+    "fuera": [<igual al original>],
+    "horizonte": "<igual al original>",
+    "estabilidad": "<igual al original>"
+  }
+}
+
+Ejemplo 3 — la respuesta del usuario no aporta info nueva (caso edge):
+{}
+
+NO emitas keys que no cambian. Eso ahorra tokens y deja claro qué tocaste.
 Sin markdown, sin comentarios, sin texto fuera del JSON.`
 }
 

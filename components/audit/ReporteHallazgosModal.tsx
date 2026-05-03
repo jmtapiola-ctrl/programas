@@ -194,6 +194,11 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
               verIgnorados={verIgnoradosCB}
               onToggleIgnorados={() => setVerIgnoradosCB(v => !v)}
             >
+              <div className="bg-amber-900/30 border border-amber-700 rounded px-3 py-2 mb-3 text-[12px] text-amber-100">
+                <strong className="font-semibold">Detectamos {crossBlock.length} cambio{crossBlock.length === 1 ? '' : 's'} al Bloque anterior.</strong> Por ahora se registran pero
+                NO se aplican automáticamente al plan curado del Paso anterior. Va a haber que
+                resolver manualmente. Feature de aplicación automática en backlog.
+              </div>
               {cbSplit.visibles.map(c => (
                 <HallazgoCrossBlockCard
                   key={c.id}
