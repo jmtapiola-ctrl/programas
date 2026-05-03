@@ -27,6 +27,10 @@ interface Props {
   reviewerTurnoIdInicial?: string
   reportInicial?: ReviewerReport
   decisionesIniciales?: DecisionUsuario[]
+  // true cuando el reviewer turn se persistió con read_only (audit retroactivo
+  // / educativo). UI termina en Pantalla 3 con botón "Cerrar" en lugar de
+  // "Procesar todos los cambios y avanzar".
+  readOnlyInicial?: boolean
   autoCorregido?: boolean
 }
 
@@ -201,7 +205,9 @@ export function AuditFlowClient(props: Props) {
           report={reportActual}
           decisionesIniciales={props.decisionesIniciales}
           paso={props.paso}
+          readOnly={props.readOnlyInicial === true}
           onProcesarTodos={handleProcesarTodos}
+          onCerrarReadOnly={() => router.push(`/planes-estrategicos/${props.planId}/entrevista`)}
         />
       )}
     </>

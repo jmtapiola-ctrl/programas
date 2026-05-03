@@ -575,6 +575,10 @@ const TURNOS_FIELD_APPLY_LATENCIA = 'fldVOyd9R9lnPkmSs'
 const TURNOS_FIELD_SNAPSHOT_PASO = 'fldra6jRHH32yM0Th'
 const TURNOS_FIELD_SNAPSHOT_RESUMEN = 'fldk4WTpCtTPuirUr'
 
+// Field IDs de Turnos_PE para audit retroactivo / educativo (post-merge feature)
+const TURNOS_FIELD_REVIEWER_READ_ONLY = 'fldwD774cW4QnhAlO'
+const TURNOS_FIELD_REVIEWER_VIA_SCRIPT = 'fldFdFR4HLhWHaCCE'
+
 // Field IDs nuevos de entrevistas_pe (feat/audit-reviewer Fase 1)
 // Usados por nombre en updateEntrevistaPE — IDs documentados acá para referencia.
 // Sub Estado Paso          fldx8Kjxmivd1Kq99
@@ -958,6 +962,12 @@ export async function appendReviewerTurno(
     skipped?: boolean
     skipped_reason?: string
     failed?: boolean
+    // Audit retroactivo / educativo (no debe aplicarse al plan vivo).
+    // Cuando true, la UI termina en Pantalla 3 con botón "Cerrar".
+    read_only?: boolean
+    // true = audit corrida desde script de orquestación (no desde la UI).
+    // Útil para el dashboard de métricas + indicador de procedencia.
+    via_script?: boolean
   },
 ): Promise<{ id: string }> {
   const fields: Record<string, any> = {
@@ -977,6 +987,8 @@ export async function appendReviewerTurno(
     [TURNOS_FIELD_REVIEWER_RETRY_COUNT]: data.retry_count,
     [TURNOS_FIELD_REVIEWER_SKIPPED]: !!data.skipped,
     [TURNOS_FIELD_REVIEWER_FAILED]: !!data.failed,
+    [TURNOS_FIELD_REVIEWER_READ_ONLY]: !!data.read_only,
+    [TURNOS_FIELD_REVIEWER_VIA_SCRIPT]: !!data.via_script,
   }
   if (data.skipped_reason) fields[TURNOS_FIELD_REVIEWER_SKIPPED_REASON] = data.skipped_reason
 
@@ -1075,6 +1087,8 @@ export async function getReviewerTurnos(
   retry_count: number
   applyCostoUsd: number
   applyLatenciaMs: number
+  readOnly: boolean
+  viaScript: boolean
 }>> {
   // IMPORTANTE: Airtable devuelve r.fields con los NOMBRES como keys (no field
   // IDs) cuando NO se pasa returnFieldsByFieldId=true. Por convención del
@@ -1103,6 +1117,8 @@ export async function getReviewerTurnos(
       retry_count: r.fields?.['Reviewer Retry Count'] ?? 0,
       applyCostoUsd: r.fields?.['Apply Changes Cost USD'] ?? 0,
       applyLatenciaMs: r.fields?.['Apply Changes Latency MS'] ?? 0,
+      readOnly: r.fields?.['Reviewer Read Only'] === true,
+      viaScript: r.fields?.['Reviewer Ejecutado Via Script'] === true,
     }))
 }
 

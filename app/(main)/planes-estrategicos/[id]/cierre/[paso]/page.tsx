@@ -74,6 +74,7 @@ export default async function CierrePasoPage({
   let reviewerTurnoIdInicial: string | undefined
   let reportInicial: ReviewerReport | undefined
   let decisionesIniciales: DecisionUsuario[] | undefined
+  let readOnlyInicial = false
   let autoCorregido = false
 
   if (sub === 'auditoria_completa' || sub === 'esperando_aprobacion_final' || sub === 'aplicando_cambios') {
@@ -86,6 +87,7 @@ export default async function CierrePasoPage({
       reviewerTurnoIdInicial = ultimoExitoso.airtableId
       reportInicial = ultimoExitoso.report
       decisionesIniciales = ultimoExitoso.decisiones
+      readOnlyInicial = ultimoExitoso.readOnly
     }
   }
 
@@ -141,6 +143,7 @@ export default async function CierrePasoPage({
             reviewerTurnoIdInicial={reviewerTurnoIdInicial}
             reportInicial={reportInicial}
             decisionesIniciales={decisionesIniciales}
+            readOnlyInicial={readOnlyInicial}
             autoCorregido={autoCorregido}
           />
         </div>

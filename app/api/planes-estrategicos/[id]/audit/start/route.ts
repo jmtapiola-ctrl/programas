@@ -32,6 +32,7 @@ import {
   appendSnapshotTurno,
   getReviewerTurnos,
   getUsuario,
+  getUsuarioByEmail,
   updateEntrevistaPE,
 } from '@/lib/airtable'
 import { callReviewer } from '@/lib/openai-client'
@@ -163,8 +164,41 @@ export async function POST(
   const skip = body?.skip === true
   const skipReason: string = typeof body?.reason === 'string' ? body.reason : 'user_choice'
 
+  // ─── Overrides para audit retroactivo / educativo ────────────────────────
+  // Cuando el caller pasa overrides, el audit ignora los turnos del Paso y la
+  // serialización del plan, y usa el material provisto. Útil para auditar
+  // cierres históricos donde el plan actual ya divergió del material auditado.
+  const overrideRange: [number, number] | null =
+    Array.isArray(body?.override_conversacion_range) &&
+    body.override_conversacion_range.length === 2 &&
+    typeof body.override_conversacion_range[0] === 'number' &&
+    typeof body.override_conversacion_range[1] === 'number'
+      ? [body.override_conversacion_range[0], body.override_conversacion_range[1]]
+      : null
+  const overrideResumen: string | null = typeof body?.override_resumen_inline === 'string' && body.override_resumen_inline.trim().length > 0
+    ? body.override_resumen_inline
+    : null
+  const readOnly: boolean = body?.read_only === true
+  const viaScript: boolean = body?.via_script === true
+
   if (typeof paso !== 'number' || !Number.isInteger(paso) || paso < 1 || paso > 2) {
     return new Response('paso debe ser 1 o 2 (otros pasos no implementados todavía)', { status: 400 })
+  }
+
+  // ─── Guards de los overrides ────────────────────────────────────────────
+  // 1. read_only requiere al menos un override (sin overrides, no tiene sentido
+  //    marcar audit como read-only si está auditando el material vivo).
+  if (readOnly && !overrideRange && !overrideResumen) {
+    return new Response('read_only=true requiere al menos un override (override_conversacion_range o override_resumen_inline)', { status: 400 })
+  }
+  // 2. Si HAY overrides, guard de rol: solo Ejecutivo o Program Manager pueden
+  //    disparar audits con material custom (evita que cualquier usuario inserte
+  //    reportes con datos arbitrarios contra el plan).
+  if (overrideRange || overrideResumen) {
+    const user = session.user.email ? await getUsuarioByEmail(session.user.email).catch(() => null) : null
+    if (!user || (user.rol !== 'Ejecutivo' && user.rol !== 'Program Manager')) {
+      return new Response('Solo Ejecutivo o Program Manager pueden disparar audits con overrides', { status: 403 })
+    }
   }
 
   const encoder = new TextEncoder()
@@ -215,7 +249,12 @@ export async function POST(
         }
 
         // ── BRANCH: audit ──
-        await handleAudit(entrevista, plan, paso, send)
+        await handleAudit(entrevista, plan, paso, send, {
+          overrideRange,
+          overrideResumen,
+          readOnly,
+          viaScript,
+        })
         return close()
       } catch (err) {
         console.error('[audit/start] Error inesperado:', err)
@@ -300,6 +339,12 @@ async function handleAudit(
   plan: PlanEstrategico,
   paso: number,
   send: SendFn,
+  overrides: {
+    overrideRange: [number, number] | null
+    overrideResumen: string | null
+    readOnly: boolean
+    viaScript: boolean
+  } = { overrideRange: null, overrideResumen: null, readOnly: false, viaScript: false },
 ): Promise<void> {
   // ── Validar count < 3 ──
   const counterField = paso === 1 ? 'auditorias_paso_1_count' : 'auditorias_paso_2_count'
@@ -336,16 +381,27 @@ async function handleAudit(
       getTurnosPE(entrevista.id),
       getReviewerTurnos(entrevista.id, paso),
     ])
-    // Filtrar a turnos del paso = paso (conversación del Bloque que se audita).
-    // Solo user|model — el reviewer no audita los turnos reviewer/snapshot.
-    const turnosBloque = allTurnos.filter(
-      t => t.paso === paso && (t.rol === 'user' || t.rol === 'model'),
-    )
 
-    // Para Bloque 1 también incluir Paso 0 (Encuadre) según el diseño.
-    const turnosInput = paso === 1
-      ? allTurnos.filter(t => t.paso <= 1 && (t.rol === 'user' || t.rol === 'model'))
-      : turnosBloque
+    // Determinar el set de turnos a enviar al reviewer.
+    // Modo normal: turnos del paso (user|model). Modo override: rango hardcoded.
+    let turnosInput: typeof allTurnos
+    if (overrides.overrideRange) {
+      // override_conversacion_range: [from, to] inclusive, 1-indexed (los humanos
+      // numeran desde 1, no 0).
+      const [from, to] = overrides.overrideRange
+      const slice = allTurnos.slice(Math.max(0, from - 1), to)
+      turnosInput = slice.filter(t => t.rol === 'user' || t.rol === 'model')
+    } else {
+      // Filtrar a turnos del paso = paso (conversación del Bloque que se audita).
+      // Solo user|model — el reviewer no audita los turnos reviewer/snapshot.
+      const turnosBloque = allTurnos.filter(
+        t => t.paso === paso && (t.rol === 'user' || t.rol === 'model'),
+      )
+      // Para Bloque 1 también incluir Paso 0 (Encuadre) según el diseño.
+      turnosInput = paso === 1
+        ? allTurnos.filter(t => t.paso <= 1 && (t.rol === 'user' || t.rol === 'model'))
+        : turnosBloque
+    }
 
     if (turnosInput.length === 0) {
       // Rollback: el bloque no tiene material, no se puede auditar.
@@ -353,15 +409,20 @@ async function handleAudit(
       send({
         type: 'error',
         code: 'empty_block',
-        detail: `No hay turnos en el Paso ${paso} para auditar.`,
+        detail: `No hay turnos para auditar (después de aplicar filtros y overrides).`,
       })
       return
     }
 
-    const resumenMd = await serializeResumenPaso(plan, paso)
+    // Resumen: si hay override, usarlo directo (markdown). Sino, serializar
+    // el plan vivo. Cuando readOnly + override resumen, el reviewer NO ve el
+    // estado actual del plan — solo el material auditado.
+    const resumenMd = overrides.overrideResumen ?? await serializeResumenPaso(plan, paso)
 
     // ── Construir prompts ──
-    const systemPrompt = buildReviewerSystemPrompt(paso)
+    // Si readOnly: pasamos el flag `historicoEducativo` al system prompt para
+    // que el reviewer NO se contenga marcando hallazgos posiblemente resueltos.
+    const systemPrompt = buildReviewerSystemPrompt(paso, { historicoEducativo: overrides.readOnly })
     const userMessage = buildReviewerUserMessage({
       bloque: paso,
       turnos: turnosInput,
@@ -407,6 +468,8 @@ async function handleAudit(
         latencia_ms: result.metrics.latency_ms,
         retry_count: result.metrics.retries_used,
         failed: true,
+        read_only: overrides.readOnly,
+        via_script: overrides.viaScript,
       })
       send({
         type: 'error',
@@ -439,6 +502,8 @@ async function handleAudit(
         latencia_ms: result.metrics.latency_ms,
         retry_count: result.metrics.retries_used,
         failed: true,
+        read_only: overrides.readOnly,
+        via_script: overrides.viaScript,
       })
       send({
         type: 'error',
@@ -466,10 +531,16 @@ async function handleAudit(
       costo_usd: result.metrics.cost_usd,
       latencia_ms: result.metrics.latency_ms,
       retry_count: result.metrics.retries_used,
+      read_only: overrides.readOnly,
+      via_script: overrides.viaScript,
     })
 
     // Counter solo se incrementa tras éxito real — failures NO consumen slot.
-    await incrementAuditoriasPaso(entrevista.id, paso as 1 | 2, currentCount)
+    // Para audits read_only NO incrementamos el counter — son audits educativas
+    // que no compiten con los 3 slots de audit "real" que tiene el paso.
+    if (!overrides.readOnly) {
+      await incrementAuditoriasPaso(entrevista.id, paso as 1 | 2, currentCount)
+    }
 
     await updateSubEstadoPaso(entrevista.id, 'auditoria_en_proceso', 'auditoria_completa')
 

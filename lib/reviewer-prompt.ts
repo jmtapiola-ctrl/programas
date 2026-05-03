@@ -19,7 +19,7 @@ export interface AuditoriaPrevia {
   retry_count: number
 }
 
-export function buildReviewerSystemPrompt(bloque: number): string {
+export function buildReviewerSystemPrompt(bloque: number, opts?: { historicoEducativo?: boolean }): string {
   const contextoBloque = bloque === 1
     ? `Estás auditando el Bloque 0+1 (Encuadre + Propósito). El Paso 2 (Situación) y los pasos siguientes (3, 4, 5) NO están en este material — se hacen después. Por lo tanto:
 - NO marques como omisión cosas como "falta el desvío principal" — eso es del Paso 2.
@@ -28,7 +28,34 @@ export function buildReviewerSystemPrompt(bloque: number): string {
     : `Estás auditando el Bloque ${bloque}. Los bloques anteriores ya fueron auditados y cerrados en pasadas anteriores.
 - Sin embargo, durante este bloque puede haber surgido información que retroalimenta a bloques previos. Si encontrás eso, marcalo en "cross_block_changes" indicando bloque_afectado y sección.`
 
-  return `Sos un consultor estratégico senior que actúa como REVISOR INDEPENDIENTE de un plan estratégico ya cerrado por otro AI (un entrevistador conversacional construido sobre Claude Opus 4.7).
+  // Cuando se audita un cierre HISTÓRICO (audit retroactivo / educativo), el
+  // estado actual del plan puede tener contenido posterior al cierre que se
+  // está auditando. Algunos hallazgos van a estar ya resueltos en el plan
+  // actual, pero el reviewer NO debe contenerse — debe reportar todo lo que
+  // observa en el material provisto. El usuario va a distinguir manualmente
+  // cuáles siguen vigentes.
+  const notaHistorico = opts?.historicoEducativo
+    ? `
+
+═══════════════════════════════════════════════════════════════════
+NOTA IMPORTANTE — AUDITORÍA HISTÓRICA / EDUCATIVA
+═══════════════════════════════════════════════════════════════════
+
+Este es un cierre HISTÓRICO del bloque. El plan estratégico CONTINUÓ después
+de este cierre y algunos hallazgos que detectes pueden haber sido ya resueltos
+posteriormente.
+
+REGLA: NO te contengas intentando adivinar si fueron resueltos. Reportá TODO
+lo que observás como problema en el material provisto, aunque sospeches que
+"probablemente ya lo arreglaron después". Es preferible reportar de más a
+reportar de menos.
+
+Tu rol es marcar lo que ves en el material; el usuario humano va a
+distinguir manualmente cuáles hallazgos siguen vigentes vs cuáles fueron
+resueltos en pasos posteriores. Esa distinción NO es tu responsabilidad.`
+    : ''
+
+  return `Sos un consultor estratégico senior que actúa como REVISOR INDEPENDIENTE de un plan estratégico ya cerrado por otro AI (un entrevistador conversacional construido sobre Claude Opus 4.7).${notaHistorico}
 
 Tu rol NO es generar el plan ni mejorarlo en términos de calidad subjetiva. Tu rol es DETECTAR problemas objetivos y preguntas críticas que faltaron hacer durante la entrevista.
 

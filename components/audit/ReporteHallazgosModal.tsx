@@ -33,10 +33,15 @@ interface Props {
   report: ReviewerReport
   decisionesIniciales?: DecisionUsuario[]   // hidratación tras abandono
   paso: number
+  // Modo read-only: audit retroactivo / educativo. El footer cambia: en lugar
+  // de "Procesar todos los cambios y avanzar" se muestra "Cerrar — los hallazgos
+  // quedan registrados", que NO modifica el plan curado.
+  readOnly?: boolean
   onProcesarTodos: (decisiones: DecisionUsuario[]) => void  // dispara apply en Fase 4
+  onCerrarReadOnly?: () => void  // callback para el botón Cerrar en modo read-only
 }
 
-export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisionesIniciales, paso, onProcesarTodos }: Props) {
+export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisionesIniciales, paso, readOnly, onProcesarTodos, onCerrarReadOnly }: Props) {
   const dec = useAuditDecisiones({ planId, reviewerTurnoId, report, decisionesIniciales })
   const [verIgnoradosError, setVerIgnoradosError] = useState(false)
   const [verIgnoradosPregCrit, setVerIgnoradosPregCrit] = useState(false)
@@ -225,37 +230,54 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
           )}
         </div>
 
-        {/* Footer con botón de procesar */}
+        {/* Footer con botón de procesar (modo normal) o cerrar (modo read-only) */}
         <div className="px-6 py-4 border-t border-gray-800 flex-shrink-0 space-y-2">
-          {!habilitarFooter && dec.pendingCount > 0 && (
-            <p className="text-[11px] text-gray-500 text-center">
-              Quedan {dec.pendingCount} hallazgo{dec.pendingCount === 1 ? '' : 's'} sin procesar.
-            </p>
+          {readOnly ? (
+            <>
+              <p className="text-[11px] text-gray-400 text-center leading-relaxed">
+                Auditoría educativa / retroactiva — los hallazgos quedan registrados pero <strong>no se aplican al plan vivo</strong>.
+                Los hallazgos válidos podés aplicarlos manualmente al plan actual desde el wizard.
+              </p>
+              <button
+                onClick={() => onCerrarReadOnly?.()}
+                className="w-full py-3 px-4 rounded font-semibold transition-colors text-sm bg-gray-700 hover:bg-gray-600 text-white"
+              >
+                Cerrar — los hallazgos quedan registrados
+              </button>
+            </>
+          ) : (
+            <>
+              {!habilitarFooter && dec.pendingCount > 0 && (
+                <p className="text-[11px] text-gray-500 text-center">
+                  Quedan {dec.pendingCount} hallazgo{dec.pendingCount === 1 ? '' : 's'} sin procesar.
+                </p>
+              )}
+              <button
+                onClick={() => {
+                  const arr: DecisionUsuario[] = Object.values(dec.decisiones)
+                    .filter(d => d.estado !== 'pending')
+                    .map(d => ({
+                      hallazgo_id: d.hallazgo_id,
+                      tipo: d.tipo,
+                      decision: d.estado as DecisionUsuario['decision'],
+                      texto_editado: d.texto_editado,
+                      respuesta_usuario: d.respuesta_usuario,
+                    }))
+                  onProcesarTodos(arr)
+                }}
+                disabled={!habilitarFooter}
+                className={`w-full py-3 px-4 rounded font-semibold transition-colors text-sm ${
+                  habilitarFooter
+                    ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                    : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                {dec.totalCount === 0
+                  ? 'Avanzar al paso siguiente'
+                  : 'Procesar todos los cambios y avanzar'}
+              </button>
+            </>
           )}
-          <button
-            onClick={() => {
-              const arr: DecisionUsuario[] = Object.values(dec.decisiones)
-                .filter(d => d.estado !== 'pending')
-                .map(d => ({
-                  hallazgo_id: d.hallazgo_id,
-                  tipo: d.tipo,
-                  decision: d.estado as DecisionUsuario['decision'],
-                  texto_editado: d.texto_editado,
-                  respuesta_usuario: d.respuesta_usuario,
-                }))
-              onProcesarTodos(arr)
-            }}
-            disabled={!habilitarFooter}
-            className={`w-full py-3 px-4 rounded font-semibold transition-colors text-sm ${
-              habilitarFooter
-                ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                : 'bg-gray-800 text-gray-500 cursor-not-allowed'
-            }`}
-          >
-            {dec.totalCount === 0
-              ? 'Avanzar al paso siguiente'
-              : 'Procesar todos los cambios y avanzar'}
-          </button>
         </div>
       </div>
     </div>,
