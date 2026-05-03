@@ -19,7 +19,8 @@
 
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { ReviewerReport, ReviewerError, ReviewerQuestion, ReviewerCrossBlock, DecisionUsuario } from '@/lib/types'
 import { useAuditDecisiones } from './hooks/useAuditDecisiones'
 import { HallazgoErrorCard } from './HallazgoErrorCard'
@@ -41,6 +42,10 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
   const [verIgnoradosPregCrit, setVerIgnoradosPregCrit] = useState(false)
   const [verIgnoradosPregReco, setVerIgnoradosPregReco] = useState(false)
   const [verIgnoradosCB, setVerIgnoradosCB] = useState(false)
+
+  // Mounted check para createPortal en SSR.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
 
   const errors = report.errors
   const preguntasCriticas = report.questions.filter(q => q.categoria === 'CRITICA')
@@ -68,8 +73,14 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
   const recoSplit = useMemo(() => split(preguntasRecomendadas), [preguntasRecomendadas, dec.decisiones])
   const cbSplit = useMemo(() => split(crossBlock), [crossBlock, dec.decisiones])
 
-  return (
-    <div className="font-sans fixed inset-0 z-50 flex items-center justify-center p-4">
+  if (!mounted) return null
+
+  // Render con createPortal en document.body — escapa del DOM tree del page
+  // (pe-vista-root) cuyo CSS cascadea colores negros (color: #1a1a1a) con
+  // especificidad mayor que las utility classes de Tailwind. Sin esto, todos
+  // los textos del modal heredan #1a1a1a del scope de la Vista de prestigio.
+  return createPortal(
+    <div className="font-sans text-white fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
       <div className="relative bg-gray-900 border border-gray-600 rounded-lg shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col ring-1 ring-white/5">
         {/* Header con contador + barra de progreso */}
@@ -222,7 +233,7 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
             className={`w-full py-3 px-4 rounded font-semibold transition-colors text-sm ${
               habilitarFooter
                 ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                : 'bg-gray-800 text-gray-600 cursor-not-allowed'
+                : 'bg-gray-800 text-gray-500 cursor-not-allowed'
             }`}
           >
             {dec.totalCount === 0
@@ -231,7 +242,8 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

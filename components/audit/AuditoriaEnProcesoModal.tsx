@@ -9,6 +9,8 @@
 
 'use client'
 
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { AuditSSEHook } from './hooks/useAuditSSE'
 
 interface Props {
@@ -28,14 +30,23 @@ function formatElapsed(s: number): string {
 export function AuditoriaEnProcesoModal({ audit, paso, onSuccess, onSkipEmergency, onRetry }: Props) {
   const { status, elapsedSeconds, error, metrics } = audit
 
+  // Mounted check necesario para createPortal en SSR (document no existe server-side).
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+
   // Auto-transición a Pantalla 3 cuando la audit completa.
   if (status === 'success') {
     onSuccess()
     return null
   }
 
-  return (
-    <div className="font-sans fixed inset-0 z-50 flex items-center justify-center p-4">
+  if (!mounted) return null
+
+  // Render con createPortal en document.body — escapa del DOM tree del page
+  // (pe-vista-root) cuyo CSS cascadea colores negros (color: #1a1a1a) con
+  // especificidad mayor que las utility classes de Tailwind.
+  return createPortal(
+    <div className="font-sans text-white fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Overlay sin onClick — explícito según pedido del user (Fase 3). */}
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
       <div className="relative bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-full max-w-md p-8 ring-1 ring-white/5">
@@ -54,7 +65,8 @@ export function AuditoriaEnProcesoModal({ audit, paso, onSuccess, onSkipEmergenc
           />
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
