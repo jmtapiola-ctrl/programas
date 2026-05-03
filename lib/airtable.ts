@@ -887,7 +887,7 @@ export const SUB_ESTADO_TRANSICIONES_VALIDAS: Record<SubEstadoPaso, SubEstadoPas
   en_curso: ['cierre_sugerido'],
   cierre_sugerido: ['esperando_auditoria', 'en_curso'],          // user puede volver a entrevistar
   esperando_auditoria: ['auditoria_en_proceso', 'completo'],     // o skip directo
-  auditoria_en_proceso: ['auditoria_completa', 'esperando_auditoria'], // si falla retry
+  auditoria_en_proceso: ['auditoria_completa', 'esperando_auditoria', 'esperando_aprobacion_final'], // rollback al estado origen (re-audit puede venir de aprobacion_final)
   auditoria_completa: ['aplicando_cambios', 'esperando_auditoria'],    // re-audit
   aplicando_cambios: ['esperando_aprobacion_final'],
   esperando_aprobacion_final: ['completo', 'aplicando_cambios', 'auditoria_en_proceso'], // re-audit o re-apply
@@ -1065,7 +1065,17 @@ export async function appendSnapshotTurno(
 export async function getReviewerTurnos(
   entrevistaId: string,
   paso: number,
-): Promise<Array<{ airtableId: string; report: ReviewerReport; decisiones?: DecisionUsuario[]; costo_usd: number; latencia_ms: number; retry_count: number }>> {
+): Promise<Array<{
+  airtableId: string
+  report: ReviewerReport
+  decisiones?: DecisionUsuario[]
+  snapshotPreApply?: { proposito?: PropositorPE; situacion?: SituacionPE; datos_faltantes: string[] }
+  costo_usd: number
+  latencia_ms: number
+  retry_count: number
+  applyCostoUsd: number
+  applyLatenciaMs: number
+}>> {
   const params = `sort[0][field]=${TURNOS_FIELD_INDICE}&sort[0][direction]=asc`
   const records = await fetchAll(TABLA_TURNOS_PE, params)
   return records
@@ -1081,9 +1091,14 @@ export async function getReviewerTurnos(
       decisiones: r.fields?.[TURNOS_FIELD_REVIEWER_DECISIONES]
         ? safeParseJson(r.fields[TURNOS_FIELD_REVIEWER_DECISIONES], [])
         : undefined,
+      snapshotPreApply: r.fields?.[TURNOS_FIELD_REVIEWER_SNAPSHOT_PRE_APPLY]
+        ? safeParseJson(r.fields[TURNOS_FIELD_REVIEWER_SNAPSHOT_PRE_APPLY], null) ?? undefined
+        : undefined,
       costo_usd: r.fields?.[TURNOS_FIELD_REVIEWER_COSTO] ?? 0,
       latencia_ms: r.fields?.[TURNOS_FIELD_REVIEWER_LATENCIA] ?? 0,
       retry_count: r.fields?.[TURNOS_FIELD_REVIEWER_RETRY_COUNT] ?? 0,
+      applyCostoUsd: r.fields?.[TURNOS_FIELD_APPLY_COSTO] ?? 0,
+      applyLatenciaMs: r.fields?.[TURNOS_FIELD_APPLY_LATENCIA] ?? 0,
     }))
 }
 

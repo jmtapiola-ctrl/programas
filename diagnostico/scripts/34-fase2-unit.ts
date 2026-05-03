@@ -228,9 +228,11 @@ console.log('\n── Suite 2: Máquina de estados ──')
   assertOk('2.3 esperando_auditoria → completo OK (skip)', isValidTransition('esperando_auditoria', 'completo'))
 }
 
-// 2.4 — Rollback de fallas: auditoria_en_proceso → esperando_auditoria OK.
+// 2.4 — Rollback de fallas: auditoria_en_proceso puede volver a esperando_auditoria
+//       (audit inicial) o a esperando_aprobacion_final (re-audit desde Pantalla 4 de Fase 4).
 {
-  assertOk('2.4 auditoria_en_proceso → esperando_auditoria OK (rollback)', isValidTransition('auditoria_en_proceso', 'esperando_auditoria'))
+  assertOk('2.4.a auditoria_en_proceso → esperando_auditoria OK (rollback audit inicial)', isValidTransition('auditoria_en_proceso', 'esperando_auditoria'))
+  assertOk('2.4.b auditoria_en_proceso → esperando_aprobacion_final OK (rollback re-audit desde P4)', isValidTransition('auditoria_en_proceso', 'esperando_aprobacion_final'))
 }
 
 // 2.5 — Re-audit: auditoria_completa → esperando_auditoria OK.

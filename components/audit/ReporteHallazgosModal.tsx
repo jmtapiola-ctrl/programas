@@ -33,7 +33,7 @@ interface Props {
   report: ReviewerReport
   decisionesIniciales?: DecisionUsuario[]   // hidratación tras abandono
   paso: number
-  onProcesarTodos: () => void               // → Fase 4 apply, en esta fase solo signal
+  onProcesarTodos: (decisiones: DecisionUsuario[]) => void  // dispara apply en Fase 4
 }
 
 export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisionesIniciales, paso, onProcesarTodos }: Props) {
@@ -228,7 +228,18 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
             </p>
           )}
           <button
-            onClick={onProcesarTodos}
+            onClick={() => {
+              const arr: DecisionUsuario[] = Object.values(dec.decisiones)
+                .filter(d => d.estado !== 'pending')
+                .map(d => ({
+                  hallazgo_id: d.hallazgo_id,
+                  tipo: d.tipo,
+                  decision: d.estado as DecisionUsuario['decision'],
+                  texto_editado: d.texto_editado,
+                  respuesta_usuario: d.respuesta_usuario,
+                }))
+              onProcesarTodos(arr)
+            }}
             disabled={!habilitarFooter}
             className={`w-full py-3 px-4 rounded font-semibold transition-colors text-sm ${
               habilitarFooter

@@ -10,8 +10,8 @@
 
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import type { ReviewerReport, DecisionUsuario, SubEstadoPaso } from '@/lib/types'
 import { useAuditSSE } from './hooks/useAuditSSE'
 import { AuditoriaEnProcesoModal } from './AuditoriaEnProcesoModal'
@@ -32,6 +32,7 @@ interface Props {
 
 export function AuditFlowClient(props: Props) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const audit = useAuditSSE(props.planId)
 
   // Flow inicial: si ya hay report (recovery), arranco en 'reporte'. Sino 'idle'.
@@ -41,7 +42,22 @@ export function AuditFlowClient(props: Props) {
   const [reportActual, setReportActual] = useState<ReviewerReport | null>(props.reportInicial ?? null)
   const [reviewerTurnoIdActual, setReviewerTurnoIdActual] = useState<string | null>(props.reviewerTurnoIdInicial ?? null)
   const [skipping, setSkipping] = useState(false)
+  const [aplicando, setAplicando] = useState(false)
+  const [aplicandoError, setAplicandoError] = useState<string | null>(null)
   const [autoCorregidoAviso, setAutoCorregidoAviso] = useState(props.autoCorregido === true)
+
+  // Si llegamos con ?reaudit=true desde Pantalla 4, disparar audit/start automáticamente.
+  // Esto soporta el botón "Re-auditar" de PantallaFinalClient: navega acá y nosotros
+  // arrancamos solo. La transición de estado (esperando_aprobacion_final →
+  // auditoria_en_proceso) la maneja /audit/start internamente.
+  useEffect(() => {
+    if (searchParams.get('reaudit') === 'true' && flow === 'idle' && !audit.status.startsWith('error')) {
+      // Ejecuta una vez al montar.
+      setFlow('auditando')
+      void audit.start({ paso: props.paso, skip: false })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Logging del auto-corregido al montar (recordatorio de Fase 3 del user).
   if (typeof window !== 'undefined' && props.autoCorregido) {
@@ -84,13 +100,35 @@ export function AuditFlowClient(props: Props) {
     }
   }
 
-  function handleProcesarTodos() {
-    // En Fase 3 esto es solo un signal — Fase 4 implementa el endpoint /apply
-    // que va a procesar los cambios y avanzar a Pantalla 4.
+  async function handleProcesarTodos(decisiones: import('@/lib/types').DecisionUsuario[]) {
+    if (aplicando || !reviewerTurnoIdActual) return
+    setAplicando(true)
+    setAplicandoError(null)
     setFlow('procesando')
-    // Por ahora navego de vuelta a la conversación con un alert.
-    alert('Fase 4 todavía no implementada. Las decisiones quedaron persistidas.\nPróximo paso: Pantalla 4 con resumen actualizado + diff.')
-    router.push(`/planes-estrategicos/${props.planId}/entrevista`)
+
+    try {
+      const res = await fetch(
+        `/api/planes-estrategicos/${props.planId}/audit/${reviewerTurnoIdActual}/apply`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ decisiones }),
+        },
+      )
+      const data = await res.json()
+      if (!res.ok) {
+        setAplicandoError(data?.error ?? `HTTP ${res.status}`)
+        setFlow('reporte')  // volver a Pantalla 3 para reintentar
+        setAplicando(false)
+        return
+      }
+      // Éxito: navegar a Pantalla 4.
+      router.push(data.redirect ?? `/planes-estrategicos/${props.planId}/cierre/${props.paso}/final`)
+    } catch (e) {
+      setAplicandoError(e instanceof Error ? e.message : String(e))
+      setFlow('reporte')
+      setAplicando(false)
+    }
   }
 
   // ── Render ──
@@ -104,6 +142,14 @@ export function AuditFlowClient(props: Props) {
         <div className="bg-yellow-900/30 border border-yellow-800/40 rounded px-4 py-2 mb-4 text-[12px] text-yellow-200 flex items-center justify-between gap-3">
           <span>Auditoría completada (recuperada de error temporal del sistema).</span>
           <button onClick={() => setAutoCorregidoAviso(false)} className="text-yellow-400 hover:text-yellow-200">×</button>
+        </div>
+      )}
+
+      {/* Banner de error del apply (Fase 4) — visible si /apply falló y volvimos a Pantalla 3. */}
+      {aplicandoError && (
+        <div className="bg-red-900/30 border border-red-700 rounded px-4 py-2 mb-4 text-[12px] text-red-100 flex items-center justify-between gap-3">
+          <span>Error al aplicar las decisiones: {aplicandoError}</span>
+          <button onClick={() => setAplicandoError(null)} className="text-red-300 hover:text-red-100">×</button>
         </div>
       )}
 

@@ -188,15 +188,24 @@ export async function POST(
           return close()
         }
 
-        // ── Validar estado: debe ser 'esperando_auditoria' ──
+        // ── Validar estado: debe ser 'esperando_auditoria' (audit inicial) o
+        //    'esperando_aprobacion_final' (re-audit desde Pantalla 4 — Fase 4) ──
         const subEstadoActual: SubEstadoPaso = entrevista.sub_estado_paso ?? 'en_curso'
-        if (subEstadoActual !== 'esperando_auditoria') {
+        const estadosAceptados: SubEstadoPaso[] = ['esperando_auditoria', 'esperando_aprobacion_final']
+        if (!estadosAceptados.includes(subEstadoActual)) {
           send({
             type: 'error',
             code: 'invalid_state',
-            detail: `sub_estado_paso debe ser 'esperando_auditoria', es '${subEstadoActual}'`,
+            detail: `sub_estado_paso debe ser 'esperando_auditoria' o 'esperando_aprobacion_final', es '${subEstadoActual}'`,
           })
           return close()
+        }
+        // Si es re-audit desde Pantalla 4, primero transicionamos al estado intermedio
+        // que el resto del flow espera (auditoria_en_proceso recibe desde dos lados:
+        // esperando_auditoria y esperando_aprobacion_final, según la máquina de estados).
+        if (subEstadoActual === 'esperando_aprobacion_final') {
+          // No hace falta pasar por 'esperando_auditoria' explícito — la máquina de
+          // estados permite la transición directa esperando_aprobacion_final → auditoria_en_proceso.
         }
 
         // ── BRANCH: skip ──
@@ -310,8 +319,14 @@ async function handleAudit(
   // timeout) NO deben consumir el slot del usuario, que tiene 3 audits por Paso.
   // La protección anti-doble-disparo viene del estado: si una segunda llamada
   // llega mientras esta está corriendo, el guard de updateSubEstadoPaso rechaza
-  // la transición desde 'esperando_auditoria' (el estado ya es 'auditoria_en_proceso').
-  await updateSubEstadoPaso(entrevista.id, 'esperando_auditoria', 'auditoria_en_proceso')
+  // la transición desde el estado original.
+  //
+  // Estado origen puede ser:
+  //   - 'esperando_auditoria' (audit inicial desde Pantalla 1).
+  //   - 'esperando_aprobacion_final' (re-audit desde Pantalla 4).
+  // Ambos pueden transicionar a 'auditoria_en_proceso' según la máquina de estados.
+  const estadoOrigen = (entrevista.sub_estado_paso ?? 'esperando_auditoria') as 'esperando_auditoria' | 'esperando_aprobacion_final'
+  await updateSubEstadoPaso(entrevista.id, estadoOrigen, 'auditoria_en_proceso')
 
   send({ type: 'progress', etapa: 'cargando_inputs', elapsed_ms: 0 })
 
@@ -334,7 +349,7 @@ async function handleAudit(
 
     if (turnosInput.length === 0) {
       // Rollback: el bloque no tiene material, no se puede auditar.
-      await updateSubEstadoPaso(entrevista.id, 'auditoria_en_proceso', 'esperando_auditoria')
+      await updateSubEstadoPaso(entrevista.id, 'auditoria_en_proceso', estadoOrigen)
       send({
         type: 'error',
         code: 'empty_block',
@@ -375,7 +390,7 @@ async function handleAudit(
 
     if (!result.ok) {
       // Rollback de estado para que el user pueda reintentar.
-      await updateSubEstadoPaso(entrevista.id, 'auditoria_en_proceso', 'esperando_auditoria')
+      await updateSubEstadoPaso(entrevista.id, 'auditoria_en_proceso', estadoOrigen)
       // Persistimos un turno reviewer con Failed=true para tracking.
       await appendReviewerTurno(entrevista.id, allTurnos.length, {
         paso,
@@ -408,7 +423,7 @@ async function handleAudit(
     // ── Validar shape contra reglas de aplicación ──
     const validation = validateReviewerReport(result.data, paso)
     if (!validation.ok) {
-      await updateSubEstadoPaso(entrevista.id, 'auditoria_en_proceso', 'esperando_auditoria')
+      await updateSubEstadoPaso(entrevista.id, 'auditoria_en_proceso', estadoOrigen)
       await appendReviewerTurno(entrevista.id, allTurnos.length, {
         paso,
         bloqueAuditado: paso,
@@ -480,7 +495,7 @@ async function handleAudit(
   } catch (err) {
     // Cualquier error inesperado dentro del audit flow: rollback estado y reportar.
     console.error('[audit/start] Error inesperado dentro de handleAudit:', err)
-    await updateSubEstadoPaso(entrevista.id, 'auditoria_en_proceso', 'esperando_auditoria').catch(() => undefined)
+    await updateSubEstadoPaso(entrevista.id, 'auditoria_en_proceso', estadoOrigen).catch(() => undefined)
     send({
       type: 'error',
       code: 'unexpected',
