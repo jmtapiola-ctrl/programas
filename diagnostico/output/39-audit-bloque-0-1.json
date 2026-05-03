@@ -1,0 +1,152 @@
+{
+  "ran_at": "2026-05-03T02:28:34.926Z",
+  "plan_id": "recFMWxoE5gTQQrf7",
+  "entrevista_id": "recDkuVIOeqsMMhJj",
+  "reviewer_turno_id": "recTvbcxdrFwZjkd9",
+  "bloque": "0-1",
+  "corte": {
+    "turnos_desde": 1,
+    "turnos_hasta": 44
+  },
+  "fuente_resumen": "piloto manual Augusto (script 28)",
+  "metrics": {
+    "latency_ms": 202082,
+    "cost_usd": 0.416705,
+    "input_tokens": 20136,
+    "output_tokens": 12641,
+    "reasoning_tokens": 9840
+  },
+  "report": {
+    "errors": [
+      {
+        "id": "E-01",
+        "tipo": 2,
+        "severidad": "Alta",
+        "que_dice_resumen": "“Excepción condicional: ante reactivación masiva del crédito hipotecario tradicional, se podría penetrar marginalmente al sector inferior de la clase media-alta — clase media-alta-baja” y luego “sector inferior de clase media-alta”.",
+        "que_se_dijo_en_conversacion": "“Observación: me confundi, quise ponerte ‘clase media-baja’.”",
+        "turno_referencia": 37,
+        "cambio_propuesto": "Reemplazar la excepción de “clase media-alta / clase media-alta-baja” por la corrección del usuario: “clase media-baja”. Además, dejar explícita la tensión con el fuera de scope original que excluía media-baja, para resolver si es una excepción condicional ante reactivación del crédito."
+      },
+      {
+        "id": "E-02",
+        "tipo": 3,
+        "severidad": "Media",
+        "que_dice_resumen": "“operación en CABA Oeste y GBA 3 de Febrero” y “Valor actual: Operando en CABA Oeste + GBA 3 de Febrero”.",
+        "que_se_dijo_en_conversacion": "“CABA y GBA el desarrollo.” No aparece una declaración del usuario que especifique “GBA 3 de Febrero” como operación actual.",
+        "turno_referencia": 5,
+        "cambio_propuesto": "Cambiar por: “operación declarada en CABA y GBA”. Si se quiere usar “CABA Oeste” o “GBA 3 de Febrero”, marcarlos como datos a confirmar, salvo que existan fuera del material provisto."
+      },
+      {
+        "id": "E-03",
+        "tipo": 3,
+        "severidad": "Media",
+        "que_dice_resumen": "“Plan Sr con horizonte de 12 meses (desde mayo 2026 hasta fin de 2026 efectivamente, dado el contexto temporal).”",
+        "que_se_dijo_en_conversacion": "“Horizonte temporal: ya lo tenemos definido — fin de 2026. Confirmo.” No se declaró una fecha de inicio en mayo ni una duración exacta de 12 meses.",
+        "turno_referencia": 34,
+        "cambio_propuesto": "Dejar simplemente: “Horizonte: fin de 2026”. Eliminar “12 meses” y “desde mayo 2026” salvo que sean confirmados explícitamente."
+      },
+      {
+        "id": "E-04",
+        "tipo": 1,
+        "severidad": "Alta",
+        "que_dice_resumen": "Solo aparece como proxy de confianza: “Google Reviews con 2.600 comentarios y 4,7 estrellas”, pero no queda registrada la precondición/riesgo crítico de sostener calidad y avance de obras para proteger la reputación.",
+        "que_se_dijo_en_conversacion": "“Si descuidamos el primer punto, descuidando nuestra División de Producción, y surgiera algún problema grave (...) nuestra reputación se vería seriamente dañada y todos los cimientos sobres los que íbamos a construir nuestro plan desaparecerían.” Luego agregó que también aplica si “los avances de obra no sean los esperados”.",
+        "turno_referencia": 39,
+        "cambio_propuesto": "Agregar una nota de precondición/riesgo crítico a trasladar a Situación: sostener la reputación exige proteger la División de Producción, evitar incidentes graves de construcción y cumplir avances/inicios/finalizaciones de obra esperados; la confianza actual no depende solo de awareness sino de calidad y cumplimiento operativo."
+      }
+    ],
+    "questions": [
+      {
+        "id": "Q-C01",
+        "categoria": "CRITICA",
+        "pregunta": "¿Qué cuenta exactamente como “dueño” o “dueño hecho” en las métricas: reserva, boleto firmado, anticipo integrado, adjudicación desde PAI, escritura, entrega, unidad vendida o cliente/familia?",
+        "por_que_importa": "La meta central del plan usa “1.000+ dueños/mes”, “~6.000 en 2026” y conversiones futuras de PAI. Sin una definición operativa única, las áreas pueden optimizar métricas distintas o inflar resultados no comparables.",
+        "relacion_con_plan": "Métrica de volumen/capacidad instalada, productividad, PAI y banco de tierras.",
+        "placeholder_ejemplo_respuesta": "“Dueño 2026 = contrato firmado con anticipo acreditado y unidad asignada. PAI no cuenta como dueño hasta que aplica a un departamento; se mide aparte como venta PAI.”"
+      },
+      {
+        "id": "Q-C02",
+        "categoria": "CRITICA",
+        "pregunta": "¿Cuál es el baseline actual separado de empleados fijos y asesores comisionados, y cuál es la productividad actual de cada grupo para poder medir el 2x en fijos y +25% en asesores?",
+        "por_que_importa": "La métrica de productividad quedó definida en términos relativos, pero no se estableció la base de comparación. Sin baseline, no se puede saber si la organización realmente mejoró productividad o solo creció en headcount.",
+        "relacion_con_plan": "Métrica de organización y productividad: 1.000+ personas, fijos 2x, asesores +25%.",
+        "placeholder_ejemplo_respuesta": "“Hoy tenemos 180 fijos y 70 asesores. Producimos 100 dueños/mes: 0,56 dueños/fijo/mes y 1,43 dueños/asesor/mes. El objetivo 2026 será 1,12 y 1,79 respectivamente.”"
+      },
+      {
+        "id": "Q-C03",
+        "categoria": "CRITICA",
+        "pregunta": "¿Cómo se traduce el banco de tierras objetivo en cantidad de macrozonas, terrenos, m² vendibles, unidades potenciales, calendario trimestral de adquisición y capital máximo comprometible sin romper el buffer financiero del 20%?",
+        "por_que_importa": "“Tierras suficientes para 12-15k dueños en 2027 y 20k+ en 2028” es una dirección, pero todavía no es una especificación ejecutable. Si se compra de menos, no hay output futuro; si se compra de más o mal financiado, se compromete la solvencia.",
+        "relacion_con_plan": "Métrica de banco de tierras, expansión geográfica y solidez financiera.",
+        "placeholder_ejemplo_respuesta": "“Necesitamos 8 macrozonas activas, 12 tierras escala condominio y 3 escala pueblo, equivalentes a X m² vendibles. Máximo capital propio comprometido: Y, con opciones a 6 meses y sin que el peor mes baje de 20% de buffer.”"
+      },
+      {
+        "id": "Q-C04",
+        "categoria": "CRITICA",
+        "pregunta": "Además de llegar a 200 ventas/mes en la sucursal piloto, ¿qué criterios definen que PAI está “graduado” y puede escalarse: churn, cobranza, CAC, reclamos, conversión esperada, cumplimiento legal/regulatorio y cashflow neto?",
+        "por_que_importa": "PAI fue incorporado como motor estratégico, pero solo se definió volumen de ventas y churn actual. Escalar un producto financiero/comercial masivo sin criterios de calidad puede generar caja aparente, reclamos, riesgo reputacional o descalce futuro.",
+        "relacion_con_plan": "Métrica PAI graduado y escalado; confianza; banco de tierras; solidez financiera.",
+        "placeholder_ejemplo_respuesta": "“PAI gradúa si durante 3 meses logra 200 ventas/mes, churn mensual menor a X%, cobranza mayor a Y%, CAC menor a Z, cero incumplimientos regulatorios y reclamos bajo N por cada 100 clientes.”"
+      },
+      {
+        "id": "Q-C05",
+        "categoria": "CRITICA",
+        "pregunta": "¿Qué métricas de guarda reputacional y de producción deben mantenerse mientras se escala: rating mínimo, reviews, incidentes cero, % de obras iniciadas, avanzadas y terminadas según cronograma?",
+        "por_que_importa": "El usuario declaró que un problema grave de construcción o retrasos sistemáticos podrían destruir la reputación sobre la que se apoya todo el plan. La confianza no se protege solo con PR; necesita umbrales operativos explícitos.",
+        "relacion_con_plan": "Confianza como activo central, estabilidad del propósito y precondición de viabilidad del crecimiento 10x.",
+        "placeholder_ejemplo_respuesta": "“Mantener Google rating ≥4,7, reviews creciendo al menos X/mes, cero incidentes graves, 95% de obras con hitos mensuales cumplidos y 100% de desvíos críticos reportados al CEO.”"
+      },
+      {
+        "id": "Q-R01",
+        "categoria": "RECOMENDADA",
+        "pregunta": "¿Con qué metodología, proveedor, frecuencia, universo target y set de competidores se va a medir el 90%+ de awareness y el ranking #1 en confianza?",
+        "por_que_importa": "La métrica de confianza es central, pero la forma de medición puede cambiar completamente el resultado. Definirla evita discusiones posteriores sobre si la meta se cumplió o no.",
+        "relacion_con_plan": "Métrica de confianza: awareness asistido y ranking #1 vs. inmobiliarias, desarrolladores y constructoras.",
+        "placeholder_ejemplo_respuesta": "“Medición trimestral con consultora externa, muestra CABA/GBA clase media interesada en vivienda, awareness asistido de marcas del Grupo y ranking de confianza contra 10 competidores predefinidos.”"
+      },
+      {
+        "id": "Q-R02",
+        "categoria": "RECOMENDADA",
+        "pregunta": "¿Qué significa operativamente “clase media” para este plan: rango de ingresos, cuota máxima, anticipo, ticket, ubicación, tipo de producto y criterios de exclusión?",
+        "por_que_importa": "El foco excluye media-baja, baja, media-alta y alta, pero no define el borde operativo. Sin esa definición, un terreno o producto puede entrar al plan con una interpretación laxa del segmento.",
+        "relacion_con_plan": "Fuera de scope por segmento, compra de tierras, diseño de producto y marketing.",
+        "placeholder_ejemplo_respuesta": "“Cliente clase media = hogar con ingresos entre X e Y, capacidad de cuota de Z, anticipo máximo de A, producto entre B y C m², sin amenities premium y con financiación a largo plazo.”"
+      },
+      {
+        "id": "Q-R03",
+        "categoria": "RECOMENDADA",
+        "pregunta": "¿Quién es dueño de cada métrica del Plan Sr dentro de la mesa chica y con qué cadencia se revisan avances, desvíos y decisiones de foco?",
+        "por_que_importa": "Se identificaron CEO, CFO y Director Comercial, pero no se asignó accountability por métrica. En un plan paraguas, la falta de dueño puede hacer que las métricas queden como aspiraciones sin seguimiento.",
+        "relacion_con_plan": "Plan Sr del Grupo y derivación a planes Jr de Spazios, Divoi, Más Dueños y áreas funcionales.",
+        "placeholder_ejemplo_respuesta": "“CEO dueño de volumen/operación, CFO de solvencia y banco de tierras, Director Comercial de PAI y asesores, Fundador de marca/confianza; revisión quincenal y comité mensual.”"
+      },
+      {
+        "id": "Q-R04",
+        "categoria": "RECOMENDADA",
+        "pregunta": "¿Cuáles son los hitos intermedios mensuales o trimestrales para validar la rampa hacia 1.000+ dueños/mes antes de fin de 2026?",
+        "por_que_importa": "La meta final está clara, pero una rampa vertical necesita puntos de control. Sin hitos intermedios, el plan puede descubrir demasiado tarde que no llega al run-rate objetivo.",
+        "relacion_con_plan": "Métrica de volumen/capacidad instalada y horizonte fin 2026.",
+        "placeholder_ejemplo_respuesta": "“Junio: 200/mes; agosto: 400/mes; octubre: 700/mes; diciembre: 1.000+/mes sostenido, con definición de sostenido como 3 meses consecutivos.”"
+      },
+      {
+        "id": "Q-R05",
+        "categoria": "RECOMENDADA",
+        "pregunta": "¿Qué implica concretamente pasar de “3 empresas” a una “estructura multi-empresa coordinada”: cuántas empresas o unidades nuevas, qué roles tendrán y qué interfaces críticas deben existir?",
+        "por_que_importa": "El propósito declara una transformación estructural, pero todavía no se definió la forma objetivo. Aclararlo ayuda a que los planes Jr no creen estructuras incompatibles entre sí.",
+        "relacion_con_plan": "Escena ideal organizacional y Plan Sr como paraguas de Spazios, Divoi, Más Dueños y áreas funcionales.",
+        "placeholder_ejemplo_respuesta": "“A fin de 2026 habrá X unidades: desarrolladoras por macrozona, Más Dueños retail, PAI, banco de tierras y shared services; cada una con SLA e interfaces definidas.”"
+      }
+    ],
+    "cross_block_changes": [],
+    "meta": {
+      "errores_alta": 2,
+      "errores_media": 2,
+      "errores_baja": 0,
+      "preguntas_criticas": 5,
+      "preguntas_recomendadas": 5,
+      "cross_block_changes_total": 0,
+      "confianza_general": "Alta",
+      "justificacion_confianza": "Hay hallazgos claros con citas textuales, especialmente la corrección de segmento, la ubicación actual no declarada y el horizonte inferido. La omisión reputacional es algo más interpretativa, pero está fuertemente respaldada por el propio usuario como condición de viabilidad."
+    }
+  }
+}

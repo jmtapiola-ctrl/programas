@@ -38,10 +38,13 @@ export const metadata = {
 
 export default async function PantallaFinalPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string; paso: string }>
+  searchParams: Promise<{ from_apply?: string }>
 }) {
   const { id, paso: pasoStr } = await params
+  const { from_apply: fromApply } = await searchParams
   const paso = Number.parseInt(pasoStr, 10)
   if (!Number.isInteger(paso) || paso < 1 || paso > 5) notFound()
 
@@ -55,13 +58,15 @@ export default async function PantallaFinalPage({
   if (!entrevista) notFound()
 
   const sub = entrevista.sub_estado_paso ?? 'en_curso'
-  if (sub !== 'esperando_aprobacion_final') {
-    // Si todavía estamos en auditoria_completa, el user debería estar en Pantalla 3
-    // procesando decisiones. Redirigimos a /cierre/[paso] (Pantalla 1 con hidratación P3).
+  // `from_apply=1` indica que llegamos acá vía router.push() del handler post-apply.
+  // Airtable list reads tienen eventual consistency: el PATCH a sub_estado se acaba
+  // de hacer y el read inmediato puede devolver el valor anterior. En ese caso,
+  // no redirigir — mostrar Pantalla 4 igual (el plan ya está actualizado).
+  const stalePostApplyOk = fromApply === '1' && (sub === 'aplicando_cambios' || sub === 'auditoria_completa')
+  if (sub !== 'esperando_aprobacion_final' && sub !== 'completo' && !stalePostApplyOk) {
     if (sub === 'auditoria_completa') {
       redirect(`/planes-estrategicos/${id}/cierre/${paso}`)
     }
-    // Cualquier otro estado: redirigir al wizard.
     redirect(`/planes-estrategicos/${id}/entrevista`)
   }
 

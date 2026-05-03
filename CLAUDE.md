@@ -222,3 +222,26 @@ Llamadas a Opus desde endpoints `/apply` y `/comentar`:
 - **Patch semantics en el system prompt:** Opus debe emitir SOLO las top-level keys (`proposito` / `situacion` / `datos_faltantes`) que cambian. Si nada cambia, devolver `{}`. El código merge: si Opus emite key X, usar; si no, mantener valor anterior.
   - Sin patch semantics, Opus reescribe el plan ENTERO en cada call → desperdicia tokens, propenso a truncar.
 - Origen: smoke real end-to-end Fase 4 detectó las 3 issues secuencialmente.
+
+### Triage de bugs reportados: pedir ID exacto del registro antes de declarar bug
+
+Cuando el usuario reporta un bug observando datos en Airtable / Vercel / cualquier sistema externo (ej: "el campo X quedó vacío", "no se persistió Y"), **pedirle el ID exacto del registro antes de declarar el bug confirmado**.
+
+- **Por qué:** la tabla puede tener múltiples registros similares (ej: varios reviewer turnos de un mismo Paso, algunos procesados y otros no). Sin ID exacto, es fácil confundirse de fila y declarar un bug que no existe.
+- **Caso real:** en feat/audit-reviewer post-Fase 4, el usuario reportó "Reviewer Decisiones JSON quedó vacío" + "Apply Changes Latency MS vacío". Verificación directa contra el reviewer turno que efectivamente había procesado (`reclIHtEwJfdmdffZ`) mostró que ambos campos SÍ estaban poblados. La tabla tenía otros 3 reviewer turnos del Bloque 1 que efectivamente tenían esos campos vacíos (audits que se generaron pero NO se procesaron — falta de apply). El usuario probablemente miró uno de esos por error.
+- **Cómo aplicar:** antes de aceptar el bug, pedir "¿qué ID de registro miraste?" o verificar el ID a partir del flow del user (ej: el último audit que procesó). Verificar con `fetch` directo a Airtable contra ese ID antes de implementar fix.
+- **Coherente con:** "verificar QUÉ TOCA antes de recomendar correr un script" y el pattern general de spot-check con citas verificables.
+
+### Stale reads de Airtable post-PATCH (eventual consistency en list endpoints)
+
+`getEntrevistaPE(planId)` usa `fetchAll(TABLA_ENTREVISTAS_PE, ...)` (list endpoint). Cuando se hace un PATCH a la entrevista y se lee inmediatamente después con un list endpoint, **Airtable puede devolver el valor anterior por eventual consistency**. Reads por ID directo (`fetchOne`) tienen strong consistency; reads por list (`fetchAll`) no.
+
+- **Síntoma:** server component carga inmediatamente después de un POST que hizo PATCH a `sub_estado_paso`, lee stale, y aplica un guard de redirect basado en estado viejo. Resultado: usuario termina en pantalla incorrecta.
+- **Caso real:** Pantalla 4 (`cierre/[paso]/final/page.tsx`) post-apply leía `auditoria_completa` stale en vez de `esperando_aprobacion_final`, redirigía a Pantalla 1.
+- **Fix patrón:** cuando un endpoint hace PATCH a la entrevista y luego devuelve un redirect a server component que lee la entrevista, agregar query param sentinel (ej: `?from_apply=1`) en el redirect. El server component reconoce el sentinel y, si lee un estado pre-transición, **no redirige** — muestra la página igual (los datos del PATCH ya están persistidos, solo el flag stale).
+- **Checklist obligatorio cuando se sume nueva transición de `sub_estado_paso`:** ejecutar `Grep "getEntrevistaPE"` y, para cada match en server components que aplique guards de redirect basados en sub_estado, decidir explícitamente si el flow nuevo requiere el sentinel `?from_apply=1` (o equivalente). Es el chequeo que evita reintroducir el bug de stale read en flows futuros — más barato que descubrirlo en producción.
+- **Call sites a auditar (lista actual al 2026-05-03):** server components que leen `getEntrevistaPE` después de un PATCH del client.
+  - `app/(main)/planes-estrategicos/[id]/cierre/[paso]/page.tsx` (Pantalla 1) — lee post `/cerrar-paso` POST. Si redirige basado en sub_estado y hay stale read, riesgo.
+  - `app/(main)/planes-estrategicos/[id]/cierre/[paso]/final/page.tsx` (Pantalla 4) — **YA FIXEADO** con `?from_apply=1`.
+  - `app/(main)/planes-estrategicos/[id]/vista/page.tsx` — lee al cargar vista de prestigio. Sin guards estrictos, riesgo bajo.
+- **Alternativa más radical (no aplicada):** refactorizar `getEntrevistaPE` para usar `fetchOne` cuando el plan tiene el linked `entrevistas_pe` ID. Cambiaría el read pattern de list a single-record (strong consistency). Mejora estructural pero invasiva.

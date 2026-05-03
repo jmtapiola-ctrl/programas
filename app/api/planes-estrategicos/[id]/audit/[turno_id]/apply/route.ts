@@ -238,7 +238,11 @@ export async function POST(
         questions_integradas: split.questionsRespondidas.length,
         cross_block_no_aplicados: split.crossBlockAprobados.length,
       },
-      redirect: `/planes-estrategicos/${planId}/cierre/${paso}/final`,
+      // `from_apply=1` indica a Pantalla 4 que viene del POST de apply. Si Airtable
+      // todavía no propagó la transición a esperando_aprobacion_final (eventual
+      // consistency en list reads), Pantalla 4 igual se muestra en vez de redirigir
+      // a Pantalla 1.
+      redirect: `/planes-estrategicos/${planId}/cierre/${paso}/final?from_apply=1`,
     })
   } catch (err) {
     console.error('[audit/apply] Error inesperado:', err)
