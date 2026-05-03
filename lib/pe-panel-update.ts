@@ -8,7 +8,13 @@
 // El endpoint chat/route.ts usa estos helpers + un retry mechanism para reintentar
 // una vez ante cualquier falla.
 
-import type { PanelUpdatePE, PropositorPE, SituacionPE } from './types'
+import type {
+  PanelUpdatePE,
+  PropositorPE,
+  SituacionPE,
+  PlanoPE,
+  PreparativosPE,
+} from './types'
 
 const PANEL_UPDATE_RE = /<!--PANEL_UPDATE-->([\s\S]*?)<!--\/PANEL_UPDATE-->/
 
@@ -63,6 +69,88 @@ function validateResistenciaItem(item: any, idx: number, prefix: string): string
   if (typeof item.mitigacion !== 'string') errs.push(`${prefix}[${idx}].mitigacion debe ser string (CÓMO se maneja, vacío "" si no se definió)`)
   if (typeof item.tipo !== 'string') errs.push(`${prefix}[${idx}].tipo debe ser string`)
   if (typeof item.criticidad !== 'string') errs.push(`${prefix}[${idx}].criticidad debe ser string ("Alta"/"Media"/"Baja")`)
+  return errs
+}
+
+// ── Validadores de items del Paso 3 (Fase B — sub-bloque 3.0 Preparativos) ──
+
+function validateAreaAfectadaItem(item: any, idx: number, prefix: string): string[] {
+  const errs: string[] = []
+  if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+    return [`${prefix}[${idx}] debe ser objeto {nombre, responsable, notas?}, got ${Array.isArray(item) ? 'array' : typeof item}`]
+  }
+  if (typeof item.nombre !== 'string') errs.push(`${prefix}[${idx}].nombre debe ser string`)
+  if (typeof item.responsable !== 'string') errs.push(`${prefix}[${idx}].responsable debe ser string ('[vacancia]' si no asignado)`)
+  if (item.notas !== undefined && typeof item.notas !== 'string') errs.push(`${prefix}[${idx}].notas (si presente) debe ser string`)
+  return errs
+}
+
+function validateSupuestoExogenoItem(item: any, idx: number, prefix: string): string[] {
+  const errs: string[] = []
+  if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+    return [`${prefix}[${idx}] debe ser objeto, got ${Array.isArray(item) ? 'array' : typeof item}`]
+  }
+  if (typeof item.descripcion !== 'string') errs.push(`${prefix}[${idx}].descripcion debe ser string`)
+  if (!['macro', 'mercado', 'regulatorio', 'social'].includes(item.tipo)) errs.push(`${prefix}[${idx}].tipo debe ser 'macro'|'mercado'|'regulatorio'|'social', got '${item.tipo}'`)
+  if (!['alta', 'media', 'baja'].includes(item.probabilidad)) errs.push(`${prefix}[${idx}].probabilidad debe ser 'alta'|'media'|'baja', got '${item.probabilidad}'`)
+  if (!['favorable', 'desfavorable'].includes(item.impacto_signo)) errs.push(`${prefix}[${idx}].impacto_signo debe ser 'favorable'|'desfavorable', got '${item.impacto_signo}'`)
+  if (!['alta', 'media', 'baja'].includes(item.impacto_magnitud)) errs.push(`${prefix}[${idx}].impacto_magnitud debe ser 'alta'|'media'|'baja', got '${item.impacto_magnitud}'`)
+  if (!['hedge', 'bet', 'aceptar'].includes(item.estrategia)) errs.push(`${prefix}[${idx}].estrategia debe ser 'hedge'|'bet'|'aceptar', got '${item.estrategia}'`)
+  if (typeof item.razon !== 'string') errs.push(`${prefix}[${idx}].razon debe ser string`)
+  return errs
+}
+
+function validateCriterioMetricaItem(item: any, idx: number, prefix: string): string[] {
+  const errs: string[] = []
+  if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+    return [`${prefix}[${idx}] debe ser objeto {metrica, pleno, minimo}, got ${Array.isArray(item) ? 'array' : typeof item}`]
+  }
+  if (typeof item.metrica !== 'string') errs.push(`${prefix}[${idx}].metrica debe ser string (referencia al nombre de la métrica del propósito)`)
+  if (typeof item.pleno !== 'string') errs.push(`${prefix}[${idx}].pleno debe ser string (target original)`)
+  if (typeof item.minimo !== 'string') errs.push(`${prefix}[${idx}].minimo debe ser string (mínimo aceptable)`)
+  return errs
+}
+
+/**
+ * Valida la estructura de plan.preparativos (cierre formal de 3.0).
+ * Devuelve array de errores. Vacío si OK.
+ */
+function validatePreparativos(prep: any, prefix: string): string[] {
+  if (typeof prep !== 'object' || prep === null || Array.isArray(prep)) {
+    return [`${prefix} debe ser objeto, got ${Array.isArray(prep) ? 'array' : typeof prep}`]
+  }
+  const errs: string[] = []
+
+  if (!Array.isArray(prep.areas_afectadas)) {
+    errs.push(`${prefix}.areas_afectadas debe ser array`)
+  } else {
+    errs.push(...validateArrayItems(prep.areas_afectadas, `${prefix}.areas_afectadas`, validateAreaAfectadaItem))
+  }
+
+  if (!Array.isArray(prep.supuestos_exogenos)) {
+    errs.push(`${prefix}.supuestos_exogenos debe ser array`)
+  } else {
+    errs.push(...validateArrayItems(prep.supuestos_exogenos, `${prefix}.supuestos_exogenos`, validateSupuestoExogenoItem))
+  }
+
+  const pri = prep.priorizacion_inicial
+  if (typeof pri !== 'object' || pri === null || Array.isArray(pri)) {
+    errs.push(`${prefix}.priorizacion_inicial debe ser objeto {desvio_elegido, razon, desbloquea?}`)
+  } else {
+    if (typeof pri.desvio_elegido !== 'string') errs.push(`${prefix}.priorizacion_inicial.desvio_elegido debe ser string`)
+    if (typeof pri.razon !== 'string') errs.push(`${prefix}.priorizacion_inicial.razon debe ser string`)
+    if (pri.desbloquea !== undefined && typeof pri.desbloquea !== 'string') errs.push(`${prefix}.priorizacion_inicial.desbloquea (si presente) debe ser string`)
+  }
+
+  const ce = prep.criterio_exito
+  if (typeof ce !== 'object' || ce === null || Array.isArray(ce)) {
+    errs.push(`${prefix}.criterio_exito debe ser objeto {por_metrica[], zona_fracaso}`)
+  } else {
+    if (!Array.isArray(ce.por_metrica)) errs.push(`${prefix}.criterio_exito.por_metrica debe ser array`)
+    else errs.push(...validateArrayItems(ce.por_metrica, `${prefix}.criterio_exito.por_metrica`, validateCriterioMetricaItem))
+    if (typeof ce.zona_fracaso !== 'string') errs.push(`${prefix}.criterio_exito.zona_fracaso debe ser string`)
+  }
+
   return errs
 }
 
@@ -169,6 +257,22 @@ export function parsePanelUpdate(fullResponse: string): ParseResult {
   // exista, el campo se emite y persiste sin uso visible para el usuario.
   if (parsed?.cierre_sugerido !== undefined && typeof parsed?.cierre_sugerido !== 'boolean') {
     errors.push(`cierre_sugerido (si presente) must be boolean true/false, got ${parsed?.cierre_sugerido === null ? 'null' : typeof parsed?.cierre_sugerido}`)
+  }
+
+  // plan (Paso 3) — opcional. Solo presente cuando el modelo está construyendo el
+  // Paso 3. Validamos shape de los sub-bloques que ya implementamos (Fase B = 3.0
+  // Preparativos). Otros sub-bloques (inventario/palancas/borrador/estres/curado)
+  // se permiten pasar sin validar shape interno hasta que su Fase los implemente.
+  if (parsed?.plan !== undefined) {
+    if (typeof parsed.plan !== 'object' || parsed.plan === null || Array.isArray(parsed.plan)) {
+      errors.push(`plan (si presente) debe ser objeto, got ${Array.isArray(parsed.plan) ? 'array' : typeof parsed.plan}`)
+    } else {
+      if (parsed.plan.preparativos !== undefined) {
+        errors.push(...validatePreparativos(parsed.plan.preparativos, 'plan.preparativos'))
+      }
+      // inventario, palancas, borrador, estres, curado: shape interno se valida
+      // en sus Fases respectivas (C, D, E). Por ahora aceptar como cualquier valor.
+    }
   }
 
   if (errors.length > 0) {
@@ -326,4 +430,97 @@ export function mergeDatosFaltantes(
 /** paso_actual nunca debe regresar — toma el max. */
 export function mergePasoActual(current: number, incoming: number): number {
   return Math.max(current, incoming)
+}
+
+/**
+ * Merge protector para PlanoPE (Paso 3). Cada sub-bloque (preparativos,
+ * inventario, palancas, borrador, estres, curado) se mergea por sub-key:
+ * incoming pisa current sólo si incoming no está vacío. Sub-keys ausentes
+ * en incoming se preservan del current (consistencia con patrón H7
+ * retroactividad fluida — el modelo no necesita re-emitir todo el plan
+ * en cada turno, solo lo que cambió).
+ *
+ * Para preparativos, validamos campo a campo (igual que mergeProposito).
+ * Para los otros sub-bloques (inventario/palancas/borrador/estres/curado),
+ * por ahora hacemos pick top-level — los validators de cada uno llegan
+ * en sus Fases.
+ */
+export function mergePlan(
+  current: PlanoPE | undefined,
+  incoming: PlanoPE | undefined,
+): MergeResult<PlanoPE | undefined> {
+  if (!incoming) return { value: current, events: [] }
+  const c = current ?? {}
+  const events: MergeEvent[] = []
+  const result: PlanoPE = {}
+
+  // preparativos: merge campo a campo si está presente en incoming
+  if (incoming.preparativos !== undefined) {
+    const merged = mergePreparativos(c.preparativos, incoming.preparativos)
+    if (merged.value !== undefined) result.preparativos = merged.value
+    events.push(...merged.events)
+  } else if (c.preparativos !== undefined) {
+    result.preparativos = c.preparativos
+  }
+
+  // Sub-bloques posteriores: pick top-level (sin merge interno hasta su Fase).
+  for (const key of ['inventario', 'palancas', 'borrador', 'estres', 'curado'] as const) {
+    const inc = incoming[key]
+    const cur = c[key]
+    const { value, event } = pickField(`plan.${key}`, cur as any, inc as any)
+    if (value !== undefined) (result as any)[key] = value
+    if (event) events.push(event)
+  }
+
+  return { value: result, events }
+}
+
+function mergePreparativos(
+  current: PreparativosPE | undefined,
+  incoming: PreparativosPE,
+): MergeResult<PreparativosPE> {
+  const c: PreparativosPE = current ?? {
+    areas_afectadas: [],
+    supuestos_exogenos: [],
+    priorizacion_inicial: { desvio_elegido: '', razon: '' },
+    criterio_exito: { por_metrica: [], zona_fracaso: '' },
+  }
+  const events: MergeEvent[] = []
+
+  const areas = pickField('plan.preparativos.areas_afectadas', c.areas_afectadas, incoming.areas_afectadas)
+  if (areas.event) events.push(areas.event)
+
+  const supuestos = pickField('plan.preparativos.supuestos_exogenos', c.supuestos_exogenos, incoming.supuestos_exogenos)
+  if (supuestos.event) events.push(supuestos.event)
+
+  // priorizacion_inicial: si incoming tiene desvio_elegido no vacío, gana
+  const priIncomingFull = !isEmpty(incoming.priorizacion_inicial?.desvio_elegido)
+  const priorizacion = priIncomingFull ? incoming.priorizacion_inicial : c.priorizacion_inicial
+  if (priIncomingFull && JSON.stringify(c.priorizacion_inicial) !== JSON.stringify(incoming.priorizacion_inicial)) {
+    events.push({
+      type: 'updated',
+      field: 'plan.preparativos.priorizacion_inicial',
+      from: previewValue(c.priorizacion_inicial),
+      to: previewValue(incoming.priorizacion_inicial),
+    })
+  }
+
+  // criterio_exito: por_metrica (array) + zona_fracaso (string)
+  const porMetrica = pickField('plan.preparativos.criterio_exito.por_metrica', c.criterio_exito.por_metrica, incoming.criterio_exito.por_metrica)
+  const zonaFracaso = pickField('plan.preparativos.criterio_exito.zona_fracaso', c.criterio_exito.zona_fracaso, incoming.criterio_exito.zona_fracaso)
+  if (porMetrica.event) events.push(porMetrica.event)
+  if (zonaFracaso.event) events.push(zonaFracaso.event)
+
+  return {
+    value: {
+      areas_afectadas: areas.value,
+      supuestos_exogenos: supuestos.value,
+      priorizacion_inicial: priorizacion,
+      criterio_exito: {
+        por_metrica: porMetrica.value,
+        zona_fracaso: zonaFracaso.value,
+      },
+    },
+    events,
+  }
 }

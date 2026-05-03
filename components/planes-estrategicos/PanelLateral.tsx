@@ -26,6 +26,7 @@ export function PanelLateral({ plan, panel, planSr }: Props) {
   const proposito = panel?.proposito ?? plan.proposito
   const situacion = panel?.situacion ?? plan.situacion
   const datosFaltantes = panel?.datos_faltantes ?? plan.datos_faltantes ?? []
+  const planPaso3 = panel?.plan ?? plan.plan
 
   if (!esSr && planSr) {
     return (
@@ -54,7 +55,7 @@ export function PanelLateral({ plan, panel, planSr }: Props) {
         {/* Columna der: Plan Jr en construcción */}
         <div className="flex-1 overflow-y-auto space-y-4">
           <VerPlanCompletoLink planId={plan.id} />
-          <PanelConstruccion proposito={proposito} situacion={situacion} datosFaltantes={datosFaltantes} alineacion={proposito?.alineacion_sr} />
+          <PanelConstruccion proposito={proposito} situacion={situacion} datosFaltantes={datosFaltantes} alineacion={proposito?.alineacion_sr} planPaso3={planPaso3} />
         </div>
       </div>
     )
@@ -63,7 +64,7 @@ export function PanelLateral({ plan, panel, planSr }: Props) {
   return (
     <div className="overflow-y-auto space-y-4">
       <VerPlanCompletoLink planId={plan.id} />
-      <PanelConstruccion proposito={proposito} situacion={situacion} datosFaltantes={datosFaltantes} />
+      <PanelConstruccion proposito={proposito} situacion={situacion} datosFaltantes={datosFaltantes} planPaso3={planPaso3} />
     </div>
   )
 }
@@ -73,11 +74,13 @@ function PanelConstruccion({
   situacion,
   datosFaltantes,
   alineacion,
+  planPaso3,
 }: {
   proposito: any
   situacion: any
   datosFaltantes: string[]
   alineacion?: string
+  planPaso3?: any
 }) {
   return (
     <>
@@ -139,6 +142,8 @@ function PanelConstruccion({
         )}
       </SeccionPanel>
 
+      {planPaso3?.preparativos && <PreparativosPanel preparativos={planPaso3.preparativos} />}
+
       {datosFaltantes.length > 0 && (
         <SeccionPanel titulo="Datos por conseguir">
           <p className="text-[12px] text-muted-foreground whitespace-pre-wrap">
@@ -147,6 +152,55 @@ function PanelConstruccion({
         </SeccionPanel>
       )}
     </>
+  )
+}
+
+// Sub-bloque 3.0 — render de Preparativos cuando están poblados.
+// Aparece solo si plan.preparativos existe (modelo está en o pasó por 3.0).
+function PreparativosPanel({ preparativos }: { preparativos: any }) {
+  const areas = preparativos.areas_afectadas ?? []
+  const supuestos = preparativos.supuestos_exogenos ?? []
+  const pri = preparativos.priorizacion_inicial
+  const ce = preparativos.criterio_exito
+
+  return (
+    <SeccionPanel titulo="Plan — Preparativos (3.0)">
+      {areas.length > 0 && (
+        <Campo
+          label={`Áreas afectadas (${areas.length})`}
+          valor={areas.map((a: any) => `• ${a.nombre} — ${a.responsable || '[vacancia]'}${a.notas ? `\n  ${a.notas}` : ''}`).join('\n')}
+        />
+      )}
+
+      {supuestos.length > 0 && (
+        <Campo
+          label={`Supuestos exógenos (${supuestos.length})`}
+          valor={supuestos.map((s: any) => {
+            const tag = `[${s.tipo} · ${s.probabilidad} prob · ${s.estrategia}]`
+            const head = `• ${s.descripcion} ${tag}`
+            const razon = s.razon ? `\n  ${s.razon}` : ''
+            return head + razon
+          }).join('\n\n')}
+        />
+      )}
+
+      {pri?.desvio_elegido && (
+        <Campo
+          label="Priorización inicial"
+          valor={`• ${pri.desvio_elegido}\n  Razón: ${pri.razon}${pri.desbloquea ? `\n  Desbloquea: ${pri.desbloquea}` : ''}`}
+        />
+      )}
+
+      {ce?.por_metrica?.length > 0 && (
+        <Campo
+          label="Criterio de éxito"
+          valor={ce.por_metrica.map((m: any) => `• ${m.metrica}\n  Pleno: ${m.pleno}\n  Mínimo: ${m.minimo}`).join('\n\n')}
+        />
+      )}
+      {ce?.zona_fracaso && (
+        <Campo label="Zona de fracaso" valor={ce.zona_fracaso} />
+      )}
+    </SeccionPanel>
   )
 }
 

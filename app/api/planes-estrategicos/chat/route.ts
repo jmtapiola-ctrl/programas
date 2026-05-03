@@ -9,6 +9,7 @@ import {
   updatePlanEstrategico,
   appendTurnosPE,
   updateSubEstadoPaso,
+  appendSnapshotTurno,
 } from '@/lib/airtable'
 import { buildSystemPrompt } from '@/lib/pe-system-prompt'
 import {
@@ -16,6 +17,7 @@ import {
   mergeProposito,
   mergeSituacion,
   mergeDatosFaltantes,
+  mergePlan,
   mergePasoActual,
   type ParseResult,
 } from '@/lib/pe-panel-update'
@@ -239,28 +241,57 @@ export async function POST(req: NextRequest) {
           send({ type: 'save_failed', detail: saveResult.error })
         }
 
-        // ─── Detección de cierre_sugerido (feat/audit-reviewer Fase 2.3) ──
-        // Si el modelo emitió cierre_sugerido=true Y el estado actual es 'en_curso',
-        // transicionamos a 'cierre_sugerido' y avisamos al frontend para que muestre
-        // el botón "Cerrar Paso N y revisar". Si el save falló, NO transicionamos
-        // (evita inconsistencia: estado actualizado pero turno no persistido).
+        // ─── Detección de cierre_sugerido ──
+        // Comportamiento dual según el sub_bloque que se está cerrando:
+        //
+        //   1. Sub-bloques INTERNOS del Paso 3 (3.0, 3.A): cierre intermedio.
+        //      Crea snapshot del estado actual (con plan parcialmente poblado),
+        //      emite SSE 'sub_bloque_cerrado' al frontend, NO transiciona
+        //      sub_estado_paso (sigue en 'en_curso'). El modelo continúa
+        //      con el siguiente sub-bloque automáticamente.
+        //
+        //   2. Cierre del Paso entero (Pasos 1, 2, o 3 en sub-bloque 3.E):
+        //      transición 'en_curso' → 'cierre_sugerido', emite SSE 'cierre_sugerido',
+        //      el frontend muestra el botón "Cerrar Paso N y revisar".
+        //      Después: flow estándar audit + apply.
+        //
+        // Si el save falló, NO procesamos cierre (evita inconsistencia).
         if (saveResult.ok && cierreSugeridoEmitido && panelUpdate) {
           const subEstadoActual = entrevista.sub_estado_paso ?? 'en_curso'
-          if (subEstadoActual === 'en_curso') {
+          const subBloque = panelUpdate.sub_bloque_actual
+          const esCierreInterno = panelUpdate.paso_actual === 3 && (subBloque === '3.0' || subBloque === '3.A')
+
+          if (esCierreInterno && subEstadoActual === 'en_curso') {
+            // Cierre intermedio: snapshot sin transición.
+            try {
+              // Re-leer el plan después del save para tener el estado post-merge
+              // que efectivamente quedó persistido (no el panelUpdate.plan crudo).
+              const planFresh = await getPlanEstrategico(planId)
+              const indiceSnapshot = entrevista.historial.length + 2 // +2 = user turn + model turn ya persistidos
+              await appendSnapshotTurno(entrevista.id, indiceSnapshot, {
+                paso: 3,
+                proposito: planFresh.proposito,
+                situacion: planFresh.situacion,
+                datos_faltantes: planFresh.datos_faltantes ?? [],
+                plan: planFresh.plan,
+                cerrado_en: new Date().toISOString(),
+              })
+              send({ type: 'sub_bloque_cerrado', paso: 3, sub_bloque: subBloque })
+              console.log(`[PE chat] sub_bloque_cerrado=${subBloque} (entrevista ${entrevista.id})`)
+            } catch (e) {
+              console.warn(`[PE chat] No se pudo crear snapshot intermedio de ${subBloque}:`, e instanceof Error ? e.message : String(e))
+            }
+          } else if (subEstadoActual === 'en_curso') {
+            // Cierre del Paso entero: transición + dispara flow audit.
             try {
               await updateSubEstadoPaso(entrevista.id, 'en_curso', 'cierre_sugerido')
               send({ type: 'cierre_sugerido', paso: panelUpdate.paso_actual })
               console.log(`[PE chat] cierre_sugerido emitido para Paso ${panelUpdate.paso_actual} (entrevista ${entrevista.id})`)
             } catch (e) {
-              // Guard de transición rechazó. Probablemente race condition o estado raro.
-              // Loggeamos pero no rompemos el turno — el modelo seguirá emitiendo
-              // cierre_sugerido en próximos turnos hasta que la UI lo capture.
               console.warn(`[PE chat] No se pudo transicionar a cierre_sugerido:`, e instanceof Error ? e.message : String(e))
             }
-          } else {
-            // El modelo emite cierre_sugerido=true pero el estado ya está más adelante
-            // (cierre_sugerido, esperando_auditoria, etc.). No-op silencioso.
           }
+          // Si subEstadoActual !== 'en_curso': no-op silencioso (el flow ya avanzó).
         }
 
         send({ type: 'done', panelUpdate })
@@ -328,9 +359,10 @@ async function saveWithRetry(
       const propMerge = mergeProposito(plan.proposito, panelUpdate.proposito)
       const sitMerge = mergeSituacion(plan.situacion, panelUpdate.situacion)
       const datosMerge = mergeDatosFaltantes(plan.datos_faltantes, panelUpdate.datos_faltantes)
+      const planMerge = mergePlan(plan.plan, panelUpdate.plan)
 
       // Log estructurado de eventos del merge (para Fase 2 instrumentación)
-      const allEvents = [...propMerge.events, ...sitMerge.events, ...datosMerge.events]
+      const allEvents = [...propMerge.events, ...sitMerge.events, ...datosMerge.events, ...planMerge.events]
       const shrinkages = allEvents.filter(e => e.type === 'preserved_shrinkage')
       const preserved = allEvents.filter(e => e.type === 'preserved_empty')
       const updated = allEvents.filter(e => e.type === 'updated')
@@ -346,6 +378,12 @@ async function saveWithRetry(
       }
       if (propMerge.value.horizonte) {
         updates.horizonte = propMerge.value.horizonte
+      }
+      // Plan (Paso 3): solo persistir si hay cambios reales (planMerge.value
+      // distinto de undefined). El merge protector evita pisar un plan poblado
+      // con uno vacío.
+      if (planMerge.value !== undefined) {
+        updates.plan = planMerge.value
       }
 
       await updatePlanEstrategico(planId, updates)
