@@ -35,10 +35,10 @@ export function AuditoriaEnProcesoModal({ audit, paso, onSuccess, onSkipEmergenc
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="font-sans fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Overlay sin onClick — explícito según pedido del user (Fase 3). */}
-      <div className="absolute inset-0 bg-black/80" />
-      <div className="relative bg-gray-800 border border-gray-700 rounded-lg shadow-xl w-full max-w-md p-8">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      <div className="relative bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-full max-w-md p-8 ring-1 ring-white/5">
         {(status === 'cargando' || status === 'esperando_reviewer') && (
           <ProcesandoPanel paso={paso} elapsedSeconds={elapsedSeconds} />
         )}

@@ -56,21 +56,25 @@ export function HallazgoErrorCard({ hallazgo, decision, onChange }: Props) {
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-3">
         <div>
-          <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-1">Qué dice el resumen</p>
-          <p className="text-sm text-gray-200 leading-relaxed">{hallazgo.que_dice_resumen}</p>
+          <p className="text-[11px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">Qué dice el resumen</p>
+          <blockquote className="text-sm text-gray-100 leading-relaxed bg-gray-900/60 border-l-2 border-gray-500 rounded-r pl-3 pr-3 py-2">
+            {hallazgo.que_dice_resumen}
+          </blockquote>
         </div>
         <div>
-          <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-1">
-            Qué se dijo en la conversación (turno {hallazgo.turno_referencia})
+          <p className="text-[11px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">
+            Qué se dijo en la conversación <span className="text-gray-400 normal-case">(turno {hallazgo.turno_referencia})</span>
           </p>
-          <p className="text-sm text-gray-300 leading-relaxed italic">{hallazgo.que_se_dijo_en_conversacion}</p>
+          <blockquote className="text-sm text-gray-100 leading-relaxed italic bg-gray-900/60 border-l-2 border-amber-600/60 rounded-r pl-3 pr-3 py-2">
+            {hallazgo.que_se_dijo_en_conversacion}
+          </blockquote>
         </div>
         <div>
-          <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-1">Cambio propuesto por el revisor</p>
+          <p className="text-[11px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">Cambio propuesto por el revisor</p>
           {!editando ? (
-            <p className="text-sm text-blue-200 leading-relaxed bg-blue-950/30 border border-blue-900/40 rounded px-3 py-2">
+            <p className="text-sm text-blue-100 leading-relaxed bg-blue-950/40 border-l-2 border-blue-500 rounded-r pl-3 pr-3 py-2">
               {hallazgo.cambio_propuesto}
             </p>
           ) : (

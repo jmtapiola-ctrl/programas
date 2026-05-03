@@ -69,16 +69,16 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
   const cbSplit = useMemo(() => split(crossBlock), [crossBlock, dec.decisiones])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/80" />
-      <div className="relative bg-gray-900 border border-gray-700 rounded-lg shadow-xl w-full max-w-3xl max-h-[92vh] flex flex-col">
+    <div className="font-sans fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      <div className="relative bg-gray-900 border border-gray-600 rounded-lg shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col ring-1 ring-white/5">
         {/* Header con contador + barra de progreso */}
-        <div className="px-6 py-4 border-b border-gray-800 space-y-2 flex-shrink-0">
+        <div className="px-6 py-4 border-b border-gray-700 space-y-2 flex-shrink-0">
           <div className="flex items-baseline justify-between gap-4">
             <h2 className="text-lg font-semibold text-white">
               Auditoría del Paso {paso}
             </h2>
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-gray-300">
               <span className="text-white font-semibold">{procesadoCount}</span> de {dec.totalCount} hallazgos procesados
             </p>
           </div>
@@ -88,9 +88,9 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
               style={{ width: `${procesadoPct}%` }}
             />
           </div>
-          <div className="flex items-center justify-between gap-3 text-[11px]">
-            <span className="text-gray-500">
-              Confianza del revisor: <span className="text-gray-300">{report.meta.confianza_general}</span>
+          <div className="flex items-center justify-between gap-3 text-[12px]">
+            <span className="text-gray-300">
+              Confianza del revisor: <span className="text-white font-semibold">{report.meta.confianza_general}</span>
             </span>
             <SyncStatusIndicator status={dec.syncStatus} error={dec.syncError} />
           </div>
@@ -246,14 +246,14 @@ function Seccion({
 }) {
   return (
     <section className="space-y-3">
-      <h3 className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">
+      <h3 className="text-[13px] uppercase tracking-wider text-white font-semibold border-b border-gray-700 pb-2">
         {titulo}
       </h3>
       {children}
       {ignoradosCount > 0 && (
         <button
           onClick={onToggleIgnorados}
-          className="text-[11px] text-gray-500 hover:text-gray-400 transition-colors"
+          className="text-[12px] text-gray-400 hover:text-gray-200 transition-colors"
         >
           {verIgnorados
             ? `← ocultar ${ignoradosCount} ignorado${ignoradosCount === 1 ? '' : 's'}`

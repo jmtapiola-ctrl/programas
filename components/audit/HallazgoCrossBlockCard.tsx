@@ -50,21 +50,25 @@ export function HallazgoCrossBlockCard({ hallazgo, decision, onChange }: Props) 
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-3">
         <div>
-          <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-1">Qué dice actualmente el Bloque {hallazgo.bloque_afectado}</p>
-          <p className="text-sm text-gray-200 leading-relaxed">{hallazgo.que_dice_actualmente}</p>
+          <p className="text-[11px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">Qué dice actualmente el Bloque {hallazgo.bloque_afectado}</p>
+          <blockquote className="text-sm text-gray-100 leading-relaxed bg-gray-900/60 border-l-2 border-gray-500 rounded-r pl-3 pr-3 py-2">
+            {hallazgo.que_dice_actualmente}
+          </blockquote>
         </div>
         <div>
-          <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-1">
-            Qué se declaró que lo modifica (turno {hallazgo.turno_referencia})
+          <p className="text-[11px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">
+            Qué se declaró que lo modifica <span className="text-gray-400 normal-case">(turno {hallazgo.turno_referencia})</span>
           </p>
-          <p className="text-sm text-gray-300 leading-relaxed italic">{hallazgo.que_se_declaro_que_lo_modifica}</p>
+          <blockquote className="text-sm text-gray-100 leading-relaxed italic bg-gray-900/60 border-l-2 border-amber-600/60 rounded-r pl-3 pr-3 py-2">
+            {hallazgo.que_se_declaro_que_lo_modifica}
+          </blockquote>
         </div>
         <div>
-          <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-1">Cambio propuesto</p>
+          <p className="text-[11px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">Cambio propuesto</p>
           {!editando ? (
-            <p className="text-sm text-purple-200 leading-relaxed bg-purple-950/30 border border-purple-900/40 rounded px-3 py-2">
+            <p className="text-sm text-purple-100 leading-relaxed bg-purple-950/40 border-l-2 border-purple-500 rounded-r pl-3 pr-3 py-2">
               {hallazgo.cambio_propuesto}
             </p>
           ) : (

@@ -42,16 +42,18 @@ export function HallazgoPreguntaCard({ hallazgo, decision, onChange }: Props) {
         )}
       </div>
 
-      <div className="space-y-2">
-        <p className="text-sm text-white font-medium leading-relaxed">{hallazgo.pregunta}</p>
-        <p className="text-[11px] text-gray-400 leading-relaxed">
-          <span className="font-semibold text-gray-500 uppercase tracking-wide">Por qué importa: </span>
-          {hallazgo.por_que_importa}
-        </p>
-        <p className="text-[11px] text-gray-500 leading-relaxed">
-          <span className="font-semibold uppercase tracking-wide">Relación con el plan: </span>
-          {hallazgo.relacion_con_plan}
-        </p>
+      <div className="space-y-2.5">
+        <p className="text-base text-white font-medium leading-relaxed">{hallazgo.pregunta}</p>
+        <div className="space-y-1">
+          <p className="text-[12px] text-gray-200 leading-relaxed">
+            <span className="font-semibold text-white uppercase tracking-wide text-[10px]">Por qué importa: </span>
+            <span className="text-gray-100">{hallazgo.por_que_importa}</span>
+          </p>
+          <p className="text-[12px] text-gray-300 leading-relaxed">
+            <span className="font-semibold text-gray-100 uppercase tracking-wide text-[10px]">Relación con el plan: </span>
+            {hallazgo.relacion_con_plan}
+          </p>
+        </div>
       </div>
 
       {!yaDecidido && (
