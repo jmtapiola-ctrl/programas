@@ -294,6 +294,9 @@ export interface PanelUpdatePE {
   proposito: PropositorPE
   situacion: SituacionPE
   datos_faltantes: string[]
+  // Plan estructurado del Paso 3 (opcional — solo poblado durante o después del
+  // Paso 3). Sigue el shape híbrido de D1: 6 keys top-level durante el flow.
+  plan?: PlanoPE
   // true solo cuando el modelo considera, según su criterio, que el Paso actual
   // está conceptualmente cerrado (todos los sub-bloques cubiertos, decisiones
   // confirmadas, datos críticos registrados). Opcional con default false implícito
@@ -315,6 +318,169 @@ export interface PlanEstrategico {
   proposito?: PropositorPE
   situacion?: SituacionPE
   datos_faltantes: string[]
+  plan?: PlanoPE
+}
+
+// ─── Plan (Paso 3) ────────────────────────────────────────────────────────────
+// Decisión D1 (3 mayo 2026): shape híbrido — 6 keys top-level durante el flow
+// del Paso 3, objeto `curado` aplanado al cerrar 3.E (snapshot inmutable).
+
+export interface AreaAfectadaPE {
+  nombre: string
+  responsable: string  // texto libre en V1 (sin Organigrama). '[vacancia]' si no asignado
+  notas?: string
+}
+
+export type SupuestoTipo = 'macro' | 'mercado' | 'regulatorio' | 'social'
+export type Probabilidad = 'alta' | 'media' | 'baja'
+export type EstrategiaSupuesto = 'hedge' | 'bet' | 'aceptar'
+
+export interface SupuestoExogenoPE {
+  descripcion: string
+  tipo: SupuestoTipo
+  probabilidad: Probabilidad
+  impacto_signo: 'favorable' | 'desfavorable'
+  impacto_magnitud: 'alta' | 'media' | 'baja'
+  estrategia: EstrategiaSupuesto
+  razon: string
+}
+
+export interface PriorizacionDesvioPE {
+  desvio_elegido: string  // qué desvío priorizar primeros 60 días
+  razon: string
+  desbloquea?: string     // opcional: cómo desbloquea otros
+}
+
+export interface CriterioExitoMetricaPE {
+  metrica: string  // referencia a métrica del propósito
+  pleno: string    // target original (de Paso 1)
+  minimo: string   // mínimo aceptable
+}
+
+export interface PreparativosPE {
+  areas_afectadas: AreaAfectadaPE[]
+  supuestos_exogenos: SupuestoExogenoPE[]
+  priorizacion_inicial: PriorizacionDesvioPE
+  criterio_exito: {
+    por_metrica: CriterioExitoMetricaPE[]
+    zona_fracaso: string  // textual
+  }
+}
+
+export type DependenciaTipo = 'dura' | 'blanda' | 'ninguna'
+export type CostoBandaAncha = 'baja' | 'media' | 'alta'
+export type EstadoMovimiento = 'aceptado' | 'editado' | 'quitado' | 'pendiente'
+
+export interface MovimientoPE {
+  id: string                // M-1, M-2, ...
+  categoria: string         // auto-detectada por el modelo (no fija)
+  nombre: string
+  que_resuelve: string
+  ataca_desvio: string      // ref a desvío Bloque 0-2 o capacidad del Propósito
+  costo_banda_ancha: CostoBandaAncha
+  costo_monetario: { rango_min_usd: number; rango_max_usd: number; nota?: string }
+  ventana_temporal: { arranca: string; termina: string }  // YYYY-MM
+  precondiciones: string[]  // ids de otros movimientos
+  desbloquea: string[]      // ids de otros movimientos
+  tipo_dependencia: DependenciaTipo
+  dueno: string             // string libre en V1 (sin Organigrama)
+  criterio_exito: string
+  estado_usuario: EstadoMovimiento
+}
+
+export interface ResumenCategoriaPE {
+  categoria: string
+  total: number
+  aceptados: number
+  editados: number
+  quitados: number
+}
+
+export interface InventarioPE {
+  movimientos: MovimientoPE[]
+  resumenes_categoria: ResumenCategoriaPE[]
+  generado_en: string  // ISO
+  costo_usd?: number
+  latencia_ms?: number
+}
+
+export interface PalancaQAPE {
+  id: string                     // P-1, P-2, ...
+  origen: 'principal' | 'validador'
+  pregunta: string
+  respuesta: string
+  observacion_modelo?: string    // observación intermedia del modelo
+}
+
+export interface PalancasPE {
+  preguntas_principal: PalancaQAPE[]   // 5 fijas
+  preguntas_validador: PalancaQAPE[]   // 0-5, según validador (D4 — techo, no piso)
+  costo_validador_usd?: number
+  latencia_validador_ms?: number
+}
+
+export interface DecisionPriorizacionPE {
+  decision: string
+  razon: string
+  alternativas_descartadas: string[]
+}
+
+export interface FaseSecuenciaPE {
+  fase: string
+  movimientos: string[]  // ids de movimientos (referencia, no copia)
+  razon_secuencia: string
+}
+
+export interface BorradorIteracionPE {
+  numero: 1 | 2 | 3
+  contexto: string
+  decisiones_priorizacion: DecisionPriorizacionPE[]
+  secuencia_movimientos: FaseSecuenciaPE[]
+  supuestos_criticos: string[]   // descripciones de supuestos referenciados
+  criterio_exito: { pleno: string; minimo: string; path_minimo: string }
+  alternativas_descartadas: { decision: string; razon: string }[]
+  disconformidades_usuario: { elemento: string; razon: string }[]
+  costo_usd: number
+  latencia_ms: number
+  generado_en: string
+}
+
+export interface BorradorPE {
+  iteraciones: BorradorIteracionPE[]   // max 3
+  iteracion_aceptada?: 1 | 2 | 3
+}
+
+export interface EstresQAPE {
+  id: string  // E-1, E-2, ...
+  pregunta: string
+  respuesta: string
+  observacion_modelo?: string
+  ajuste_aplicado?: { tipo: 'inventario' | 'borrador'; descripcion: string }
+}
+
+export interface EstresPE {
+  preguntas: EstresQAPE[]
+}
+
+// Plan curado: forma final aplanada al cerrar 3.E. Inmutable después.
+// Snapshot de 3.E congela este objeto.
+export interface PlanCuradoPE {
+  contexto: string
+  decisiones_priorizacion: { decision: string; razon: string }[]
+  secuencia_movimientos: { fase: string; movimientos: MovimientoPE[]; razon_secuencia: string }[]
+  supuestos_criticos: SupuestoExogenoPE[]
+  criterio_exito: { pleno: string; minimo: string; path_minimo: string }
+  alternativas_descartadas: { decision: string; razon: string }[]
+  cerrado_en: string  // ISO
+}
+
+export interface PlanoPE {
+  preparativos?: PreparativosPE
+  inventario?: InventarioPE
+  palancas?: PalancasPE
+  borrador?: BorradorPE
+  estres?: EstresPE
+  curado?: PlanCuradoPE
 }
 
 // Rol del turno. Extendido en Fase 1 del feat/audit-reviewer:
@@ -400,11 +566,13 @@ export interface DecisionUsuario {
 
 // Snapshot del resumen al cerrar definitivamente un Paso. Se persiste como
 // contenido JSON dentro del campo `Snapshot Resumen JSON` del turno snapshot.
+// Decisión D5 (3 mayo 2026): el snapshot del Paso 3 incluye `plan` (plan curado).
 export interface SnapshotPaso {
   paso: number
   proposito?: PropositorPE
   situacion?: SituacionPE
   datos_faltantes: string[]
+  plan?: PlanoPE
   cerrado_en: string  // ISO datetime
 }
 
@@ -424,4 +592,5 @@ export interface EntrevistaPE {
   sub_estado_paso?: SubEstadoPaso                  // sub-estado del Paso actual; default 'en_curso'
   auditorias_paso_1_count?: number                 // cantidad de audits del Paso 1 (max 3)
   auditorias_paso_2_count?: number                 // cantidad de audits del Paso 2 (max 3)
+  auditorias_paso_3_count?: number                 // cantidad de audits del Paso 3 (max 3)
 }

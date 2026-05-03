@@ -144,6 +144,57 @@ ${resistenciasList}
 `
   }
 
+  if (paso === 3) {
+    if (!plan.plan?.curado) {
+      return '## Paso 3 — Plan\n\n_(plan curado no declarado todavía — el audit del Paso 3 se ejecuta solo después del cierre formal de 3.E)_'
+    }
+    const c = plan.plan.curado
+    const decisionesList = c.decisiones_priorizacion?.length
+      ? c.decisiones_priorizacion.map((d, i) => `${i + 1}. **${d.decision}** — razón: ${d.razon}`).join('\n')
+      : '_(ninguna)_'
+    const secuenciaList = c.secuencia_movimientos?.length
+      ? c.secuencia_movimientos.map(f => {
+          const movs = f.movimientos.map(m => `  - **${m.id}** ${m.nombre} (dueño: ${m.dueno || '_(sin asignar)_'}, ventana: ${m.ventana_temporal.arranca}→${m.ventana_temporal.termina})`).join('\n')
+          return `**${f.fase}** — ${f.razon_secuencia}\n${movs}`
+        }).join('\n\n')
+      : '_(sin movimientos secuenciados)_'
+    const supuestosList = c.supuestos_criticos?.length
+      ? c.supuestos_criticos.map(s => `- **${s.descripcion}** [${s.tipo} · ${s.probabilidad} prob · ${s.estrategia}] — ${s.razon}`).join('\n')
+      : '_(ninguno)_'
+    const altDescartadasList = c.alternativas_descartadas?.length
+      ? c.alternativas_descartadas.map(a => `- **${a.decision}** — razón: ${a.razon}`).join('\n')
+      : '_(ninguna)_'
+
+    return `## Paso 3 — Plan curado
+
+### Contexto
+
+${c.contexto || '_(no declarado)_'}
+
+### Decisiones de priorización (${c.decisiones_priorizacion?.length ?? 0})
+
+${decisionesList}
+
+### Secuencia de movimientos (${c.secuencia_movimientos?.length ?? 0} fases)
+
+${secuenciaList}
+
+### Supuestos críticos (${c.supuestos_criticos?.length ?? 0})
+
+${supuestosList}
+
+### Criterio de éxito
+
+- **Pleno:** ${c.criterio_exito.pleno || '_(no declarado)_'}
+- **Mínimo aceptable:** ${c.criterio_exito.minimo || '_(no declarado)_'}
+- **Path al mínimo:** ${c.criterio_exito.path_minimo || '_(no declarado)_'}
+
+### Alternativas descartadas (${c.alternativas_descartadas?.length ?? 0})
+
+${altDescartadasList}
+`
+  }
+
   return `## Paso ${paso}\n\n_(serialización no implementada para este Paso todavía)_`
 }
 
@@ -347,7 +398,10 @@ async function handleAudit(
   } = { overrideRange: null, overrideResumen: null, readOnly: false, viaScript: false },
 ): Promise<void> {
   // ── Validar count < 3 ──
-  const counterField = paso === 1 ? 'auditorias_paso_1_count' : 'auditorias_paso_2_count'
+  const counterField =
+    paso === 1 ? 'auditorias_paso_1_count' :
+    paso === 2 ? 'auditorias_paso_2_count' :
+    'auditorias_paso_3_count'
   const currentCount = (entrevista[counterField] ?? 0) as number
   if (currentCount >= 3) {
     send({

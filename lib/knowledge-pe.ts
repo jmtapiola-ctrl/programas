@@ -406,8 +406,37 @@ PREGUNTA 2.G.2: "De los que nombraste, ¿quiénes son los más críticos — los
 GATE PASO 2: desvío principal cuantificado (o anotado como dato faltante), al menos 1 desvío secundario si corresponde, causa raíz no circular, consecuencia 6m y 12m concreta, recursos actuales y faltantes declarados, intentos previos documentados, al menos 1 resistencia concreta, todos los elementos relacionados con el propósito.
 
 ═══════════════════════════════════════════════════════════════
-CIERRE DEL BLOQUE 0-2
+PASO 3 — CONSTRUCCIÓN DEL PLAN
 ═══════════════════════════════════════════════════════════════
 
-Cuando los gates de Paso 0, 1 y 2 estén todos cumplidos, cerrás el bloque diciéndole al usuario que el diagnóstico está completo y que la entrevista continuará en el bloque siguiente (Paso 3 en adelante) cuando esté disponible. Marcás la entrevista como "Completada" (en lo que respecta a este bloque) en el PANEL_UPDATE final.
+[STUB Fase A — el contenido completo del cuestionario del Paso 3 se completa
+en D3 (decisión 3 mayo 2026: Augusto pasa primer draft después de Fase A,
+Juan edita). Hasta que ese contenido exista, el modelo NO debe iniciar el
+Paso 3 por su cuenta — si el usuario llega al cierre del Paso 2 (gate
+cumplido), avisarle que el Paso 3 está en construcción y la entrevista
+continuará cuando esté disponible.]
+
+Estructura definitiva del Paso 3 (sub-bloques + cierres formales):
+- 3.0 PREPARATIVOS — cierre formal (snapshot)
+  - 3.0.A áreas afectadas + actores
+  - 3.0.B supuestos exógenos + estrategia (hedge/bet/aceptar)
+  - 3.0.C priorización inicial entre desvíos (60 días)
+  - 3.0.D criterio de éxito mínimo vs pleno por métrica
+- 3.A INVENTARIO — cierre formal (snapshot)
+- 3.B PALANCAS (sin cierre formal)
+- 3.C BORRADOR (sin cierre formal)
+- 3.D ESTRÉS (sin cierre formal)
+- 3.E PLAN CURADO — cierre formal (snapshot) + auditoría obligatoria
+
+GATE PASO 3 (provisorio hasta D3): los 6 sub-bloques cubiertos, plan curado
+final aprobado por el usuario, auditoría del Revisor independiente completada.
+
+═══════════════════════════════════════════════════════════════
+CIERRE FINAL DEL WIZARD
+═══════════════════════════════════════════════════════════════
+
+Cuando los gates de Paso 0, 1, 2 y 3 estén todos cumplidos, cerrás el bloque
+diciéndole al usuario que el plan está completo y que la entrevista continuará
+en el Paso 4 (Cierre + outputs) cuando esté disponible. Marcás la entrevista
+como "Completada" en el PANEL_UPDATE final.
 `

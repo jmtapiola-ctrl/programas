@@ -41,6 +41,15 @@ ${plan.situacion ? `
 Desvío principal: ${plan.situacion.desvio_principal || '(vacío)'}
 Causa raíz: ${plan.situacion.causa_raiz || '(vacío)'}
 ` : '(situación aún no iniciada)'}
+${plan.plan ? `
+### Plan (Paso 3) construido hasta ahora
+Preparativos: ${plan.plan.preparativos ? 'declarados' : '(pendiente)'}
+Inventario: ${plan.plan.inventario?.movimientos?.length ? `${plan.plan.inventario.movimientos.length} movimientos` : '(pendiente)'}
+Palancas: ${plan.plan.palancas ? `${plan.plan.palancas.preguntas_principal?.length ?? 0} principal + ${plan.plan.palancas.preguntas_validador?.length ?? 0} validador` : '(pendiente)'}
+Borrador: ${plan.plan.borrador ? `${plan.plan.borrador.iteraciones?.length ?? 0} iteraciones` : '(pendiente)'}
+Estrés: ${plan.plan.estres?.preguntas?.length ? `${plan.plan.estres.preguntas.length} preguntas` : '(pendiente)'}
+Curado: ${plan.plan.curado ? 'cerrado' : '(pendiente)'}
+` : '(plan aún no iniciado)'}
 ${plan.datos_faltantes?.length ? `Datos por conseguir: ${plan.datos_faltantes.join(', ')}` : ''}
 `
 
@@ -72,8 +81,8 @@ Al final de CADA respuesta tuya, sin excepción, emití exactamente este bloque 
 
 <!--PANEL_UPDATE-->
 {
-  "paso_actual": <número: 0, 1 o 2>,
-  "sub_bloque_actual": "<string: '0', '1.A', '1.B', '1.C', '1.D', '1.E', '2.A', '2.B', '2.C', '2.D', '2.E', '2.F', '2.G'>",
+  "paso_actual": <número: 0, 1, 2 o 3>,
+  "sub_bloque_actual": "<string: '0', '1.A', '1.B', '1.C', '1.D', '1.E', '2.A', '2.B', '2.C', '2.D', '2.E', '2.F', '2.G', '3.0', '3.A', '3.B', '3.C', '3.D', '3.E'>",
   "proposito": {
     "escena": "<string, vacío si aún no se declaró>",
     "metricas": [<objetos {metrica, valor_objetivo, valor_actual}>],
@@ -118,7 +127,7 @@ SCHEMA DE ITEMS POR ARRAY (CRÍTICO — emitir strings sueltos rompe el panel):
 DETECCIÓN DE CIERRE DE PASO — CRITERIO PROPIO:
 
 Emití "cierre_sugerido": true en el PANEL_UPDATE de un turno SOLO si se cumplen TODAS estas condiciones:
-1. Todos los sub-bloques del Paso actual fueron cubiertos (Paso 1 = 1.A, 1.B, 1.C, 1.D, 1.E; Paso 2 = 2.A..2.G).
+1. Todos los sub-bloques del Paso actual fueron cubiertos (Paso 1 = 1.A, 1.B, 1.C, 1.D, 1.E; Paso 2 = 2.A..2.G; Paso 3 = 3.0, 3.A, 3.B, 3.C, 3.D, 3.E).
 2. Cada sub-bloque tiene contenido real declarado por el usuario, no solo "lo discutimos en general".
 3. Las decisiones explícitas del usuario fueron confirmadas (no solo mencionadas), y los acuerdos quedan reflejados en el estado acumulado del PANEL_UPDATE.
 4. No quedan datos faltantes críticos sin marcar en "datos_faltantes".
@@ -204,7 +213,7 @@ ${K_PE_ESTRATEGIA_VS_TACTICA}
 
 ${K_PE_FALLAS}
 
-## Cuestionario que debés seguir (Pasos 0, 1 y 2)
+## Cuestionario que debés seguir (Pasos 0, 1, 2 y 3)
 
 ${K_PE_CUESTIONARIO}
 

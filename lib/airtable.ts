@@ -10,6 +10,7 @@ import type {
   TurnoPE,
   PropositorPE,
   SituacionPE,
+  PlanoPE,
   PanelUpdatePE,
   SubEstadoPaso,
   ReviewerReport,
@@ -609,6 +610,13 @@ function mapPlanEstrategico(r: any): PlanEstrategico {
     resistencias: safeParseJson(f['Situacion Resistencias'], []),
   } as SituacionPE : undefined
 
+  // Plan estructurado del Paso 3 (Fase A — Decisión D2: un solo campo JSON
+  // consolidado para V1). El shape sigue PlanoPE (6 keys top-level durante
+  // el flow + curado aplanado al cerrar 3.E). undefined si no está poblado.
+  const plan = f['Plan Paso 3 JSON']
+    ? safeParseJson(f['Plan Paso 3 JSON'], undefined)
+    : undefined
+
   return {
     id: r.id,
     nombre: f['Nombre'] ?? '',
@@ -623,6 +631,7 @@ function mapPlanEstrategico(r: any): PlanEstrategico {
     proposito,
     situacion,
     datos_faltantes: safeParseJson(f['Datos Faltantes'], []),
+    plan,
   }
 }
 
@@ -652,6 +661,7 @@ function mapEntrevistaPE(r: any): EntrevistaPE {
     sub_estado_paso: (f['Sub Estado Paso']?.name ?? f['Sub Estado Paso'] ?? 'en_curso') as SubEstadoPaso,
     auditorias_paso_1_count: f['Auditorias Paso 1 Count'] ?? 0,
     auditorias_paso_2_count: f['Auditorias Paso 2 Count'] ?? 0,
+    auditorias_paso_3_count: f['Auditorias Paso 3 Count'] ?? 0,
   }
 }
 
@@ -778,6 +788,7 @@ export async function updatePlanEstrategico(id: string, data: Partial<{
   situacion: SituacionPE
   datos_faltantes: string[]
   alineacion_sr: string
+  plan: PlanoPE
 }>): Promise<void> {
   const fields: Record<string, any> = {}
   if (data.nombre !== undefined) fields['Nombre'] = data.nombre
@@ -786,6 +797,7 @@ export async function updatePlanEstrategico(id: string, data: Partial<{
   if (data.horizonte !== undefined) fields['Horizonte'] = data.horizonte
   if (data.alineacion_sr !== undefined) fields['Alineacion Sr'] = data.alineacion_sr
   if (data.datos_faltantes !== undefined) fields['Datos Faltantes'] = JSON.stringify(data.datos_faltantes)
+  if (data.plan !== undefined) fields['Plan Paso 3 JSON'] = JSON.stringify(data.plan)
   if (data.proposito) {
     const p = data.proposito
     fields['Proposito Escena'] = p.escena
@@ -858,6 +870,7 @@ export async function updateEntrevistaPE(id: string, data: {
   sub_estado_paso?: SubEstadoPaso
   auditorias_paso_1_count?: number
   auditorias_paso_2_count?: number
+  auditorias_paso_3_count?: number
 }): Promise<void> {
   const fields: Record<string, any> = { 'Ultima Actividad': new Date().toISOString() }
   if (data.estado !== undefined) fields['Estado'] = data.estado
@@ -869,6 +882,7 @@ export async function updateEntrevistaPE(id: string, data: {
   if (data.sub_estado_paso !== undefined) fields['Sub Estado Paso'] = data.sub_estado_paso
   if (data.auditorias_paso_1_count !== undefined) fields['Auditorias Paso 1 Count'] = data.auditorias_paso_1_count
   if (data.auditorias_paso_2_count !== undefined) fields['Auditorias Paso 2 Count'] = data.auditorias_paso_2_count
+  if (data.auditorias_paso_3_count !== undefined) fields['Auditorias Paso 3 Count'] = data.auditorias_paso_3_count
   // El campo Historial (legacy multilineText) ya no se escribe — los turnos van a Turnos_PE
   await updateRecord(TABLA_ENTREVISTAS_PE, id, fields)
 }
@@ -928,7 +942,7 @@ export async function updateSubEstadoPaso(
  */
 export async function incrementAuditoriasPaso(
   entrevistaId: string,
-  paso: 1 | 2,
+  paso: 1 | 2 | 3,
   currentCount: number,
 ): Promise<number> {
   const MAX = 3
@@ -936,7 +950,10 @@ export async function incrementAuditoriasPaso(
     throw new Error(`Auditorías del Paso ${paso} ya en el máximo (${MAX}). No se puede incrementar.`)
   }
   const nuevo = currentCount + 1
-  const fieldKey = paso === 1 ? 'auditorias_paso_1_count' : 'auditorias_paso_2_count'
+  const fieldKey =
+    paso === 1 ? 'auditorias_paso_1_count' :
+    paso === 2 ? 'auditorias_paso_2_count' :
+    'auditorias_paso_3_count'
   await updateEntrevistaPE(entrevistaId, { [fieldKey]: nuevo })
   return nuevo
 }
