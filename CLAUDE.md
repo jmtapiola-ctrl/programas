@@ -184,3 +184,41 @@ Scripts en `diagnostico/scripts/` pueden tener side effects destructivos: escrib
 - **Para validar cambios al parser, schema, o lógica pura:** preferir **unit-tests** (`32-parser-unit.ts` y similares) — sin red, sin Airtable, sin LLM. $0 USD, segundos de runtime, 100% reproducibles.
 - **Si un smoke destructivo es genuinamente necesario:** crear plan de testing dedicado (no usar el del piloto), o snapshot + restore explícito antes/después.
 - Origen: en el merge pre-Fase 1 de feat/audit-reviewer, casi corrimos `27-smoke-test-final.ts` para validar el cambio aditivo al parser. El script escribe en `recFMWxoE5gTQQrf7` (Plan Sr real). Pivote a unit-test `32-parser-unit.ts` evitó contaminación del piloto curado.
+
+### Reads de Airtable: usar nombres de campos, no field IDs
+
+Cuando se hace `fetchAll(table)` sin `returnFieldsByFieldId=true`, Airtable devuelve `r.fields` con los **NOMBRES** como keys (no field IDs). Escribir con field IDs en `r.fields?.['fldXXX']` devuelve `undefined` silenciosamente.
+
+- **Convención del proyecto:** **reads usan nombres** (ej: `r.fields?.['Reviewer Decisiones JSON']`), **writes (POST/PATCH bodies) usan field IDs** (más estable contra renombres del field).
+- Mantener consistencia con `mapTurnoPE`, `mapEntrevistaPE`, `mapPlanEstrategico`, etc.
+- Origen: smoke real end-to-end de Fase 4 reportó "data loss aparente" (`snapshotPreApply: false`, `decisiones: 0` post-write exitoso). El bug era que `getReviewerTurnos` y `getSnapshotPaso` usaban field IDs en el read. GET directo a Airtable confirmó que los datos SÍ estaban persistidos.
+
+### Smoke real end-to-end del feature de auditoría — checklist de release
+
+Antes de declarar release del feature audit-reviewer (o de cualquier cambio significativo a sus libs/endpoints/UI), correr en orden:
+
+1. **Tipo-check:** `npx tsc --noEmit`. Cero errores.
+2. **Unit tests:** `npx tsx diagnostico/scripts/32-parser-unit.ts && npx tsx diagnostico/scripts/34-fase2-unit.ts && npx tsx diagnostico/scripts/37-fase4-unit.ts`. **135/135** verde.
+3. **Verificación visual** (UI sin tocar producción):
+   - `npx tsx --env-file=.env.local diagnostico/scripts/35-seed-test-audit-state.mjs --with-report` → Pantalla 3 con report mock + decisiones interactivas.
+   - `npx tsx --env-file=.env.local diagnostico/scripts/35-seed-test-audit-state.mjs --with-report-applied` → Pantalla 4 con diff visible y 3 botones.
+4. **Smoke real end-to-end** (toca OpenAI + Anthropic + Airtable plan dummy `recEsoKMENVQI8NUb`, **NO** el Plan Sr de Terravinci):
+   - `REVIEWER_TIMEOUT_MS=300000 npx tsx --env-file=.env.local diagnostico/scripts/36-smoke-end-to-end.ts`.
+   - Costo esperado: $0.20-0.50 USD para plan dummy chico; $1-2 para plan con contenido real.
+   - Valida: cierre → audit gpt-5.5 → split decisiones → apply errors det + Opus questions → snapshot pre-apply → estado final.
+   - Verificar al final que `sub_estado_paso=esperando_aprobacion_final` y `decisiones+snapshotPreApply` persistidos en Airtable.
+5. **Verificación manual del usuario** sobre Pantalla 4 con datos reales del smoke:
+   - Toggle "Solo cambios | Plan completo" funciona.
+   - Indicador visual (badge MODIFICADO) en campos cambiados.
+   - Click "Aceptar y avanzar" crea snapshot inmutable + transición a Paso N+1.
+
+Si algún step falla, parar antes del release. Documentar el bug y arreglar antes de continuar.
+
+### Apply Opus: max_tokens y patch semantics obligatorios
+
+Llamadas a Opus desde endpoints `/apply` y `/comentar`:
+- **`max_tokens` mínimo: 32000.** Con menos, el JSON output trunca mid-string en planes de tamaño realista (Opus reasoning interno consume tokens significativos).
+- **`messages.stream()` obligatorio.** El SDK Anthropic rechaza `messages.create()` cuando `max_tokens` puede llevar a runtime > 10 min.
+- **Patch semantics en el system prompt:** Opus debe emitir SOLO las top-level keys (`proposito` / `situacion` / `datos_faltantes`) que cambian. Si nada cambia, devolver `{}`. El código merge: si Opus emite key X, usar; si no, mantener valor anterior.
+  - Sin patch semantics, Opus reescribe el plan ENTERO en cada call → desperdicia tokens, propenso a truncar.
+- Origen: smoke real end-to-end Fase 4 detectó las 3 issues secuencialmente.
