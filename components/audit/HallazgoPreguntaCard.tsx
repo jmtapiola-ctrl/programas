@@ -63,7 +63,7 @@ export function HallazgoPreguntaCard({ hallazgo, decision, onChange }: Props) {
             onChange={(e) => setRespuesta(e.target.value)}
             placeholder={hallazgo.placeholder_ejemplo_respuesta}
             rows={3}
-            className="w-full text-sm text-gray-100 bg-gray-900 border border-gray-600 rounded px-3 py-2 focus:border-blue-500 focus:outline-none resize-vertical placeholder:text-gray-600 placeholder:italic"
+            className="w-full text-sm text-gray-100 bg-gray-900 border border-gray-600 rounded px-3 py-2 focus:border-blue-500 focus:outline-none resize-vertical placeholder:text-gray-400 placeholder:italic"
           />
           <div className="flex gap-2">
             <button
