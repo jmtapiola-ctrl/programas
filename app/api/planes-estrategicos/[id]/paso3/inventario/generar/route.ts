@@ -81,70 +81,129 @@ export async function POST(
   let costoUsd = 0
   let latenciaMs = 0
   let inventarioParsed: InventarioPE
+  let text = ''
 
-  try {
-    // streaming requerido — max_tokens 32k puede llevar a runtime > 10 min y
-    // el SDK rechaza messages.create() en ese caso.
-    const stream = anthropic.messages.stream({
-      model: 'claude-opus-4-7',
-      max_tokens: 32000,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userMessage }],
-    })
-    const finalMsg = await stream.finalMessage()
-    latenciaMs = Date.now() - start
+  // Retry mechanism para errores transitorios de conexión.
+  // UND_ERR_SOCKET ("other side closed") aparece cuando Opus tarda mucho en
+  // emitir el primer token (reasoning interno largo) + load balancer cierra
+  // el socket por inactividad. Es transitorio — un reintento normalmente
+  // funciona porque la generación va al cache de Anthropic.
+  const MAX_ATTEMPTS = 3
+  const BACKOFF_MS = [0, 2000, 5000]
+  let lastError: any = null
 
-    const inputTokens = finalMsg.usage.input_tokens
-    const outputTokens = finalMsg.usage.output_tokens
-    costoUsd = (inputTokens * OPUS_INPUT_PER_M + outputTokens * OPUS_OUTPUT_PER_M) / 1_000_000
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (attempt > 1) {
+      console.log(`[paso3/inventario/generar] Reintento ${attempt}/${MAX_ATTEMPTS} tras error transitorio. Esperando ${BACKOFF_MS[attempt - 1]}ms...`)
+      await new Promise(r => setTimeout(r, BACKOFF_MS[attempt - 1]))
+    }
 
-    const text = finalMsg.content
-      .filter((c): c is Anthropic.TextBlock => c.type === 'text')
-      .map(c => c.text)
-      .join('\n')
-
-    // Parsear JSON. Tolerar texto extra antes/después extrayendo el primer { ... }
-    let parsed: any
     try {
-      parsed = JSON.parse(text)
-    } catch {
-      const m = text.match(/\{[\s\S]*\}/)
-      if (m) {
-        try { parsed = JSON.parse(m[0]) } catch { /* fall-through */ }
+      console.log(`[paso3/inventario/generar] Intento ${attempt}: llamando a Opus...`)
+      const attemptStart = Date.now()
+      const stream = anthropic.messages.stream({
+        model: 'claude-opus-4-7',
+        max_tokens: 16000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userMessage }],
+      })
+      const finalMsg = await stream.finalMessage()
+      latenciaMs = Date.now() - start
+      const attemptMs = Date.now() - attemptStart
+      console.log(`[paso3/inventario/generar] Intento ${attempt}: Opus OK en ${attemptMs}ms · stop_reason=${finalMsg.stop_reason}`)
+
+      const inputTokens = finalMsg.usage.input_tokens
+      const outputTokens = finalMsg.usage.output_tokens
+      costoUsd += (inputTokens * OPUS_INPUT_PER_M + outputTokens * OPUS_OUTPUT_PER_M) / 1_000_000  // acumulado por todos los intentos
+
+      text = finalMsg.content
+        .filter((c): c is Anthropic.TextBlock => c.type === 'text')
+        .map(c => c.text)
+        .join('\n')
+
+      if (finalMsg.stop_reason === 'max_tokens') {
+        console.warn('[paso3/inventario/generar] Opus truncó por max_tokens — output puede ser JSON inválido')
       }
+      lastError = null
+      break  // éxito, salir del loop de retry
+    } catch (err) {
+      lastError = err
+      const errAny = err as any
+      const isTransient =
+        errAny?.cause?.code === 'UND_ERR_SOCKET' ||
+        errAny?.cause?.message === 'other side closed' ||
+        errAny?.message === 'terminated' ||
+        errAny?.code === 'ECONNRESET' ||
+        errAny?.code === 'ETIMEDOUT'
+      console.warn(`[paso3/inventario/generar] Intento ${attempt} falló:`, {
+        name: errAny?.name,
+        message: errAny?.message,
+        cause_code: errAny?.cause?.code,
+        cause_message: errAny?.cause?.message,
+        is_transient: isTransient,
+      })
+      if (!isTransient || attempt === MAX_ATTEMPTS) break  // error permanente o último intento
     }
+  }
 
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      console.error('[paso3/inventario/generar] Opus output no parseable como JSON object')
-      return NextResponse.json({
-        error: 'Opus devolvió output no parseable como JSON object.',
-        opus_response_preview: text.slice(0, 500),
-        apply_metrics: { costo_usd: costoUsd, latencia_ms: latenciaMs },
-      }, { status: 500 })
+  if (lastError) {
+    // Salió del loop sin éxito — todos los intentos fallaron. Devolver error
+    // detallado al cliente con info del SDK para diagnóstico futuro.
+    latenciaMs = Date.now() - start
+    const errAny = lastError as any
+    const errInfo = {
+      name: errAny?.name,
+      message: errAny?.message,
+      status: errAny?.status,
+      type: errAny?.type,
+      cause: errAny?.cause?.message ?? errAny?.cause?.code ?? errAny?.cause,
+      latencia_ms_total: latenciaMs,
+      attempts: MAX_ATTEMPTS,
+      stack: errAny?.stack?.split('\n').slice(0, 5).join('\n'),
     }
-
-    if (!Array.isArray(parsed.movimientos)) {
-      return NextResponse.json({
-        error: 'Output sin "movimientos" como array.',
-        keys: Object.keys(parsed),
-        apply_metrics: { costo_usd: costoUsd, latencia_ms: latenciaMs },
-      }, { status: 500 })
-    }
-
-    // Setear generado_en si Opus no lo metió
-    inventarioParsed = {
-      movimientos: parsed.movimientos,
-      resumenes_categoria: parsed.resumenes_categoria ?? [],
-      generado_en: parsed.generado_en || new Date().toISOString(),
-      costo_usd: costoUsd,
-      latencia_ms: latenciaMs,
-    }
-  } catch (err) {
-    console.error('[paso3/inventario/generar] Anthropic call failed:', err)
+    console.error('[paso3/inventario/generar] Todos los intentos fallaron:', errInfo)
     return NextResponse.json({
-      error: err instanceof Error ? err.message : String(err),
+      error: lastError instanceof Error ? lastError.message : String(lastError),
+      error_info: errInfo,
       apply_metrics: { costo_usd: costoUsd, latencia_ms: latenciaMs },
     }, { status: 500 })
+  }
+
+  // Parsear JSON. Tolerar texto extra antes/después extrayendo el primer { ... }
+  let parsed: any
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    const m = text.match(/\{[\s\S]*\}/)
+    if (m) {
+      try { parsed = JSON.parse(m[0]) } catch { /* fall-through */ }
+    }
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    console.error('[paso3/inventario/generar] Opus output no parseable como JSON object')
+    return NextResponse.json({
+      error: 'Opus devolvió output no parseable como JSON object.',
+      opus_response_preview: text.slice(0, 500),
+      apply_metrics: { costo_usd: costoUsd, latencia_ms: latenciaMs },
+    }, { status: 500 })
+  }
+
+  if (!Array.isArray(parsed.movimientos)) {
+    return NextResponse.json({
+      error: 'Output sin "movimientos" como array.',
+      keys: Object.keys(parsed),
+      apply_metrics: { costo_usd: costoUsd, latencia_ms: latenciaMs },
+    }, { status: 500 })
+  }
+
+  // Setear generado_en si Opus no lo metió
+  inventarioParsed = {
+    movimientos: parsed.movimientos,
+    resumenes_categoria: parsed.resumenes_categoria ?? [],
+    generado_en: parsed.generado_en || new Date().toISOString(),
+    costo_usd: costoUsd,
+    latencia_ms: latenciaMs,
   }
 
   // Persistir en plan.inventario (preservar plan.preparativos existente)
