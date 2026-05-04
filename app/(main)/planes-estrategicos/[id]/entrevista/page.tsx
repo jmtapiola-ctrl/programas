@@ -125,8 +125,27 @@ export default function EntrevistaPage() {
               // Modelo terminó de emitir tokens. El backend ahora persiste
               // (parser + Airtable + transiciones). UI cambia a "Guardando...".
               setIsPersisting(true)
+            } else if (evt.type === 'sub_bloque_cerrado') {
+              // Cierre interno de un sub-bloque del Paso 3 (3.0 o 3.A). El
+              // backend creó snapshot. El sub_bloque_actual de la entrevista ya
+              // se actualizó al siguiente sub-bloque por el PANEL_UPDATE del
+              // modelo. Refrescamos el state local desde el evento para que la
+              // UI condicional (banner del 3.A) reaccione sin esperar refresh.
+              if (evt.sub_bloque) {
+                // El evento dice qué sub-bloque se cerró; el actual es el siguiente
+                const siguiente = evt.sub_bloque === '3.0' ? '3.A' : evt.sub_bloque === '3.A' ? '3.B' : evt.sub_bloque
+                setSubBloqueActual(siguiente)
+              }
             } else if (evt.type === 'done') {
-              if (evt.panelUpdate) setPanelData(evt.panelUpdate)
+              if (evt.panelUpdate) {
+                setPanelData(evt.panelUpdate)
+                // Sincronizar subBloqueActual local con el último PANEL_UPDATE.
+                // Sin esto, la UI condicional (banner 3.A) queda con el sub_bloque
+                // del load inicial y no reacciona a cambios durante la conversación.
+                if (evt.panelUpdate.sub_bloque_actual) {
+                  setSubBloqueActual(evt.panelUpdate.sub_bloque_actual)
+                }
+              }
             } else if (evt.type === 'save_failed') {
               // El modelo respondió pero la persistencia falló los 3 reintentos.
               // No se pueden mandar mensajes nuevos sin reproducir el bug original
