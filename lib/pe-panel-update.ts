@@ -16,6 +16,8 @@ import type {
   PreparativosPE,
   InventarioPE,
   MovimientoPE,
+  PalancasPE,
+  PalancaQAPE,
 } from './types'
 
 const PANEL_UPDATE_RE = /<!--PANEL_UPDATE-->([\s\S]*?)<!--\/PANEL_UPDATE-->/
@@ -174,6 +176,41 @@ function validateInventario(inv: any, prefix: string): string[] {
   if (!Array.isArray(inv.resumenes_categoria)) errs.push(`${prefix}.resumenes_categoria debe ser array`)
   else errs.push(...validateArrayItems(inv.resumenes_categoria, `${prefix}.resumenes_categoria`, validateResumenCategoriaItem))
   if (typeof inv.generado_en !== 'string') errs.push(`${prefix}.generado_en debe ser string ISO datetime`)
+  return errs
+}
+
+// ── Validadores de items del Paso 3 (Fase D — sub-bloque 3.B Palancas) ──
+
+function validatePalancaQAItem(item: any, idx: number, prefix: string): string[] {
+  const errs: string[] = []
+  if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+    return [`${prefix}[${idx}] debe ser objeto PalancaQAPE`]
+  }
+  if (typeof item.id !== 'string') errs.push(`${prefix}[${idx}].id debe ser string (ej "P-1")`)
+  if (!['principal', 'validador'].includes(item.origen)) errs.push(`${prefix}[${idx}].origen debe ser 'principal' | 'validador'`)
+  if (typeof item.pregunta !== 'string') errs.push(`${prefix}[${idx}].pregunta debe ser string`)
+  if (typeof item.respuesta !== 'string') errs.push(`${prefix}[${idx}].respuesta debe ser string (vacía "" si aún no respondida)`)
+  if (item.observacion_modelo !== undefined && typeof item.observacion_modelo !== 'string') {
+    errs.push(`${prefix}[${idx}].observacion_modelo (si presente) debe ser string`)
+  }
+  return errs
+}
+
+function validatePalancas(pal: any, prefix: string): string[] {
+  if (typeof pal !== 'object' || pal === null || Array.isArray(pal)) {
+    return [`${prefix} debe ser objeto`]
+  }
+  const errs: string[] = []
+  if (!Array.isArray(pal.preguntas_principal)) {
+    errs.push(`${prefix}.preguntas_principal debe ser array`)
+  } else {
+    errs.push(...validateArrayItems(pal.preguntas_principal, `${prefix}.preguntas_principal`, validatePalancaQAItem))
+  }
+  if (!Array.isArray(pal.preguntas_validador)) {
+    errs.push(`${prefix}.preguntas_validador debe ser array`)
+  } else {
+    errs.push(...validateArrayItems(pal.preguntas_validador, `${prefix}.preguntas_validador`, validatePalancaQAItem))
+  }
   return errs
 }
 
@@ -339,8 +376,11 @@ export function parsePanelUpdate(fullResponse: string): ParseResult {
       if (parsed.plan.inventario !== undefined) {
         errors.push(...validateInventario(parsed.plan.inventario, 'plan.inventario'))
       }
-      // palancas, borrador, estres, curado: shape interno se valida en sus
-      // Fases respectivas (D, E). Por ahora aceptar como cualquier valor.
+      if (parsed.plan.palancas !== undefined) {
+        errors.push(...validatePalancas(parsed.plan.palancas, 'plan.palancas'))
+      }
+      // borrador, estres, curado: shape interno se valida en sus Fases
+      // respectivas (D Chunk 2/3, E). Por ahora aceptar como cualquier valor.
     }
   }
 
@@ -543,8 +583,19 @@ export function mergePlan(
     result.inventario = c.inventario
   }
 
+  // palancas: merge por id de PalancaQAPE (Fase D Chunk 1). Las respuestas
+  // del usuario son load-bearing — preservar respuesta no-vacía si incoming
+  // tiene la misma pregunta con respuesta vacía.
+  if (incoming.palancas !== undefined) {
+    const merged = mergePalancas(c.palancas, incoming.palancas)
+    if (merged.value !== undefined) result.palancas = merged.value
+    events.push(...merged.events)
+  } else if (c.palancas !== undefined) {
+    result.palancas = c.palancas
+  }
+
   // Sub-bloques posteriores: pick top-level (sin merge interno hasta su Fase).
-  for (const key of ['palancas', 'borrador', 'estres', 'curado'] as const) {
+  for (const key of ['borrador', 'estres', 'curado'] as const) {
     const inc = incoming[key]
     const cur = c[key]
     const { value, event } = pickField(`plan.${key}`, cur as any, inc as any)
@@ -614,6 +665,53 @@ function mergeInventario(
       generado_en: incoming.generado_en || current.generado_en,
       costo_usd: incoming.costo_usd ?? current.costo_usd,
       latencia_ms: incoming.latencia_ms ?? current.latencia_ms,
+    },
+    events,
+  }
+}
+
+/**
+ * Merge protector para PalancasPE. Combina arrays preguntas_principal y
+ * preguntas_validador por id. Si el incoming tiene una pregunta con respuesta
+ * vacía pero el current ya tiene la misma pregunta con respuesta poblada,
+ * preserva la respuesta del current (= no perder lo que el usuario respondió).
+ */
+function mergePalancas(
+  current: PalancasPE | undefined,
+  incoming: PalancasPE,
+): MergeResult<PalancasPE> {
+  const events: MergeEvent[] = []
+  if (!current) return { value: incoming, events: [{ type: 'updated', field: 'plan.palancas', from: '(nuevo)', to: `principal[${incoming.preguntas_principal?.length ?? 0}] validador[${incoming.preguntas_validador?.length ?? 0}]` }] }
+
+  function mergeArr(curArr: PalancaQAPE[], incArr: PalancaQAPE[], label: string): PalancaQAPE[] {
+    const curById = new Map<string, PalancaQAPE>()
+    for (const q of curArr) curById.set(q.id, q)
+    const out: PalancaQAPE[] = []
+    for (const inc of incArr) {
+      const cur = curById.get(inc.id)
+      if (cur && cur.respuesta && !inc.respuesta) {
+        // Preservar respuesta del current si incoming la dejó vacía
+        out.push(cur)
+        events.push({ type: 'preserved_empty', field: `plan.palancas.${label}[${inc.id}].respuesta` })
+      } else {
+        out.push(inc)
+      }
+      curById.delete(inc.id)
+    }
+    // Items que estaban en current pero no en incoming: preservar
+    for (const remaining of curById.values()) {
+      out.push(remaining)
+      events.push({ type: 'preserved_empty', field: `plan.palancas.${label}[${remaining.id}] (omitido por modelo)` })
+    }
+    return out
+  }
+
+  return {
+    value: {
+      preguntas_principal: mergeArr(current.preguntas_principal ?? [], incoming.preguntas_principal ?? [], 'preguntas_principal'),
+      preguntas_validador: mergeArr(current.preguntas_validador ?? [], incoming.preguntas_validador ?? [], 'preguntas_validador'),
+      costo_validador_usd: incoming.costo_validador_usd ?? current.costo_validador_usd,
+      latencia_validador_ms: incoming.latencia_validador_ms ?? current.latencia_validador_ms,
     },
     events,
   }

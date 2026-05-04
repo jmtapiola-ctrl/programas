@@ -146,6 +146,8 @@ function PanelConstruccion({
 
       {planPaso3?.inventario && <InventarioPanel inventario={planPaso3.inventario} />}
 
+      {planPaso3?.palancas && <PalancasPanel palancas={planPaso3.palancas} />}
+
       {datosFaltantes.length > 0 && (
         <SeccionPanel titulo="Datos por conseguir">
           <p className="text-[12px] text-muted-foreground whitespace-pre-wrap">
@@ -239,6 +241,31 @@ function InventarioPanel({ inventario }: { inventario: any }) {
         label="Categorías"
         valor={Array.from(porCategoria.entries()).map(([cat, n]) => `• ${cat} (${n})`).join('\n')}
       />
+    </SeccionPanel>
+  )
+}
+
+// Sub-bloque 3.B — render compacto de palancas en el panel lateral.
+function PalancasPanel({ palancas }: { palancas: any }) {
+  const principal = palancas.preguntas_principal ?? []
+  const validador = palancas.preguntas_validador ?? []
+  const respondidasPrincipal = principal.filter((q: any) => q.respuesta?.trim()).length
+  const respondidasValidador = validador.filter((q: any) => q.respuesta?.trim()).length
+
+  return (
+    <SeccionPanel titulo="Plan — Palancas (3.B)">
+      <div className="space-y-2 text-[11px]">
+        <p className="text-foreground/90">
+          <span className="font-semibold">{principal.length}</span> preguntas modelo principal
+          {principal.length > 0 && ` · ${respondidasPrincipal}/${principal.length} respondidas`}
+        </p>
+        {validador.length > 0 && (
+          <p className="text-foreground/90">
+            <span className="font-semibold">{validador.length}</span> preguntas validador
+            {` · ${respondidasValidador}/${validador.length} respondidas`}
+          </p>
+        )}
+      </div>
     </SeccionPanel>
   )
 }

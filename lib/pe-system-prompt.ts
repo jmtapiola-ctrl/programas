@@ -84,6 +84,12 @@ ${plan.plan ? `
 Preparativos: ${plan.plan.preparativos ? 'declarados' : '(pendiente)'}
 Inventario: ${plan.plan.inventario?.movimientos?.length ? `${plan.plan.inventario.movimientos.length} movimientos` : '(pendiente)'}
 Palancas: ${plan.plan.palancas ? `${plan.plan.palancas.preguntas_principal?.length ?? 0} principal + ${plan.plan.palancas.preguntas_validador?.length ?? 0} validador` : '(pendiente)'}
+${plan.plan.palancas?.preguntas_principal?.length ? `Preguntas principal hechas hasta ahora:
+${plan.plan.palancas.preguntas_principal.map((q: any) => `  ${q.id}: "${q.pregunta.slice(0, 100)}${q.pregunta.length > 100 ? '...' : ''}"${q.respuesta ? ` → respondida: "${q.respuesta.slice(0, 60)}${q.respuesta.length > 60 ? '...' : ''}"` : ' (sin responder)'}`).join('\n')}
+` : ''}
+${plan.plan.palancas?.preguntas_validador?.length ? `Preguntas validador (ya respondidas en UI dedicada):
+${plan.plan.palancas.preguntas_validador.map((q: any) => `  ${q.id}: "${q.pregunta.slice(0, 100)}${q.pregunta.length > 100 ? '...' : ''}" → "${q.respuesta.slice(0, 80)}${q.respuesta.length > 80 ? '...' : ''}"`).join('\n')}
+` : ''}
 Borrador: ${plan.plan.borrador ? `${plan.plan.borrador.iteraciones?.length ?? 0} iteraciones` : '(pendiente)'}
 Estrés: ${plan.plan.estres?.preguntas?.length ? `${plan.plan.estres.preguntas.length} preguntas` : '(pendiente)'}
 Curado: ${plan.plan.curado ? 'cerrado' : '(pendiente)'}
@@ -178,7 +184,12 @@ Schema de cada sub-key:
   "criterio_exito": {"por_metrica": [{"metrica": "<string>", "pleno": "<string>", "minimo": "<string>"}], "zona_fracaso": "<string>"}
 }
 
-"inventario", "palancas", "borrador", "estres", "curado": schemas detallados se sumarán cuando arranque cada sub-bloque (Fases C-E). Por ahora, solo emití "preparativos" durante 3.0.
+"palancas": {
+  "preguntas_principal": [{"id": "<'P-1'|'P-2'|...|'P-5'>", "origen": "principal", "pregunta": "<string>", "respuesta": "<string, vacía si aún no respondió>", "observacion_modelo": "<string opcional, observación intermedia que confronta supuestos no-evidenciados>"}],
+  "preguntas_validador": [<idem schema PalancaQAPE pero origen='validador' e id 'V-1'..'V-5'>]
+}
+
+"inventario", "borrador", "estres", "curado": schemas detallados se sumarán cuando arranque cada sub-bloque (Fases C-E). Por ahora, solo emití "preparativos" durante 3.0 y "palancas" durante 3.B.
 
 CUÁNDO EMITIR EL CAMPO "plan":
 
@@ -187,6 +198,9 @@ CUÁNDO EMITIR EL CAMPO "plan":
 - En 3.0.C: sumás plan.preparativos.priorizacion_inicial.
 - En 3.0.D: sumás plan.preparativos.criterio_exito.
 - En el turno donde emitís cierre_sugerido=true para 3.0: el plan.preparativos DEBE estar completo con las 4 sub-keys pobladas. Sin esto, el snapshot intermedio queda vacío y se pierde el trabajo del usuario.
+- En 3.B (Palancas): emitís plan.palancas.preguntas_principal turno a turno. Cada vez que hacés una pregunta nueva, sumás un objeto al array con id="P-1"..."P-5", origen="principal", pregunta="<lo que preguntaste>", respuesta="" (vacía hasta que el user responde), observacion_modelo="" (vacía hasta que hacés la observación intermedia post-respuesta). Cuando el user responde, en TU SIGUIENTE turno actualizás el objeto P-N: poblás respuesta + observacion_modelo. Mantenés todos los objetos previos en el array (estado completo acumulado, igual que metricas/fuera/etc.).
+- Cuando las 5 preguntas tienen respuesta y observación, en ese mismo turno emitís el mensaje "Tengo las 5 respuestas que necesitaba. Antes de avanzar, voy a hacer una revisión de control..." (ver cuestionario 3.B). El sistema detecta que plan.palancas.preguntas_principal tiene 5 items todos respondidos y dispara el validador automáticamente.
+- preguntas_validador queda VACÍO en tus PANEL_UPDATEs — el sistema lo populará cuando el user responda las preguntas del validador en una UI dedicada. NO emitas preguntas_validador.
 
 DETECCIÓN DE CIERRE DE PASO — CRITERIO PROPIO:
 

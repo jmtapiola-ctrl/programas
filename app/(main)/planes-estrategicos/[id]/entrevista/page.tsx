@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { ChatInterface } from '@/components/planes-estrategicos/ChatInterface'
 import { PanelLateral } from '@/components/planes-estrategicos/PanelLateral'
 import { InventarioCategoria } from '@/components/planes-estrategicos/InventarioCategoria'
+import { PalancasValidadorModal } from '@/components/planes-estrategicos/PalancasValidadorModal'
 import type { PlanEstrategico, TurnoPE, PanelUpdatePE, InventarioPE } from '@/lib/types'
 
 const PANEL_UPDATE_RE = /<!--PANEL_UPDATE-->[\s\S]*?<!--\/PANEL_UPDATE-->/g
@@ -37,6 +38,16 @@ export default function EntrevistaPage() {
   const [generandoInventario, setGenerandoInventario] = useState(false)
   const [generarError, setGenerarError] = useState<string | null>(null)
   const [mostrarModalInventario, setMostrarModalInventario] = useState(false)
+  // Sub-bloque 3.B — Palancas (validador cross-provider).
+  // null = no se disparó. 'inferring' = llamando endpoint. 'ready' = modal visible.
+  const [palancasValidador, setPalancasValidador] = useState<
+    | null
+    | { status: 'inferring' }
+    | { status: 'ready'; propuesta: { preguntas: Array<{ id: string; pregunta: string; razon_complementariedad: string }>; razonamiento_global: string }; costoUsd?: number; latenciaMs?: number }
+  >(null)
+  // Flag para evitar doble disparo del validador (ej: si llegan 2 PANEL_UPDATEs
+  // seguidos con plan.palancas.preguntas_principal completas).
+  const [validadorDisparado, setValidadorDisparado] = useState(false)
 
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -145,6 +156,17 @@ export default function EntrevistaPage() {
                 if (evt.panelUpdate.sub_bloque_actual) {
                   setSubBloqueActual(evt.panelUpdate.sub_bloque_actual)
                 }
+                // Trigger automático del validador del Sub-bloque 3.B:
+                // si el modelo emitió plan.palancas.preguntas_principal con 5 items
+                // todos respondidos, y todavía no llamamos al validador, dispararlo.
+                const palancas = evt.panelUpdate.plan?.palancas
+                const principal = palancas?.preguntas_principal ?? []
+                const todasResp = principal.length === 5 && principal.every((q: any) => q.respuesta?.trim())
+                const yaTieneValidador = (palancas?.preguntas_validador ?? []).length > 0
+                if (todasResp && !yaTieneValidador && !validadorDisparado && !palancasValidador) {
+                  setValidadorDisparado(true)
+                  void dispararValidadorPalancas()
+                }
               }
             } else if (evt.type === 'save_failed') {
               // El modelo respondió pero la persistencia falló los 3 reintentos.
@@ -241,6 +263,52 @@ export default function EntrevistaPage() {
     } finally {
       setGenerandoInventario(false)
     }
+  }
+
+  // ── Sub-bloque 3.B — Validador cross-provider de Palancas ─────────────────
+
+  async function dispararValidadorPalancas() {
+    setPalancasValidador({ status: 'inferring' })
+    try {
+      const res = await fetch(`/api/planes-estrategicos/${id}/paso3/palancas/validar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      setPalancasValidador({
+        status: 'ready',
+        propuesta: data.propuesta,
+        costoUsd: data.costo_usd,
+        latenciaMs: data.latencia_ms,
+      })
+    } catch (e) {
+      console.warn('[entrevista] validador palancas falló:', e)
+      setError(`Validador de palancas falló: ${e instanceof Error ? e.message : String(e)}. Podés continuar al borrador igual.`)
+      setPalancasValidador(null)
+    }
+  }
+
+  function handleCerrarValidador() {
+    setPalancasValidador(null)
+  }
+
+  async function handleAvanzarPostValidador() {
+    // Persist ya hecho por el modal mismo. Aquí solo refrescamos estado local
+    // y disparamos mensaje vacío al chat para que el modelo arranque 3.C.
+    setPalancasValidador(null)
+    setSubBloqueActual('3.C')
+    // Recargar plan del backend para tener plan.palancas.preguntas_validador
+    // poblado en el state local (necesario para el panel lateral).
+    try {
+      const r = await fetch(`/api/planes-estrategicos/${id}`)
+      if (r.ok) {
+        const { plan: planFresh } = await r.json()
+        if (planFresh) setPlan(planFresh)
+      }
+    } catch { /* fall-through, no bloqueante */ }
+    setTimeout(() => sendMessage('', historial, plan), 500)
   }
 
   async function handleCerrarInventario() {
@@ -423,6 +491,20 @@ export default function EntrevistaPage() {
           inventario={inventarioOverride ?? plan.plan!.inventario!}
           onInventarioUpdate={(inv) => setInventarioOverride(inv)}
           onCerrarInventario={handleCerrarInventario}
+        />
+      )}
+
+      {/* Modal del Validador de Palancas (3.B) — overlay automático cuando
+          el modelo principal completó las 5 preguntas con respuestas. */}
+      {palancasValidador && (
+        <PalancasValidadorModal
+          planId={id}
+          status={palancasValidador.status}
+          propuesta={palancasValidador.status === 'ready' ? palancasValidador.propuesta : undefined}
+          costoUsd={palancasValidador.status === 'ready' ? palancasValidador.costoUsd : undefined}
+          latenciaMs={palancasValidador.status === 'ready' ? palancasValidador.latenciaMs : undefined}
+          onCerrar={handleCerrarValidador}
+          onAvanzar={handleAvanzarPostValidador}
         />
       )}
     </div>
