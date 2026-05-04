@@ -144,6 +144,8 @@ function PanelConstruccion({
 
       {planPaso3?.preparativos && <PreparativosPanel preparativos={planPaso3.preparativos} />}
 
+      {planPaso3?.inventario && <InventarioPanel inventario={planPaso3.inventario} />}
+
       {datosFaltantes.length > 0 && (
         <SeccionPanel titulo="Datos por conseguir">
           <p className="text-[12px] text-muted-foreground whitespace-pre-wrap">
@@ -200,6 +202,43 @@ function PreparativosPanel({ preparativos }: { preparativos: any }) {
       {ce?.zona_fracaso && (
         <Campo label="Zona de fracaso" valor={ce.zona_fracaso} />
       )}
+    </SeccionPanel>
+  )
+}
+
+// Sub-bloque 3.A — render compacto del inventario en el panel lateral.
+// Aparece solo si plan.inventario existe (después de la generación inicial).
+function InventarioPanel({ inventario }: { inventario: any }) {
+  const movs = inventario.movimientos ?? []
+  const total = movs.length
+  const aceptados = movs.filter((m: any) => m.estado_usuario === 'aceptado').length
+  const editados = movs.filter((m: any) => m.estado_usuario === 'editado').length
+  const quitados = movs.filter((m: any) => m.estado_usuario === 'quitado').length
+  const pendientes = movs.filter((m: any) => m.estado_usuario === 'pendiente').length
+
+  // Agrupar por categoría
+  const porCategoria = new Map<string, number>()
+  for (const m of movs) {
+    porCategoria.set(m.categoria, (porCategoria.get(m.categoria) ?? 0) + 1)
+  }
+
+  return (
+    <SeccionPanel titulo="Plan — Inventario (3.A)">
+      <div className="space-y-2 text-[11px]">
+        <p className="text-foreground/90">
+          <span className="font-semibold">{total}</span> movimientos en {porCategoria.size} categorías
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {aceptados > 0 && <span className="rounded-full bg-green-950/40 border border-green-800/50 px-1.5 py-0.5 text-green-300">{aceptados} aceptados</span>}
+          {editados > 0 && <span className="rounded-full bg-blue-950/40 border border-blue-800/50 px-1.5 py-0.5 text-blue-300">{editados} editados</span>}
+          {quitados > 0 && <span className="rounded-full bg-gray-800/40 border border-gray-700/50 px-1.5 py-0.5 text-gray-400">{quitados} quitados</span>}
+          {pendientes > 0 && <span className="rounded-full bg-yellow-950/30 border border-yellow-800/40 px-1.5 py-0.5 text-yellow-300">{pendientes} pendientes</span>}
+        </div>
+      </div>
+      <Campo
+        label="Categorías"
+        valor={Array.from(porCategoria.entries()).map(([cat, n]) => `• ${cat} (${n})`).join('\n')}
+      />
     </SeccionPanel>
   )
 }

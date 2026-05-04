@@ -14,6 +14,8 @@ import type {
   SituacionPE,
   PlanoPE,
   PreparativosPE,
+  InventarioPE,
+  MovimientoPE,
 } from './types'
 
 const PANEL_UPDATE_RE = /<!--PANEL_UPDATE-->([\s\S]*?)<!--\/PANEL_UPDATE-->/
@@ -108,6 +110,70 @@ function validateCriterioMetricaItem(item: any, idx: number, prefix: string): st
   if (typeof item.metrica !== 'string') errs.push(`${prefix}[${idx}].metrica debe ser string (referencia al nombre de la métrica del propósito)`)
   if (typeof item.pleno !== 'string') errs.push(`${prefix}[${idx}].pleno debe ser string (target original)`)
   if (typeof item.minimo !== 'string') errs.push(`${prefix}[${idx}].minimo debe ser string (mínimo aceptable)`)
+  return errs
+}
+
+// ── Validadores de items del Paso 3 (Fase C — sub-bloque 3.A Inventario) ──
+
+function validateMovimientoItem(item: any, idx: number, prefix: string): string[] {
+  const errs: string[] = []
+  if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+    return [`${prefix}[${idx}] debe ser objeto MovimientoPE, got ${Array.isArray(item) ? 'array' : typeof item}`]
+  }
+  if (typeof item.id !== 'string') errs.push(`${prefix}[${idx}].id debe ser string (ej "M-1")`)
+  if (typeof item.categoria !== 'string') errs.push(`${prefix}[${idx}].categoria debe ser string`)
+  if (typeof item.nombre !== 'string') errs.push(`${prefix}[${idx}].nombre debe ser string`)
+  if (typeof item.que_resuelve !== 'string') errs.push(`${prefix}[${idx}].que_resuelve debe ser string`)
+  if (typeof item.ataca_desvio !== 'string') errs.push(`${prefix}[${idx}].ataca_desvio debe ser string`)
+  if (!['baja', 'media', 'alta'].includes(item.costo_banda_ancha)) errs.push(`${prefix}[${idx}].costo_banda_ancha debe ser 'baja'|'media'|'alta'`)
+  if (typeof item.costo_monetario !== 'object' || item.costo_monetario === null) {
+    errs.push(`${prefix}[${idx}].costo_monetario debe ser objeto {rango_min_usd, rango_max_usd, nota?}`)
+  } else {
+    if (typeof item.costo_monetario.rango_min_usd !== 'number') errs.push(`${prefix}[${idx}].costo_monetario.rango_min_usd debe ser number`)
+    if (typeof item.costo_monetario.rango_max_usd !== 'number') errs.push(`${prefix}[${idx}].costo_monetario.rango_max_usd debe ser number`)
+  }
+  if (typeof item.ventana_temporal !== 'object' || item.ventana_temporal === null) {
+    errs.push(`${prefix}[${idx}].ventana_temporal debe ser objeto {arranca, termina} con strings YYYY-MM`)
+  } else {
+    if (typeof item.ventana_temporal.arranca !== 'string') errs.push(`${prefix}[${idx}].ventana_temporal.arranca debe ser string YYYY-MM`)
+    if (typeof item.ventana_temporal.termina !== 'string') errs.push(`${prefix}[${idx}].ventana_temporal.termina debe ser string YYYY-MM`)
+  }
+  if (!Array.isArray(item.precondiciones)) errs.push(`${prefix}[${idx}].precondiciones debe ser array de ids`)
+  if (!Array.isArray(item.desbloquea)) errs.push(`${prefix}[${idx}].desbloquea debe ser array de ids`)
+  if (!['dura', 'blanda', 'ninguna'].includes(item.tipo_dependencia)) errs.push(`${prefix}[${idx}].tipo_dependencia debe ser 'dura'|'blanda'|'ninguna'`)
+  if (typeof item.dueno !== 'string') errs.push(`${prefix}[${idx}].dueno debe ser string`)
+  if (typeof item.criterio_exito !== 'string') errs.push(`${prefix}[${idx}].criterio_exito debe ser string`)
+  if (!['aceptado', 'editado', 'quitado', 'pendiente'].includes(item.estado_usuario)) errs.push(`${prefix}[${idx}].estado_usuario debe ser 'aceptado'|'editado'|'quitado'|'pendiente'`)
+  return errs
+}
+
+function validateResumenCategoriaItem(item: any, idx: number, prefix: string): string[] {
+  const errs: string[] = []
+  if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+    return [`${prefix}[${idx}] debe ser objeto {categoria, total, aceptados, editados, quitados}`]
+  }
+  if (typeof item.categoria !== 'string') errs.push(`${prefix}[${idx}].categoria debe ser string`)
+  if (typeof item.total !== 'number') errs.push(`${prefix}[${idx}].total debe ser number`)
+  if (typeof item.aceptados !== 'number') errs.push(`${prefix}[${idx}].aceptados debe ser number`)
+  if (typeof item.editados !== 'number') errs.push(`${prefix}[${idx}].editados debe ser number`)
+  if (typeof item.quitados !== 'number') errs.push(`${prefix}[${idx}].quitados debe ser number`)
+  return errs
+}
+
+/**
+ * Valida la estructura de plan.inventario (cierre formal de 3.A).
+ * Devuelve array de errores. Vacío si OK.
+ */
+function validateInventario(inv: any, prefix: string): string[] {
+  if (typeof inv !== 'object' || inv === null || Array.isArray(inv)) {
+    return [`${prefix} debe ser objeto, got ${Array.isArray(inv) ? 'array' : typeof inv}`]
+  }
+  const errs: string[] = []
+  if (!Array.isArray(inv.movimientos)) errs.push(`${prefix}.movimientos debe ser array`)
+  else errs.push(...validateArrayItems(inv.movimientos, `${prefix}.movimientos`, validateMovimientoItem))
+  if (!Array.isArray(inv.resumenes_categoria)) errs.push(`${prefix}.resumenes_categoria debe ser array`)
+  else errs.push(...validateArrayItems(inv.resumenes_categoria, `${prefix}.resumenes_categoria`, validateResumenCategoriaItem))
+  if (typeof inv.generado_en !== 'string') errs.push(`${prefix}.generado_en debe ser string ISO datetime`)
   return errs
 }
 
@@ -270,8 +336,11 @@ export function parsePanelUpdate(fullResponse: string): ParseResult {
       if (parsed.plan.preparativos !== undefined) {
         errors.push(...validatePreparativos(parsed.plan.preparativos, 'plan.preparativos'))
       }
-      // inventario, palancas, borrador, estres, curado: shape interno se valida
-      // en sus Fases respectivas (C, D, E). Por ahora aceptar como cualquier valor.
+      if (parsed.plan.inventario !== undefined) {
+        errors.push(...validateInventario(parsed.plan.inventario, 'plan.inventario'))
+      }
+      // palancas, borrador, estres, curado: shape interno se valida en sus
+      // Fases respectivas (D, E). Por ahora aceptar como cualquier valor.
     }
   }
 
@@ -463,8 +532,19 @@ export function mergePlan(
     result.preparativos = c.preparativos
   }
 
+  // inventario: merge campo a campo (Fase C). Decisiones del usuario sobre
+  // movimientos individuales (estado_usuario) son load-bearing — nunca pisar
+  // un movimiento "aceptado/editado/quitado" con uno "pendiente".
+  if (incoming.inventario !== undefined) {
+    const merged = mergeInventario(c.inventario, incoming.inventario)
+    if (merged.value !== undefined) result.inventario = merged.value
+    events.push(...merged.events)
+  } else if (c.inventario !== undefined) {
+    result.inventario = c.inventario
+  }
+
   // Sub-bloques posteriores: pick top-level (sin merge interno hasta su Fase).
-  for (const key of ['inventario', 'palancas', 'borrador', 'estres', 'curado'] as const) {
+  for (const key of ['palancas', 'borrador', 'estres', 'curado'] as const) {
     const inc = incoming[key]
     const cur = c[key]
     const { value, event } = pickField(`plan.${key}`, cur as any, inc as any)
@@ -473,6 +553,70 @@ export function mergePlan(
   }
 
   return { value: result, events }
+}
+
+/**
+ * Merge protector para InventarioPE. Combina movimientos por id, preservando
+ * decisiones del usuario sobre movimientos individuales. Un movimiento del
+ * current con estado != 'pendiente' NUNCA se pisa con un movimiento del
+ * incoming con el mismo id si el incoming es 'pendiente' (= estado del modelo
+ * sin decisión del usuario).
+ */
+function mergeInventario(
+  current: InventarioPE | undefined,
+  incoming: InventarioPE,
+): MergeResult<InventarioPE> {
+  const events: MergeEvent[] = []
+  if (!current) {
+    return { value: incoming, events: [{ type: 'updated', field: 'plan.inventario', from: '(nuevo)', to: `array[${incoming.movimientos?.length ?? 0}]` }] }
+  }
+
+  // Indexar current por id para lookup rápido
+  const curById = new Map<string, MovimientoPE>()
+  for (const m of current.movimientos ?? []) curById.set(m.id, m)
+
+  // Para cada movimiento del incoming, merge con current si existe
+  const movMerged: MovimientoPE[] = []
+  for (const inc of incoming.movimientos ?? []) {
+    const cur = curById.get(inc.id)
+    if (!cur) {
+      // movimiento nuevo del incoming
+      movMerged.push(inc)
+      continue
+    }
+    // Si current tiene decisión del usuario, preservarla
+    if (cur.estado_usuario !== 'pendiente' && inc.estado_usuario === 'pendiente') {
+      movMerged.push(cur)  // preservar decisión usuario
+      events.push({ type: 'preserved_empty', field: `plan.inventario.movimientos[${inc.id}].estado_usuario` })
+    } else {
+      // incoming gana (puede ser nueva decisión del usuario, o cambio del modelo)
+      movMerged.push(inc)
+    }
+    curById.delete(inc.id)
+  }
+  // Movimientos que estaban en current pero no en incoming: preservar
+  // (modelo puede haberse olvidado de re-emitir). Coherente con regla "estado
+  // completo acumulado" del PANEL_UPDATE.
+  for (const remaining of curById.values()) {
+    movMerged.push(remaining)
+    events.push({ type: 'preserved_empty', field: `plan.inventario.movimientos[${remaining.id}] (omitido por modelo)` })
+  }
+
+  // resumenes_categoria: tomar incoming si tiene, sino current
+  const resumenes = (incoming.resumenes_categoria?.length ?? 0) > 0
+    ? incoming.resumenes_categoria
+    : (current.resumenes_categoria ?? [])
+
+  return {
+    value: {
+      movimientos: movMerged,
+      resumenes_categoria: resumenes,
+      generado_en: incoming.generado_en || current.generado_en,
+      costo_usd: incoming.costo_usd ?? current.costo_usd,
+      latencia_ms: incoming.latencia_ms ?? current.latencia_ms,
+    },
+    events,
+  }
 }
 
 function mergePreparativos(

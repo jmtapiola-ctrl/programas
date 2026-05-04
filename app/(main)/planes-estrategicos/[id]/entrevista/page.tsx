@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ChatInterface } from '@/components/planes-estrategicos/ChatInterface'
 import { PanelLateral } from '@/components/planes-estrategicos/PanelLateral'
-import type { PlanEstrategico, TurnoPE, PanelUpdatePE } from '@/lib/types'
+import { InventarioCategoria } from '@/components/planes-estrategicos/InventarioCategoria'
+import type { PlanEstrategico, TurnoPE, PanelUpdatePE, InventarioPE } from '@/lib/types'
 
 const PANEL_UPDATE_RE = /<!--PANEL_UPDATE-->[\s\S]*?<!--\/PANEL_UPDATE-->/g
 
@@ -18,6 +19,11 @@ export default function EntrevistaPage() {
   const [panelData, setPanelData] = useState<PanelUpdatePE | null>(null)
   const [inputValue, setInputValue] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
+  // isPersisting: true desde 'content_done' hasta el cierre del stream. Indica
+  // que el modelo terminó de emitir tokens y el backend está parseando + persistiendo
+  // + transicionando estado. El textarea sigue disabled (porque el turno aún no
+  // se confirmó) pero la UI muestra "Guardando..." en vez de tres puntitos.
+  const [isPersisting, setIsPersisting] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saveFailed, setSaveFailed] = useState(false)
@@ -25,6 +31,12 @@ export default function EntrevistaPage() {
   const [pendingMessage, setPendingMessage] = useState<string | null>(null)
   const [pausing, setPausing] = useState(false)
   const [loading, setLoading] = useState(true)
+  // Sub-bloque 3.A — Inventario
+  const [subBloqueActual, setSubBloqueActual] = useState<string>('0')
+  const [inventarioOverride, setInventarioOverride] = useState<InventarioPE | null>(null)
+  const [generandoInventario, setGenerandoInventario] = useState(false)
+  const [generarError, setGenerarError] = useState<string | null>(null)
+  const [mostrarModalInventario, setMostrarModalInventario] = useState(false)
 
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -45,12 +57,13 @@ export default function EntrevistaPage() {
           }
         }
 
-        // Cargar historial
+        // Cargar historial + estado de la entrevista
         const resE = await fetch(`/api/planes-estrategicos/${id}/entrevista`)
         if (resE.ok) {
           const { entrevista } = await resE.json()
           const hist: TurnoPE[] = entrevista?.historial ?? []
           setHistorial(hist)
+          setSubBloqueActual(entrevista?.sub_bloque_actual ?? '0')
 
           // Si historial vacío → disparar apertura del Paso 0
           if (hist.length === 0) {
@@ -108,6 +121,10 @@ export default function EntrevistaPage() {
             if (evt.type === 'delta') {
               accumulated += evt.content
               setStreamingContent(accumulated)
+            } else if (evt.type === 'content_done') {
+              // Modelo terminó de emitir tokens. El backend ahora persiste
+              // (parser + Airtable + transiciones). UI cambia a "Guardando...".
+              setIsPersisting(true)
             } else if (evt.type === 'done') {
               if (evt.panelUpdate) setPanelData(evt.panelUpdate)
             } else if (evt.type === 'save_failed') {
@@ -158,6 +175,7 @@ export default function EntrevistaPage() {
       setError('Hubo un problema con la conexión.')
     } finally {
       setIsStreaming(false)
+      setIsPersisting(false)
       setStreamingContent('')
     }
   }, [id, historial, plan])
@@ -179,6 +197,48 @@ export default function EntrevistaPage() {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault()
       handleEnviar()
+    }
+  }
+
+  // ── Sub-bloque 3.A — generación + cierre del Inventario ───────────────────
+
+  async function handleGenerarInventario() {
+    if (generandoInventario) return
+    setGenerandoInventario(true)
+    setGenerarError(null)
+    try {
+      const res = await fetch(`/api/planes-estrategicos/${id}/paso3/inventario/generar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      // Persistir override local — el plan en Airtable ya se actualizó
+      setInventarioOverride(data.inventario)
+      setMostrarModalInventario(true)
+    } catch (e) {
+      setGenerarError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setGenerandoInventario(false)
+    }
+  }
+
+  async function handleCerrarInventario() {
+    try {
+      const res = await fetch(`/api/planes-estrategicos/${id}/paso3/inventario/cerrar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      setMostrarModalInventario(false)
+      setSubBloqueActual('3.B')
+      // El modelo arrancará 3.B en el próximo turno conversacional. Disparamos
+      // mensaje vacío para que el chat pida al modelo que arranque.
+      setTimeout(() => sendMessage('', historial, plan), 500)
+    } catch (e) {
+      setGenerarError(e instanceof Error ? e.message : String(e))
     }
   }
 
@@ -240,12 +300,52 @@ export default function EntrevistaPage() {
               historial={historial}
               streamingContent={streamingContent}
               isStreaming={isStreaming}
+              isPersisting={isPersisting}
               error={error}
               pendingMessage={pendingMessage}
               onRetry={handleRetry}
               onPanelUpdate={setPanelData}
             />
           </div>
+
+          {/* Banner del Sub-bloque 3.A — Inventario.
+              Aparece cuando estamos en 3.A y todavía no se generó el inventario.
+              Click "Generar" → POST /paso3/inventario/generar (30-60s) → abre modal.
+              Si plan.inventario ya existe (recovery o reentry), el botón cambia a
+              "Continuar revisión" y abre el modal directo. */}
+          {subBloqueActual === '3.A' && (
+            <div className="flex-shrink-0 border-t border-sidebar-border bg-sidebar/30 px-4 py-3">
+              {!inventarioOverride && !plan.plan?.inventario && (
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-[12px] font-semibold text-foreground">Sub-bloque 3.A — Inventario de movimientos</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Voy a generar 15-25 movimientos candidatos basados en Propósito + Situación + Preparativos.
+                      Tarda 30-60s. Después los revisás categoría por categoría.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleGenerarInventario}
+                    disabled={generandoInventario}
+                    className="rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {generandoInventario ? 'Generando inventario… (30-60s)' : 'Generar inventario'}
+                  </button>
+                  {generarError && (
+                    <p className="text-[11px] text-red-400">Error: {generarError}</p>
+                  )}
+                </div>
+              )}
+              {(inventarioOverride || plan.plan?.inventario) && !mostrarModalInventario && (
+                <button
+                  onClick={() => setMostrarModalInventario(true)}
+                  className="rounded-lg border border-sidebar-border px-4 py-2 text-[13px] font-medium text-foreground hover:bg-accent/50 transition-colors"
+                >
+                  Continuar revisión del inventario →
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Input */}
           <div className="flex-shrink-0 border-t border-sidebar-border p-4">
@@ -276,7 +376,7 @@ export default function EntrevistaPage() {
                 disabled={isStreaming || saveFailed}
                 placeholder={saveFailed ? 'Recargá la página antes de continuar' : 'Escribí tu respuesta… (Cmd+Enter para enviar)'}
                 rows={9}
-                className="flex-1 resize-none rounded-lg border border-sidebar-border bg-sidebar px-3 py-2 text-[15px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+                className="flex-1 resize-y rounded-lg border border-sidebar-border bg-sidebar px-3 py-2 text-[15px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 min-h-[60px] max-h-[600px]"
               />
               <button
                 onClick={handleEnviar}
@@ -295,6 +395,17 @@ export default function EntrevistaPage() {
           <PanelLateral plan={plan} panel={panelData} planSr={planSr} />
         </div>
       </div>
+
+      {/* Modal del Inventario (3.A) — overlay sobre todo */}
+      {mostrarModalInventario && (inventarioOverride || plan.plan?.inventario) && (
+        <InventarioCategoria
+          planId={id}
+          plan={plan}
+          inventario={inventarioOverride ?? plan.plan!.inventario!}
+          onInventarioUpdate={(inv) => setInventarioOverride(inv)}
+          onCerrarInventario={handleCerrarInventario}
+        />
+      )}
     </div>
   )
 }
