@@ -5,25 +5,42 @@ import ReactMarkdown from 'react-markdown'
 import type { TurnoPE, PanelUpdatePE } from '@/lib/types'
 
 const PANEL_UPDATE_RE = /<!--PANEL_UPDATE-->[\s\S]*?<!--\/PANEL_UPDATE-->/g
+const PANEL_UPDATE_OPEN = '<!--PANEL_UPDATE-->'
 
 interface Props {
   historial: TurnoPE[]
   streamingContent: string
   isStreaming: boolean
+  isPersisting?: boolean  // true después de 'content_done', mientras backend persiste
   error: string | null
   pendingMessage: string | null
   onRetry: () => void
   onPanelUpdate: (data: PanelUpdatePE) => void
 }
 
+// Para historial: el bloque PANEL_UPDATE viene completo (open + close).
 function cleanContent(text: string) {
   return text.replace(PANEL_UPDATE_RE, '').trim()
+}
+
+// Para streaming: durante la llegada de tokens, el bloque puede estar incompleto
+// (open sin close) — la regex no matchea y el JSON del panel se renderea visible.
+// Si detectamos el open sin el close, cortamos desde ahí. Si llega el close,
+// usamos la regex normal.
+function cleanContentStreaming(text: string) {
+  const idx = text.indexOf(PANEL_UPDATE_OPEN)
+  if (idx === -1) return text
+  if (text.includes('<!--/PANEL_UPDATE-->')) {
+    return text.replace(PANEL_UPDATE_RE, '').trim()
+  }
+  return text.slice(0, idx).trimEnd()
 }
 
 export function ChatInterface({
   historial,
   streamingContent,
   isStreaming,
+  isPersisting,
   error,
   pendingMessage,
   onRetry,
@@ -48,7 +65,12 @@ export function ChatInterface({
 
         {/* Streaming response */}
         {isStreaming && (
-          <Burbuja rol="model" contenido={cleanContent(streamingContent)} streaming />
+          <Burbuja
+            rol="model"
+            contenido={cleanContentStreaming(streamingContent)}
+            streaming
+            persisting={isPersisting}
+          />
         )}
 
         {/* Error banner */}
@@ -76,10 +98,12 @@ function Burbuja({
   rol,
   contenido,
   streaming,
+  persisting,
 }: {
   rol: 'model' | 'user'
   contenido: string
   streaming?: boolean
+  persisting?: boolean
 }) {
   const isModel = rol === 'model'
 
@@ -130,12 +154,18 @@ function Burbuja({
             {contenido}
           </ReactMarkdown>
         ) : streaming ? '' : '—'}
-        {streaming && !contenido && (
+        {streaming && !contenido && !persisting && (
           <span className="inline-flex gap-1 items-center">
             <span className="animate-bounce delay-0 h-1.5 w-1.5 rounded-full bg-muted-foreground" />
             <span className="animate-bounce delay-150 h-1.5 w-1.5 rounded-full bg-muted-foreground" />
             <span className="animate-bounce delay-300 h-1.5 w-1.5 rounded-full bg-muted-foreground" />
           </span>
+        )}
+        {streaming && persisting && (
+          <p className="mt-2 text-[11px] text-muted-foreground/70 italic flex items-center gap-2">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-pulse" />
+            Guardando…
+          </p>
         )}
       </div>
     </div>

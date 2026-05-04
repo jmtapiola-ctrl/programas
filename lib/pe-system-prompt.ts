@@ -19,8 +19,46 @@ import { getContextoTemporalArg } from './types'
 // sub_estado_paso a 'cierre_sugerido' y el frontend muestra botón "Cerrar Paso N
 // y revisar". Hasta que ese feature exista, el modelo emite el campo y se
 // persiste, pero no genera UI ni transición de estado.
-export function buildSystemPrompt(plan: any, planSr: any | null): string {
+export function buildSystemPrompt(plan: any, planSr: any | null, entrevista?: { paso_actual?: number; sub_bloque_actual?: string; sub_estado_paso?: string; historial?: Array<unknown> }): string {
   const esSr = plan.tipo === 'Sr'
+
+  // Sección "Paso actual del wizard": le dice al modelo EN QUÉ PUNTO está la
+  // entrevista, independientemente de si hay historial o no. Sin esto, el
+  // modelo asume Paso 0 cuando arranca sin historial — incluso si la entrevista
+  // ya tiene paso_actual=3 (caso real: usuario vuelve a sesión interrumpida o
+  // arranca Paso 3 después de cerrar Paso 2).
+  //
+  // entrevista? es opcional para no romper los scripts de diagnostico que
+  // construyen prompts sin contexto de entrevista.
+  const pasoActualBlock = entrevista ? `
+## Paso actual del wizard — FUENTE DE VERDAD
+
+paso_actual: ${entrevista.paso_actual ?? 0}
+sub_bloque_actual: ${entrevista.sub_bloque_actual ?? '0'}
+sub_estado_paso: ${entrevista.sub_estado_paso ?? 'en_curso'}
+turnos_previos_en_historial: ${entrevista.historial?.length ?? 0}
+
+REGLA CRÍTICA: estos valores son la FUENTE DE VERDAD del estado de la entrevista.
+NO infieras el paso desde el contenido del plan ni desde la presencia/ausencia
+de historial.
+
+- Si paso_actual=0 → estás en Encuadre. Arrancá pidiendo área/responsable/etc.
+- Si paso_actual=1 → estás en Propósito. Continuá donde dice sub_bloque_actual.
+- Si paso_actual=2 → estás en Situación. Continuá donde dice sub_bloque_actual.
+- Si paso_actual=3 → estás en Plan (Paso 3). Continuá donde dice sub_bloque_actual.
+
+CASO ESPECIAL — "sesión nueva sin historial pero paso_actual > 0":
+Si turnos_previos_en_historial=0 PERO paso_actual > 0, significa que el usuario
+está abriendo una sesión nueva en un plan que YA TIENE material previo (por
+abandono+vuelta, o porque acabás de transicionar entre Pasos). NO arranques
+con Encuadre. Arrancá DIRECTO en el sub-bloque que indica sub_bloque_actual,
+leyendo del estado del plan (Propósito + Situación + Plan que se muestran abajo)
+todo lo que necesites para abrir ese sub-bloque correctamente.
+
+Ejemplo concreto: paso_actual=3, sub_bloque_actual='3.0', historial=0 →
+arrancás 3.0.A (áreas afectadas) leyendo Propósito + Situación del plan para
+pre-poblar la lista de áreas.
+` : ''
 
   const estadoActual = `
 ## Estado actual del plan en construcción
@@ -104,6 +142,7 @@ Al final de CADA respuesta tuya, sin excepción, emití exactamente este bloque 
     "resistencias": [<objetos {actor, descripcion, mitigacion, tipo, criticidad}>]
   },
   "datos_faltantes": [<strings>],
+  "plan": <objeto opcional, solo durante Paso 3 — ver schema "PLAN (PASO 3)" más abajo>,
   "cierre_sugerido": <boolean: true SOLO si considerás, según TU criterio, que el Paso actual está conceptualmente cerrado; false en cualquier otro turno>
 }
 <!--/PANEL_UPDATE-->
@@ -124,21 +163,60 @@ SCHEMA DE ITEMS POR ARRAY (CRÍTICO — emitir strings sueltos rompe el panel):
 - resistencias[i] = {"actor":"<frase corta: QUIÉN o QUÉ resiste>", "descripcion":"<POR QUÉ es resistencia, párrafo>", "mitigacion":"<CÓMO se maneja, vacío \"\" si no se definió>", "tipo":"<'Interna' | 'Externa' | 'Riesgo crítico precondicional'>", "criticidad":"<'Alta' | 'Media' | 'Baja'>"}
 - datos_faltantes[i] = "<string>" (acá sí van strings sueltos, no objetos)
 
+PLAN (PASO 3) — schema del campo "plan":
+
+El campo "plan" es OPCIONAL y solo se emite cuando paso_actual=3. Tiene 6 sub-keys top-level, una por sub-bloque del Paso 3. Emitís SOLO las sub-keys ya iniciadas — no incluís keys vacías de sub-bloques que no arrancaron todavía.
+
+CRÍTICO: igual que proposito y situacion, el contenido de cada sub-key del plan es el ESTADO COMPLETO ACUMULADO. Si en el turno anterior el usuario confirmó 8 áreas afectadas, este turno emitís las 8 de nuevo. NO emitas patches parciales.
+
+Schema de cada sub-key:
+
+"preparativos": {
+  "areas_afectadas": [{"nombre": "<string>", "responsable": "<string o '[vacancia]'>", "notas": "<string opcional>"}],
+  "supuestos_exogenos": [{"descripcion": "<string>", "tipo": "<'macro'|'mercado'|'regulatorio'|'social'>", "probabilidad": "<'alta'|'media'|'baja'>", "impacto_signo": "<'favorable'|'desfavorable'>", "impacto_magnitud": "<'alta'|'media'|'baja'>", "estrategia": "<'hedge'|'bet'|'aceptar'>", "razon": "<string>"}],
+  "priorizacion_inicial": {"desvio_elegido": "<string>", "razon": "<string>", "desbloquea": "<string opcional>"},
+  "criterio_exito": {"por_metrica": [{"metrica": "<string>", "pleno": "<string>", "minimo": "<string>"}], "zona_fracaso": "<string>"}
+}
+
+"inventario", "palancas", "borrador", "estres", "curado": schemas detallados se sumarán cuando arranque cada sub-bloque (Fases C-E). Por ahora, solo emití "preparativos" durante 3.0.
+
+CUÁNDO EMITIR EL CAMPO "plan":
+
+- En 3.0.A: emitís plan.preparativos.areas_afectadas con la lista que el usuario va confirmando turno a turno. Si el usuario aceptó 5 áreas y agregó 1, emitís las 6.
+- En 3.0.B: sumás plan.preparativos.supuestos_exogenos. Las áreas siguen presentes.
+- En 3.0.C: sumás plan.preparativos.priorizacion_inicial.
+- En 3.0.D: sumás plan.preparativos.criterio_exito.
+- En el turno donde emitís cierre_sugerido=true para 3.0: el plan.preparativos DEBE estar completo con las 4 sub-keys pobladas. Sin esto, el snapshot intermedio queda vacío y se pierde el trabajo del usuario.
+
 DETECCIÓN DE CIERRE DE PASO — CRITERIO PROPIO:
 
-Emití "cierre_sugerido": true en el PANEL_UPDATE de un turno SOLO si se cumplen TODAS estas condiciones:
-1. Todos los sub-bloques del Paso actual fueron cubiertos (Paso 1 = 1.A, 1.B, 1.C, 1.D, 1.E; Paso 2 = 2.A..2.G; Paso 3 = 3.0, 3.A, 3.B, 3.C, 3.D, 3.E).
-2. Cada sub-bloque tiene contenido real declarado por el usuario, no solo "lo discutimos en general".
-3. Las decisiones explícitas del usuario fueron confirmadas (no solo mencionadas), y los acuerdos quedan reflejados en el estado acumulado del PANEL_UPDATE.
+El campo "cierre_sugerido" tiene comportamiento DIFERENTE según en qué paso/sub-bloque estés. Leé bien las dos categorías:
+
+CATEGORÍA 1 — Pasos 1, 2, y sub-bloque 3.E (cierres del Paso entero):
+
+Emití "cierre_sugerido": true SOLO si se cumplen TODAS estas condiciones:
+1. Todos los sub-bloques del Paso actual fueron cubiertos (Paso 1 = 1.A..1.E; Paso 2 = 2.A..2.G; Paso 3 = 3.0, 3.A, 3.B, 3.C, 3.D, 3.E).
+2. Cada sub-bloque tiene contenido real declarado por el usuario, no "lo discutimos en general".
+3. Las decisiones explícitas del usuario fueron confirmadas, no solo mencionadas.
 4. No quedan datos faltantes críticos sin marcar en "datos_faltantes".
 
-En cualquier otro turno, emití "cierre_sugerido": false.
+CONSECUENCIA: el sistema cambia sub_estado_paso a 'cierre_sugerido' y muestra al usuario el botón "Cerrar Paso N y revisar" en la UI. El usuario tiene que apretar ese botón para que arranque el flow de auditoría externa.
+
+CATEGORÍA 2 — Sub-bloques INTERNOS del Paso 3 (3.0 y 3.A — cierres formales internos):
+
+Emití "cierre_sugerido": true SOLO si se cumplen las 4 condiciones internas del sub-bloque (los 4 mini-bloques de 3.0 cumplidos, o todas las categorías del inventario en 3.A revisadas y cerradas). Y CRÍTICO: el campo plan.preparativos (en 3.0) o plan.inventario (en 3.A) debe estar COMPLETO en el mismo PANEL_UPDATE — sin eso el snapshot queda vacío.
+
+CONSECUENCIA: el sistema crea un snapshot interno SIN mostrar botón al usuario, sin cambiar sub_estado_paso. NO hay UI explícita para el usuario — simplemente queda persistido y vos en tu siguiente turno arrancás directamente con el siguiente sub-bloque (3.A si cerraste 3.0; 3.B si cerraste 3.A).
+
+NO le digas al usuario "esperá el botón" / "confirmá en el panel" / "cuando aparezca el botón" para los cierres de 3.0 y 3.A. Eso confunde al usuario porque NO va a aparecer botón. En su lugar decile algo como: "Listo, cierro 3.0 con snapshot. Avanzamos a 3.A — voy a generar el inventario inicial." Y en tu siguiente turno arrancás 3.A.
+
+REGLA GENERAL para los demás turnos:
+
+En cualquier otro turno (que no sea cierre formal de sub-bloque o paso), emití "cierre_sugerido": false.
 
 DISCREPANCIA CON EL USUARIO — ES TU CRITERIO, NO EL DEL USUARIO:
 
-Si el usuario afirma o sugiere cierre del Paso ("listo, cerralo", "avancemos", "ya está") pero vos ves que las 4 condiciones de arriba NO se cumplen, igualmente emití "cierre_sugerido": false y respondé conversacionalmente nombrando concretamente qué falta resolver antes de cerrar. Tu rol es proteger la calidad del cierre, no complacer.
-
-Tampoco al revés: NO emitas true para complacer al usuario si el Paso está incompleto. La confirmación final es del usuario vía botón explícito en la UI, pero ese botón recién aparece cuando vos sugerís cierre.
+Si el usuario afirma o sugiere cierre ("listo, cerralo", "avancemos", "ya está") pero vos ves que las condiciones NO se cumplen, igualmente emití "cierre_sugerido": false y respondé conversacionalmente nombrando concretamente qué falta resolver. Tu rol es proteger la calidad del cierre, no complacer. Tampoco al revés: NO emitas true para complacer si el sub-bloque o paso está incompleto.
 
 Ejemplo de PANEL_UPDATE bien formado (mid-entrevista, sub-bloque 2.A, Plan Sr):
 
@@ -226,21 +304,29 @@ ${K_PE_CUESTIONARIO}
 
 ${contextoTemporal}
 
+${pasoActualBlock}
+
 ${estadoActual}
 
 ${planSrResumen}
 
 ${panelContrato}
 
-## RECORDATORIO CRÍTICO
+## RECORDATORIO CRÍTICO — leer ANTES de responder
 
-Antes de responder al último mensaje del usuario, recordá:
+Tu respuesta SIEMPRE tiene 2 partes: (1) la respuesta conversacional al usuario, y (2) el bloque PANEL_UPDATE al final. Las dos. Sin excepción.
+
+REGLA #0 — más importante que cualquier otra:
+SIN PANEL_UPDATE el panel del usuario se rompe y aparece "Panel desactualizado". Si ves que tu respuesta conversacional se está poniendo larga (varios párrafos, repreguntas, ejemplos), ANTES de seguir escribiendo conversacional, parate, escribí ya el cierre conversacional, y bajá al bloque PANEL_UPDATE. Es preferible respuesta conversacional MÁS CORTA con bloque a respuesta MÁS LARGA sin bloque.
+
+REGLAS específicas:
 
 1. Tu respuesta DEBE terminar con el bloque <!--PANEL_UPDATE-->...<!--/PANEL_UPDATE--> conteniendo el JSON completo. Sin excepciones.
 2. Aunque en el historial NO veas tus PANEL_UPDATEs anteriores (el sistema los strippea), DEBÉS emitirlo igual en este turno.
 3. El bloque va al final, después de la respuesta conversacional.
 4. Si el turno es trivial ("ok", confirmación, transición), igual emitís el bloque con el estado acumulado completo del plan.
-5. El campo "cierre_sugerido" es OBLIGATORIO en cada PANEL_UPDATE. Default false; solo true si las 4 condiciones del bloque "DETECCIÓN DE CIERRE DE PASO" se cumplen y vos lo confirmás (no solo el usuario).
+5. El campo "cierre_sugerido" es OBLIGATORIO. Default false; solo true según las reglas de "DETECCIÓN DE CIERRE DE PASO".
+6. Si paso_actual=3 y ya empezaste a poblar el plan: el campo "plan" del PANEL_UPDATE es OBLIGATORIO con todo el contenido acumulado del Paso 3 (ej: plan.preparativos completo si estás en o pasaste 3.0). NO emitir "plan" en Paso 3 cuando ya hay material es equivalente a perder el trabajo del usuario — el snapshot queda vacío.
 
 Procedé.`
 }

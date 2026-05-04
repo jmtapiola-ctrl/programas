@@ -77,11 +77,21 @@ export async function POST(req: NextRequest) {
     return { role: 'user', content: t.contenido }
   })
 
-  // Caso especial: historial vacío o mensaje vacío → apertura del Paso 0
+  // Caso especial: historial vacío o mensaje vacío → apertura del sub-bloque
+  // que indica entrevista.sub_bloque_actual (Paso 0 si arranca limpio, o el
+  // sub-bloque correcto si abre sesión nueva en plan ya avanzado).
   const userContent = mensaje.trim() || 'Comenzar entrevista'
   messages.push({ role: 'user', content: userContent })
 
-  const systemPrompt = buildSystemPrompt(plan, planSr)
+  // Pasar entrevista al system prompt para que el modelo sepa en qué paso/
+  // sub-bloque está. Sin esto, el modelo asume Paso 0 cuando arranca sin
+  // historial — bug confirmado en checkpoint del Paso 3 (3 mayo 2026).
+  const systemPrompt = buildSystemPrompt(plan, planSr, {
+    paso_actual: entrevista.paso_actual,
+    sub_bloque_actual: entrevista.sub_bloque_actual,
+    sub_estado_paso: entrevista.sub_estado_paso,
+    historial: entrevista.historial,
+  })
 
   // Stream SSE
   const encoder = new TextEncoder()
@@ -115,6 +125,12 @@ export async function POST(req: NextRequest) {
             send({ type: 'delta', content: chunk })
           }
         }
+
+        // Modelo terminó de emitir tokens. Avisamos al cliente para que cambie
+        // el indicador a "Guardando..." mientras hacemos parsing + persistencia
+        // + transiciones (3-8s típicos). Sin esto, el cliente queda 'streaming'
+        // con tres puntitos animados sin saber qué está pasando.
+        send({ type: 'content_done' })
 
         // Parsear + validar el bloque PANEL_UPDATE.
         // Si falla (no_block / malformed_json / invalid_shape), reintentamos UNA vez
@@ -428,7 +444,7 @@ async function retryPanelUpdate(
 ): Promise<{ ok: true; data: PanelUpdatePE } | { ok: false; errors: string[] }> {
   const errorDescription =
     parseResult.reason === 'no_block'
-      ? `Tu respuesta NO incluyó el bloque PANEL_UPDATE. El bloque es OBLIGATORIO en cada turno tuyo, sin excepción. Re-emitilo con TODO lo acumulado de la conversación: si en turnos previos se acordaron N ítems en "fuera", los N tienen que estar; si se cuantificaron desvíos, los desvíos tienen que estar. No solo el sub-bloque actual — TODO el estado acumulado.`
+      ? `Tu respuesta anterior NO incluyó el bloque <!--PANEL_UPDATE-->...<!--/PANEL_UPDATE-->. El panel del usuario está roto sin él. Probable causa: tu respuesta conversacional fue larga y te olvidaste del bloque al final.`
       : parseResult.reason === 'malformed_json'
       ? `Tu bloque PANEL_UPDATE contiene JSON malformado. Error: ${parseResult.errors.join('; ')}`
       : `Tu bloque PANEL_UPDATE no cumple el contrato. Errores: ${parseResult.errors.join('; ')}`
@@ -440,7 +456,9 @@ async function retryPanelUpdate(
       role: 'user',
       content: `${errorDescription}
 
-Re-emití SOLO el bloque PANEL_UPDATE entre los marcadores <!--PANEL_UPDATE-->...<!--/PANEL_UPDATE-->, sin ningún texto fuera del bloque. Asegurate de que sea JSON válido y que incluya TODOS los campos del contrato (los 18 del Plan Sr o 19 del Plan Jr) con todos los datos acumulados de la conversación. Nunca omitas un campo — campos sin valor van como "" o [].`,
+INSTRUCCIÓN ESTRICTA: en tu próxima respuesta, NO escribas NADA fuera del bloque. Empezá tu respuesta con "<!--PANEL_UPDATE-->" en la primera línea, después el JSON, después "<!--/PANEL_UPDATE-->" como última línea. Sin texto antes, sin texto después, sin saludos, sin explicaciones. Solo el bloque.
+
+El JSON DEBE incluir TODOS los campos del contrato con el estado COMPLETO ACUMULADO de la conversación: si se acordaron N ítems en cualquier campo, los N tienen que estar. Si paso_actual=3 y ya hay contenido del plan acumulado, el campo "plan" tiene que estar poblado. Campos sin valor: "" o [].`,
     },
   ]
 

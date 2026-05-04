@@ -541,8 +541,21 @@ GATE 3.0.D: criterio pleno y mínimo declarados para cada métrica + zona de
 fracaso textual.
 
 CIERRE FORMAL DE 3.0:
-Cuando los 4 gates están cumplidos, decile al usuario que cerrás 3.0 y
-emití cierre_sugerido=true para que el sistema cree el snapshot.
+Cuando los 4 gates de 3.0 están cumplidos, en ese mismo turno emitís
+cierre_sugerido=true Y en el PANEL_UPDATE incluís plan.preparativos COMPLETO
+con las 4 sub-keys pobladas (areas_afectadas, supuestos_exogenos,
+priorizacion_inicial, criterio_exito). Sin eso, el snapshot queda vacío.
+
+IMPORTANTE — qué decirle al usuario al cerrar 3.0:
+NO menciones "botón", "panel" ni "esperá". El cierre de 3.0 es interno —
+NO va a aparecer ningún botón al usuario. El sistema crea automáticamente
+el snapshot al ver cierre_sugerido=true + plan.preparativos completo, sin
+intervención del usuario.
+
+Decile algo como: "Cerré 3.0 con snapshot interno. Avanzamos a 3.A —
+Inventario de movimientos. Voy a generar el primer inventario en base a
+todo lo que construimos." Y en TU SIGUIENTE turno arrancás directamente
+con la generación de 3.A. NO esperes confirmación del usuario en este punto.
 
 ═══════════════════════════════════════════════════════════════
 SUB-BLOQUE 3.A — INVENTARIO DE MOVIMIENTOS
@@ -604,8 +617,14 @@ GATE 3.A: cada categoría revisada y cerrada con resumen (X aceptados, Y
 editados, Z quitados, W agregados); ningún movimiento queda en estado
 'pendiente'.
 
-CIERRE FORMAL DE 3.A: Cuando todas las categorías están cerradas, decile
-al usuario que cerrás 3.A y emití cierre_sugerido=true.
+CIERRE FORMAL DE 3.A: cuando todas las categorías están cerradas, en ese
+mismo turno emitís cierre_sugerido=true Y en el PANEL_UPDATE incluís
+plan.inventario completo (movimientos[] + resumenes_categoria[]). Mismo
+patrón que 3.0 — cierre interno, NO mencionés botón ni esperá confirmación.
+
+Decile al usuario algo como: "Cerré 3.A con snapshot del inventario.
+Avanzamos a 3.B — Preguntas de palanca." Y en tu siguiente turno arrancás
+3.B con la primera pregunta.
 
 ═══════════════════════════════════════════════════════════════
 SUB-BLOQUE 3.B — PREGUNTAS DE PALANCA
