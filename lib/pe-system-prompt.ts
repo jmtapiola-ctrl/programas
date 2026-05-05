@@ -185,8 +185,20 @@ Schema de cada sub-key:
 }
 
 "palancas": {
-  "preguntas_principal": [{"id": "<'P-1'|'P-2'|...|'P-5'>", "origen": "principal", "pregunta": "<string>", "respuesta": "<string, vacía si aún no respondió>", "observacion_modelo": "<string opcional, observación intermedia que confronta supuestos no-evidenciados>"}],
-  "preguntas_validador": [<idem schema PalancaQAPE pero origen='validador' e id 'V-1'..'V-5'>]
+  "preguntas_principal": [{
+    "id": "<'P-1'|'P-2'|...|'P-5'>",
+    "origen": "principal",
+    "pregunta": "<string>",
+    "respuesta": "<string del razonamiento del usuario, vacía '' hasta que responda>",
+    "observacion_modelo": "<string opcional, observación intermedia post-respuesta>",
+    "modo_interaccion": "<'seleccion_unica'|'seleccion_multiple_ranked'|'agrupacion_pares'|'secuenciacion'|'marcado_simple', OPCIONAL — omitir si la pregunta es 100% texto>",
+    "campos_a_mostrar": ["<lista de campos del MovimientoPE para mostrar en las fichas: 'nombre'|'que_resuelve'|'ataca_desvio'|'dueno'|'banda_ancha'|'costo'|'ventana'|'cantidad_precondiciones'|'cantidad_desbloqueos'|'criterio_exito'|'estado_usuario'>"],
+    "instruccion_panel": "<string corto al usuario, ej 'Iluminá la ficha que considerás palanca primaria'>",
+    "restriccion_minima": <number opcional, ej: 2 elementos mínimo>,
+    "restriccion_maxima": <number opcional, ej: 5 elementos máximo>,
+    "respuesta_estructurada": <objeto poblado por el sistema cuando el usuario interactúa con las fichas — NO emitas vos, lo persiste el endpoint dedicado>
+  }],
+  "preguntas_validador": [<idem schema PalancaQAPE pero origen='validador' e id 'V-1'..'V-5'. En V1 NO emitas modo_interaccion para validador — esas preguntas son texto puro>]
 }
 
 "inventario", "borrador", "estres", "curado": schemas detallados se sumarán cuando arranque cada sub-bloque (Fases C-E). Por ahora, solo emití "preparativos" durante 3.0 y "palancas" durante 3.B.
@@ -198,8 +210,29 @@ CUÁNDO EMITIR EL CAMPO "plan":
 - En 3.0.C: sumás plan.preparativos.priorizacion_inicial.
 - En 3.0.D: sumás plan.preparativos.criterio_exito.
 - En el turno donde emitís cierre_sugerido=true para 3.0: el plan.preparativos DEBE estar completo con las 4 sub-keys pobladas. Sin esto, el snapshot intermedio queda vacío y se pierde el trabajo del usuario.
-- En 3.B (Palancas): emitís plan.palancas.preguntas_principal turno a turno. Cada vez que hacés una pregunta nueva, sumás un objeto al array con id="P-1"..."P-5", origen="principal", pregunta="<lo que preguntaste>", respuesta="" (vacía hasta que el user responde), observacion_modelo="" (vacía hasta que hacés la observación intermedia post-respuesta). Cuando el user responde, en TU SIGUIENTE turno actualizás el objeto P-N: poblás respuesta + observacion_modelo. Mantenés todos los objetos previos en el array (estado completo acumulado, igual que metricas/fuera/etc.).
-- Cuando las 5 preguntas tienen respuesta y observación, en ese mismo turno emitís el mensaje "Tengo las 5 respuestas que necesitaba. Antes de avanzar, voy a hacer una revisión de control..." (ver cuestionario 3.B). El sistema detecta que plan.palancas.preguntas_principal tiene 5 items todos respondidos y dispara el validador automáticamente.
+- En 3.B (Palancas): emitís plan.palancas.preguntas_principal turno a turno. Cada vez que hacés una pregunta nueva, sumás un objeto al array con id="P-1"..."P-5", origen="principal", pregunta="<lo que preguntaste>", respuesta="" (vacía hasta que el user responde), observacion_modelo="" (vacía hasta que hacés la observación intermedia post-respuesta). Mantenés todos los objetos previos en el array (estado completo acumulado, igual que metricas/fuera/etc.).
+- **CRÍTICO — Panel Interactivo de Fichas (Fase D Chunk A)**: cuando emitís una pregunta nueva en 3.B (o 3.D Estrés), DEBÉS sumar metadata sobre cómo el usuario va a responder. El cliente renderiza un panel lateral con las fichas del Inventario y el usuario interactúa según el modo. La respuesta del usuario tiene 2 partes: (a) interacción estructurada con las fichas (persistida automáticamente por el sistema), (b) texto del razonamiento "por qué" en el chat.
+  Por cada pregunta nueva emitís estos campos extra (todos opcionales pero juntos forman el panel):
+    - "modo_interaccion": uno de los 5 modos según TABLA DE MAPPING (más abajo).
+    - "campos_a_mostrar": qué campos del MovimientoPE mostrar en las fichas. Elegí entre: nombre / que_resuelve / ataca_desvio / dueno / banda_ancha / costo / ventana / cantidad_precondiciones / cantidad_desbloqueos / criterio_exito / estado_usuario. Mínimo recomendado: ['nombre', 'que_resuelve', 'banda_ancha', 'dueno']. Sumá los relevantes a la pregunta (ej: si la pregunta es sobre dependencias, sumá cantidad_precondiciones y cantidad_desbloqueos).
+    - "instruccion_panel": texto corto al usuario sobre qué hacer (ej: "Iluminá la ficha que considerás la palanca más fuerte"). Va arriba del panel.
+    - "restriccion_minima" / "restriccion_maxima" (opcionales según modo): bounds para footer "Confirmar selección" (ej: top 3 → min=3, max=3).
+
+TABLA DE MAPPING tipo de pregunta → modo_interaccion (Ajuste 4 de Juan):
+
+  | Patrón de pregunta | modo_interaccion | restricciones |
+  |--------------------|------------------|---------------|
+  | "Cuál es la palanca más fuerte / la más crítica / el cuello de botella" | seleccion_unica | min=1, max=1 |
+  | "Top N por X" / "Si solo pudieras hacer N de los movimientos" | seleccion_multiple_ranked | min=N, max=N |
+  | "Dependencias críticas" / "Pares A precondiciona B" | agrupacion_pares | min=1, max=undefined |
+  | "Ordená por timing" / "Distribuí en fases" | secuenciacion | (cobertura total automática) |
+  | "Cuáles tienen X riesgo / X característica" | marcado_simple | min=0 (ninguno es respuesta válida) |
+  | "Por qué priorizás X" / razonamiento puro | OMITIR modo_interaccion (caso edge) | — |
+
+REGLA: si la pregunta puede responderse señalando fichas, USAR uno de los 5 modos. Solo OMITIR modo_interaccion cuando la respuesta es genuinamente texto puro.
+
+- **Confiar en el panel — NO listes movimientos en el chat**: NO presentés listas parciales de movimientos en el texto conversacional. El usuario tiene el inventario completo a la vista en el panel lateral. Tu mensaje de chat es solo: pregunta + (opcional) observación intermedia + breve contexto. Las fichas las maneja el panel.
+- Cuando las 5 preguntas tienen respuesta (texto + estructurada), en ese mismo turno emitís el mensaje "Tengo las 5 respuestas que necesitaba. Antes de avanzar, voy a hacer una revisión de control..." (ver cuestionario 3.B). El sistema detecta y dispara el validador automáticamente.
 - preguntas_validador queda VACÍO en tus PANEL_UPDATEs — el sistema lo populará cuando el user responda las preguntas del validador en una UI dedicada. NO emitas preguntas_validador.
 
 DETECCIÓN DE CIERRE DE PASO — CRITERIO PROPIO:

@@ -181,6 +181,50 @@ function validateInventario(inv: any, prefix: string): string[] {
 
 // ── Validadores de items del Paso 3 (Fase D — sub-bloque 3.B Palancas) ──
 
+const MODOS_INTERACCION = ['seleccion_unica', 'seleccion_multiple_ranked', 'agrupacion_pares', 'secuenciacion', 'marcado_simple'] as const
+const CAMPOS_FICHA = ['nombre', 'que_resuelve', 'ataca_desvio', 'dueno', 'banda_ancha', 'costo', 'ventana', 'cantidad_precondiciones', 'cantidad_desbloqueos', 'criterio_exito', 'estado_usuario'] as const
+
+function validateRespuestaEstructurada(re: any, prefix: string): string[] {
+  const errs: string[] = []
+  if (typeof re !== 'object' || re === null || Array.isArray(re)) {
+    return [`${prefix} debe ser objeto`]
+  }
+  if (!MODOS_INTERACCION.includes(re.modo)) {
+    errs.push(`${prefix}.modo debe ser uno de ${MODOS_INTERACCION.join(', ')}, got '${re.modo}'`)
+    return errs  // sin modo válido no podemos validar el resto
+  }
+  switch (re.modo) {
+    case 'seleccion_unica':
+      if (typeof re.movimiento_id !== 'string') errs.push(`${prefix}.movimiento_id debe ser string`)
+      break
+    case 'seleccion_multiple_ranked':
+      if (!Array.isArray(re.ranking)) errs.push(`${prefix}.ranking debe ser array`)
+      else re.ranking.forEach((r: any, i: number) => {
+        if (typeof r?.movimiento_id !== 'string') errs.push(`${prefix}.ranking[${i}].movimiento_id debe ser string`)
+        if (typeof r?.posicion !== 'number') errs.push(`${prefix}.ranking[${i}].posicion debe ser number`)
+      })
+      break
+    case 'agrupacion_pares':
+      if (!Array.isArray(re.pares)) errs.push(`${prefix}.pares debe ser array`)
+      else re.pares.forEach((p: any, i: number) => {
+        if (typeof p?.desde !== 'string') errs.push(`${prefix}.pares[${i}].desde debe ser string`)
+        if (typeof p?.hacia !== 'string') errs.push(`${prefix}.pares[${i}].hacia debe ser string`)
+      })
+      break
+    case 'secuenciacion':
+      if (!Array.isArray(re.fases)) errs.push(`${prefix}.fases debe ser array`)
+      else re.fases.forEach((f: any, i: number) => {
+        if (typeof f?.fase !== 'string') errs.push(`${prefix}.fases[${i}].fase debe ser string`)
+        if (!Array.isArray(f?.movimientos)) errs.push(`${prefix}.fases[${i}].movimientos debe ser array de ids`)
+      })
+      break
+    case 'marcado_simple':
+      if (!Array.isArray(re.marcados)) errs.push(`${prefix}.marcados debe ser array de ids`)
+      break
+  }
+  return errs
+}
+
 function validatePalancaQAItem(item: any, idx: number, prefix: string): string[] {
   const errs: string[] = []
   if (typeof item !== 'object' || item === null || Array.isArray(item)) {
@@ -192,6 +236,32 @@ function validatePalancaQAItem(item: any, idx: number, prefix: string): string[]
   if (typeof item.respuesta !== 'string') errs.push(`${prefix}[${idx}].respuesta debe ser string (vacía "" si aún no respondida)`)
   if (item.observacion_modelo !== undefined && typeof item.observacion_modelo !== 'string') {
     errs.push(`${prefix}[${idx}].observacion_modelo (si presente) debe ser string`)
+  }
+  // Metadata del Panel Interactivo (Fase D Chunk A) — todos opcionales:
+  if (item.modo_interaccion !== undefined && !MODOS_INTERACCION.includes(item.modo_interaccion)) {
+    errs.push(`${prefix}[${idx}].modo_interaccion (si presente) debe ser uno de ${MODOS_INTERACCION.join(', ')}, got '${item.modo_interaccion}'`)
+  }
+  if (item.campos_a_mostrar !== undefined) {
+    if (!Array.isArray(item.campos_a_mostrar)) errs.push(`${prefix}[${idx}].campos_a_mostrar debe ser array`)
+    else item.campos_a_mostrar.forEach((c: any, i: number) => {
+      if (!CAMPOS_FICHA.includes(c)) errs.push(`${prefix}[${idx}].campos_a_mostrar[${i}] debe ser uno de ${CAMPOS_FICHA.join(', ')}, got '${c}'`)
+    })
+  }
+  if (item.instruccion_panel !== undefined && typeof item.instruccion_panel !== 'string') {
+    errs.push(`${prefix}[${idx}].instruccion_panel (si presente) debe ser string`)
+  }
+  if (item.restriccion_minima !== undefined && typeof item.restriccion_minima !== 'number') {
+    errs.push(`${prefix}[${idx}].restriccion_minima (si presente) debe ser number`)
+  }
+  if (item.restriccion_maxima !== undefined && typeof item.restriccion_maxima !== 'number') {
+    errs.push(`${prefix}[${idx}].restriccion_maxima (si presente) debe ser number`)
+  }
+  if (item.respuesta_estructurada !== undefined) {
+    errs.push(...validateRespuestaEstructurada(item.respuesta_estructurada, `${prefix}[${idx}].respuesta_estructurada`))
+    // El modo de la respuesta debe matchear el modo de la pregunta (si ambos presentes)
+    if (item.modo_interaccion && item.respuesta_estructurada?.modo && item.modo_interaccion !== item.respuesta_estructurada.modo) {
+      errs.push(`${prefix}[${idx}].respuesta_estructurada.modo='${item.respuesta_estructurada.modo}' no matchea con modo_interaccion='${item.modo_interaccion}'`)
+    }
   }
   return errs
 }

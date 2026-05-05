@@ -6,7 +6,8 @@ import { ChatInterface } from '@/components/planes-estrategicos/ChatInterface'
 import { PanelLateral } from '@/components/planes-estrategicos/PanelLateral'
 import { InventarioCategoria } from '@/components/planes-estrategicos/InventarioCategoria'
 import { PalancasValidadorModal } from '@/components/planes-estrategicos/PalancasValidadorModal'
-import type { PlanEstrategico, TurnoPE, PanelUpdatePE, InventarioPE } from '@/lib/types'
+import { PanelInventarioInteractivo } from '@/components/planes-estrategicos/PanelInventarioInteractivo'
+import type { PlanEstrategico, TurnoPE, PanelUpdatePE, InventarioPE, PalancaQAPE, EstresQAPE, RespuestaEstructurada } from '@/lib/types'
 
 const PANEL_UPDATE_RE = /<!--PANEL_UPDATE-->[\s\S]*?<!--\/PANEL_UPDATE-->/g
 
@@ -48,6 +49,9 @@ export default function EntrevistaPage() {
   // Flag para evitar doble disparo del validador (ej: si llegan 2 PANEL_UPDATEs
   // seguidos con plan.palancas.preguntas_principal completas).
   const [validadorDisparado, setValidadorDisparado] = useState(false)
+  // Sub-bloque 3.B/3.D — Panel Interactivo de Fichas (Fase D Chunk A).
+  // savingRespuestaEstructurada: indica si estamos haciendo PATCH al endpoint.
+  const [savingRespuestaEstructurada, setSavingRespuestaEstructurada] = useState(false)
 
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -267,6 +271,51 @@ export default function EntrevistaPage() {
 
   // ── Sub-bloque 3.B — Validador cross-provider de Palancas ─────────────────
 
+  // ── Sub-bloque 3.B/3.D — Confirmar respuesta_estructurada del Panel ───────
+
+  async function handleConfirmarRespuestaEstructurada(idPregunta: string, respuesta: RespuestaEstructurada) {
+    setSavingRespuestaEstructurada(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/planes-estrategicos/${id}/paso3/palancas/respuesta-estructurada`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_pregunta: idPregunta, respuesta_estructurada: respuesta }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      // Refrescar plan en state local — el plan ahora tiene la respuesta_estructurada
+      // persistida. El render del panel queda bloqueado hasta que el user mande
+      // el "por qué" en el chat (panel se oculta hasta el próximo turno del modelo).
+      if (data.plan_actualizado) setPlan(prev => prev ? { ...prev, plan: data.plan_actualizado } : prev)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSavingRespuestaEstructurada(false)
+    }
+  }
+
+  // Helper: encontrar la pregunta actual del Panel Interactivo. Es la última
+  // pregunta de plan.palancas.preguntas_principal (o estres) que tiene
+  // modo_interaccion definido y NO tiene respuesta_estructurada todavía.
+  function preguntaActualParaPanel(): PalancaQAPE | EstresQAPE | null {
+    if (!plan?.plan) return null
+    const enSubBloqueB = subBloqueActual === '3.B'
+    const enSubBloqueD = subBloqueActual === '3.D'
+    if (!enSubBloqueB && !enSubBloqueD) return null
+
+    const candidatos: Array<PalancaQAPE | EstresQAPE> = enSubBloqueB
+      ? plan.plan.palancas?.preguntas_principal ?? []
+      : plan.plan.estres?.preguntas ?? []
+
+    // Última con modo definido y sin respuesta_estructurada
+    for (let i = candidatos.length - 1; i >= 0; i--) {
+      const q = candidatos[i]
+      if (q.modo_interaccion && !q.respuesta_estructurada) return q
+    }
+    return null
+  }
+
   async function dispararValidadorPalancas() {
     setPalancasValidador({ status: 'inferring' })
     try {
@@ -460,8 +509,18 @@ export default function EntrevistaPage() {
                 value={inputValue}
                 onChange={e => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                disabled={isStreaming || saveFailed}
-                placeholder={saveFailed ? 'Recargá la página antes de continuar' : 'Escribí tu respuesta… (Cmd+Enter para enviar)'}
+                /* Habilitado durante isPersisting (post 'content_done') para que
+                   el user pueda ir adelantando su próxima respuesta mientras
+                   el backend persiste el turno actual. El botón Enviar y
+                   Cmd+Enter siguen bloqueados hasta que el guardado termine. */
+                disabled={(isStreaming && !isPersisting) || saveFailed}
+                placeholder={
+                  saveFailed
+                    ? 'Recargá la página antes de continuar'
+                    : isPersisting
+                      ? 'Podés ir escribiendo tu próxima respuesta… (se enviará cuando termine el guardado)'
+                      : 'Escribí tu respuesta… (Cmd+Enter para enviar)'
+                }
                 rows={9}
                 className="flex-1 resize-y rounded-lg border border-sidebar-border bg-sidebar px-3 py-2 text-[15px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 min-h-[60px] max-h-[600px]"
               />
@@ -477,10 +536,31 @@ export default function EntrevistaPage() {
           </div>
         </div>
 
-        {/* Panel lateral */}
-        <div className="w-[380px] flex-shrink-0 overflow-y-auto p-4">
-          <PanelLateral plan={plan} panel={panelData} planSr={planSr} />
-        </div>
+        {/* Panel lateral — modo dual:
+            - Si hay pregunta interactiva activa (3.B/3.D + última pregunta sin
+              respuesta_estructurada + modo definido): renderizar PanelInventarioInteractivo
+              expandido (40vw). Reemplaza al panel lateral normal durante el flow.
+            - Sino: panel lateral normal (380px) con resumen del plan. */}
+        {(() => {
+          const preguntaPanel = preguntaActualParaPanel()
+          if (preguntaPanel && plan.plan?.inventario?.movimientos) {
+            return (
+              <div className="w-[40vw] min-w-[480px] max-w-[640px] flex-shrink-0 overflow-hidden border-l border-sidebar-border">
+                <PanelInventarioInteractivo
+                  pregunta={preguntaPanel}
+                  movimientos={plan.plan.inventario.movimientos}
+                  onConfirmar={(resp) => handleConfirmarRespuestaEstructurada(preguntaPanel.id, resp)}
+                  saving={savingRespuestaEstructurada}
+                />
+              </div>
+            )
+          }
+          return (
+            <div className="w-[380px] flex-shrink-0 overflow-y-auto p-4">
+              <PanelLateral plan={plan} panel={panelData} planSr={planSr} />
+            </div>
+          )
+        })()}
       </div>
 
       {/* Modal del Inventario (3.A) — overlay sobre todo */}

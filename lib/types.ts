@@ -404,12 +404,45 @@ export interface InventarioPE {
   latencia_ms?: number
 }
 
+// ─── Modos de interacción del Panel Interactivo de Fichas (Fase D Chunk A) ──
+// Decisión Juan 5 mayo 2026: las preguntas de palanca / estrés vienen con
+// metadata sobre cómo el usuario debe responder (panel interactivo de fichas
+// del Inventario), en lugar de respuesta-texto solamente.
+
+export type ModoInteraccion =
+  | 'seleccion_unica'              // 1 movimiento elegido (la palanca más fuerte)
+  | 'seleccion_multiple_ranked'    // top N con orden (top 3 por impacto)
+  | 'agrupacion_pares'             // pares (A → B): dependencias críticas
+  | 'secuenciacion'                // ordenar en fases temporales
+  | 'marcado_simple'               // flag binario en N (cuáles tienen riesgo alto)
+
+export type CampoFichaMovimiento =
+  | 'nombre' | 'que_resuelve' | 'ataca_desvio' | 'dueno' | 'banda_ancha'
+  | 'costo' | 'ventana' | 'cantidad_precondiciones' | 'cantidad_desbloqueos'
+  | 'criterio_exito' | 'estado_usuario'
+
+// Discriminated union: cada modo tiene su shape específico de respuesta.
+export type RespuestaEstructurada =
+  | { modo: 'seleccion_unica'; movimiento_id: string }
+  | { modo: 'seleccion_multiple_ranked'; ranking: Array<{ movimiento_id: string; posicion: number }> }
+  | { modo: 'agrupacion_pares'; pares: Array<{ desde: string; hacia: string }> }
+  | { modo: 'secuenciacion'; fases: Array<{ fase: string; movimientos: string[] }> }
+  | { modo: 'marcado_simple'; marcados: string[] }
+
 export interface PalancaQAPE {
   id: string                     // P-1, P-2, ...
   origen: 'principal' | 'validador'
   pregunta: string
-  respuesta: string
+  respuesta: string              // texto del razonamiento del usuario
   observacion_modelo?: string    // observación intermedia del modelo
+  // Metadata del Panel Interactivo (V1, opcional para preguntas-texto solamente
+  // del validador y caso edge de pregunta sin modo — Ajuste 4 Juan):
+  modo_interaccion?: ModoInteraccion
+  campos_a_mostrar?: CampoFichaMovimiento[]
+  instruccion_panel?: string                   // texto adicional al usuario
+  restriccion_minima?: number                  // ej: 2 elementos mínimo
+  restriccion_maxima?: number                  // ej: 5 elementos máximo
+  respuesta_estructurada?: RespuestaEstructurada
 }
 
 export interface PalancasPE {
@@ -455,6 +488,14 @@ export interface EstresQAPE {
   pregunta: string
   respuesta: string
   observacion_modelo?: string
+  // Metadata del Panel Interactivo (mismo shape que PalancaQAPE — los modos
+  // funcionan idénticos en 3.B y 3.D):
+  modo_interaccion?: ModoInteraccion
+  campos_a_mostrar?: CampoFichaMovimiento[]
+  instruccion_panel?: string
+  restriccion_minima?: number
+  restriccion_maxima?: number
+  respuesta_estructurada?: RespuestaEstructurada
   ajuste_aplicado?: { tipo: 'inventario' | 'borrador'; descripcion: string }
 }
 
