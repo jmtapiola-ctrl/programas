@@ -288,6 +288,21 @@ export interface SituacionPE {
   resistencias: ResistenciaPE[]
 }
 
+// Metadata para guiar la PRÓXIMA respuesta del usuario en el chat. Aplica a
+// todos los pasos del wizard (0, 1, 2, 3...). Opcional. El modelo emite estos
+// campos junto con el PANEL_UPDATE cuando quiere forzar mínimo de razonamiento
+// (preguntas que admiten respuestas naturalmente cortas no llevan mínimos).
+export interface ProximaRespuestaMetadata {
+  // Mínimo de caracteres exigido al user para mandar el mensaje. Si presente,
+  // el botón Enviar queda bloqueado hasta cumplir.
+  caracteres_minimos?: number
+  // Mínimo de palabras exigido. Si ambos presentes, ambos deben cumplirse.
+  palabras_minimas?: number
+  // Texto guía específico de la pregunta para el placeholder del textarea.
+  // Si ausente, el cliente usa fallback genérico.
+  placeholder_textarea?: string
+}
+
 export interface PanelUpdatePE {
   paso_actual: number
   sub_bloque_actual: string
@@ -297,6 +312,9 @@ export interface PanelUpdatePE {
   // Plan estructurado del Paso 3 (opcional — solo poblado durante o después del
   // Paso 3). Sigue el shape híbrido de D1: 6 keys top-level durante el flow.
   plan?: PlanoPE
+  // Metadata de la próxima respuesta del usuario (Issue B / Mínimo dinámico).
+  // Opcional — el modelo lo emite cuando quiere forzar profundidad de respuesta.
+  proxima_respuesta_metadata?: ProximaRespuestaMetadata
   // true solo cuando el modelo considera, según su criterio, que el Paso actual
   // está conceptualmente cerrado (todos los sub-bloques cubiertos, decisiones
   // confirmadas, datos críticos registrados). Opcional con default false implícito

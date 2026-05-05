@@ -432,6 +432,26 @@ export function parsePanelUpdate(fullResponse: string): ParseResult {
     errors.push(`cierre_sugerido (si presente) must be boolean true/false, got ${parsed?.cierre_sugerido === null ? 'null' : typeof parsed?.cierre_sugerido}`)
   }
 
+  // proxima_respuesta_metadata (Issue B / Mínimo dinámico de respuestas).
+  // Opcional. Si presente, debe ser objeto con campos opcionales:
+  // caracteres_minimos (number), palabras_minimas (number), placeholder_textarea (string).
+  if (parsed?.proxima_respuesta_metadata !== undefined) {
+    const meta = parsed.proxima_respuesta_metadata
+    if (typeof meta !== 'object' || meta === null || Array.isArray(meta)) {
+      errors.push(`proxima_respuesta_metadata (si presente) debe ser objeto, got ${Array.isArray(meta) ? 'array' : typeof meta}`)
+    } else {
+      if (meta.caracteres_minimos !== undefined && typeof meta.caracteres_minimos !== 'number') {
+        errors.push(`proxima_respuesta_metadata.caracteres_minimos (si presente) debe ser number`)
+      }
+      if (meta.palabras_minimas !== undefined && typeof meta.palabras_minimas !== 'number') {
+        errors.push(`proxima_respuesta_metadata.palabras_minimas (si presente) debe ser number`)
+      }
+      if (meta.placeholder_textarea !== undefined && typeof meta.placeholder_textarea !== 'string') {
+        errors.push(`proxima_respuesta_metadata.placeholder_textarea (si presente) debe ser string`)
+      }
+    }
+  }
+
   // plan (Paso 3) — opcional. Solo presente cuando el modelo está construyendo el
   // Paso 3. Validamos shape de los sub-bloques que ya implementamos (Fase B = 3.0
   // Preparativos). Otros sub-bloques (inventario/palancas/borrador/estres/curado)

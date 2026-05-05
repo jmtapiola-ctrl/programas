@@ -42,39 +42,55 @@ export async function PATCH(
     return NextResponse.json({ error: 'Body debe incluir id_pregunta y respuesta_estructurada' }, { status: 400 })
   }
 
-  const [plan, entrevista] = await Promise.all([
-    getPlanEstrategico(planId),
-    getEntrevistaPE(planId),
-  ])
+  const entrevista = await getEntrevistaPE(planId)
   if (!entrevista) return NextResponse.json({ error: 'Entrevista no encontrada' }, { status: 404 })
 
   if (entrevista.paso_actual !== 3) {
     return NextResponse.json({ error: `Esperado paso_actual=3, got ${entrevista.paso_actual}.` }, { status: 409 })
   }
 
-  // Buscar la pregunta. El id_pregunta indica donde:
-  //   "P-N" → palancas.preguntas_principal
-  //   "V-N" → palancas.preguntas_validador
-  //   "E-N" → estres.preguntas
+  // Race condition mitigation: el cliente puede llamar a este endpoint
+  // inmediatamente después de recibir el SSE 'done' del modelo. saveWithRetry
+  // del chat route puede aún estar persistiendo plan.palancas.preguntas_principal
+  // en Airtable (3 PATCHes secuenciales, 1-3s). Hacemos hasta 4 intentos con
+  // backoff [0ms, 500ms, 1500ms, 3000ms] de leer el plan y buscar la pregunta.
   const idPrefix = body.id_pregunta.slice(0, 1)
+  if (!['P', 'V', 'E'].includes(idPrefix)) {
+    return NextResponse.json({
+      error: `Prefijo de id_pregunta inválido: '${idPrefix}'. Esperado P/V/E.`,
+    }, { status: 400 })
+  }
+
+  const BACKOFF_MS = [0, 500, 1500, 3000]
+  let plan: Awaited<ReturnType<typeof getPlanEstrategico>> | null = null
   let preguntaTarget: PalancaQAPE | EstresQAPE | undefined
   let containerKey: 'palancas_principal' | 'palancas_validador' | 'estres' | null = null
 
-  if (idPrefix === 'P') {
-    preguntaTarget = plan.plan?.palancas?.preguntas_principal?.find(q => q.id === body.id_pregunta)
-    containerKey = 'palancas_principal'
-  } else if (idPrefix === 'V') {
-    preguntaTarget = plan.plan?.palancas?.preguntas_validador?.find(q => q.id === body.id_pregunta)
-    containerKey = 'palancas_validador'
-  } else if (idPrefix === 'E') {
-    preguntaTarget = plan.plan?.estres?.preguntas?.find(q => q.id === body.id_pregunta)
-    containerKey = 'estres'
+  for (let attempt = 0; attempt < BACKOFF_MS.length; attempt++) {
+    if (attempt > 0) {
+      await new Promise(r => setTimeout(r, BACKOFF_MS[attempt]))
+      console.log(`[paso3/palancas/respuesta-estructurada] Retry ${attempt}/${BACKOFF_MS.length - 1} para id_pregunta=${body.id_pregunta} tras ${BACKOFF_MS[attempt]}ms`)
+    }
+    plan = await getPlanEstrategico(planId)
+
+    if (idPrefix === 'P') {
+      preguntaTarget = plan.plan?.palancas?.preguntas_principal?.find(q => q.id === body.id_pregunta)
+      containerKey = 'palancas_principal'
+    } else if (idPrefix === 'V') {
+      preguntaTarget = plan.plan?.palancas?.preguntas_validador?.find(q => q.id === body.id_pregunta)
+      containerKey = 'palancas_validador'
+    } else if (idPrefix === 'E') {
+      preguntaTarget = plan.plan?.estres?.preguntas?.find(q => q.id === body.id_pregunta)
+      containerKey = 'estres'
+    }
+    if (preguntaTarget) break
   }
 
-  if (!preguntaTarget || !containerKey) {
+  if (!preguntaTarget || !containerKey || !plan) {
     return NextResponse.json({
-      error: `Pregunta '${body.id_pregunta}' no encontrada. Esperado prefijo P/V/E.`,
-    }, { status: 404 })
+      error: `Pregunta '${body.id_pregunta}' no encontrada en el plan persistido después de ${BACKOFF_MS.length} intentos. Probable race condition con saveWithRetry del chat route.`,
+      hint: 'Reintentá en unos segundos. Si persiste, recargá la página.',
+    }, { status: 409 })
   }
 
   // Validar que el modo matchea con el modo_interaccion de la pregunta

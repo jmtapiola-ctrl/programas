@@ -246,9 +246,81 @@ export default function EntrevistaPage() {
     }
   }
 
+  // Mínimo dinámico de respuestas — Issue B
+  const meta = panelData?.proxima_respuesta_metadata
+  const minChars = meta?.caracteres_minimos
+  const minWords = meta?.palabras_minimas
+  const placeholderModel = meta?.placeholder_textarea
+  const charsActuales = inputValue.trim().length
+  const wordsActuales = inputValue.trim().length === 0 ? 0 : inputValue.trim().split(/\s+/).length
+  const cumpleMinChars = minChars === undefined || charsActuales >= minChars
+  const cumpleMinWords = minWords === undefined || wordsActuales >= minWords
+  const cumpleMinimos = cumpleMinChars && cumpleMinWords
+
+  function mensajeFaltanteMinimo(): string | null {
+    if (!minChars && !minWords) return null
+    if (cumpleMinimos) return null
+    if (charsActuales === 0) return 'Escribí tu razonamiento — necesitamos un par de oraciones explicando tu elección.'
+    const faltanChars = minChars ? Math.max(0, minChars - charsActuales) : 0
+    const faltanWords = minWords ? Math.max(0, minWords - wordsActuales) : 0
+    if (faltanWords > 0 && faltanWords <= 5) return 'Casi — un par de palabras más sobre tu razonamiento.'
+    if (faltanWords > 5) return 'Necesitamos un par de oraciones más explicando tu razonamiento.'
+    if (faltanChars > 0 && faltanChars <= 30) return 'Casi — un par de palabras más sobre tu razonamiento.'
+    return 'Necesitamos un par de oraciones más explicando tu razonamiento.'
+  }
+
+  // Resumen de la respuesta estructurada actual (si hay panel interactivo y
+  // pregunta con respuesta_estructurada ya confirmada). Aparece arriba del
+  // textarea como "Elegiste: M-1 'Contratar QA Lead' — explicá tu razonamiento".
+  function resumenRespuestaEstructurada(): string | null {
+    const preg = preguntaActualParaPanelOConRespuesta()
+    if (!preg?.respuesta_estructurada) return null
+    const re = preg.respuesta_estructurada
+    const movs = plan?.plan?.inventario?.movimientos ?? []
+    const findMov = (id: string) => movs.find(m => m.id === id)
+    if (re.modo === 'seleccion_unica') {
+      const m = findMov(re.movimiento_id)
+      return m ? `Elegiste: ${m.id} "${m.nombre}" — explicá tu razonamiento abajo` : `Elegiste: ${re.movimiento_id}`
+    }
+    if (re.modo === 'seleccion_multiple_ranked') {
+      const ids = re.ranking.sort((a, b) => a.posicion - b.posicion).map(r => r.movimiento_id)
+      return `Elegiste ${ids.length} movimiento${ids.length === 1 ? '' : 's'}: ${ids.join(', ')} — explicá tu razonamiento abajo`
+    }
+    if (re.modo === 'agrupacion_pares') {
+      return `Definiste ${re.pares.length} ${re.pares.length === 1 ? 'dependencia' : 'dependencias'} — explicá tu razonamiento abajo`
+    }
+    if (re.modo === 'secuenciacion') {
+      const totalFases = re.fases.filter(f => f.movimientos.length > 0).length
+      return `Ordenaste los movimientos en ${totalFases} fase${totalFases === 1 ? '' : 's'} — explicá tu razonamiento abajo`
+    }
+    if (re.modo === 'marcado_simple') {
+      return `Marcaste ${re.marcados.length} movimiento${re.marcados.length === 1 ? '' : 's'} — explicá tu razonamiento abajo`
+    }
+    return null
+  }
+
+  // Encuentra la pregunta actual del panel CON o SIN respuesta_estructurada.
+  // Diferente de preguntaActualParaPanel() que solo devuelve las SIN respuesta.
+  // Útil para mostrar el resumen "Elegiste: ..." después de confirmar.
+  function preguntaActualParaPanelOConRespuesta(): PalancaQAPE | EstresQAPE | null {
+    if (!plan?.plan) return null
+    const enB = subBloqueActual === '3.B'
+    const enD = subBloqueActual === '3.D'
+    if (!enB && !enD) return null
+    const candidatos: Array<PalancaQAPE | EstresQAPE> = enB
+      ? plan.plan.palancas?.preguntas_principal ?? []
+      : plan.plan.estres?.preguntas ?? []
+    // Última con modo definido (independiente de si tiene respuesta_estructurada)
+    for (let i = candidatos.length - 1; i >= 0; i--) {
+      const q = candidatos[i]
+      if (q.modo_interaccion) return q
+    }
+    return null
+  }
+
   async function handleEnviar() {
     const msg = inputValue.trim()
-    if (!msg || isStreaming) return
+    if (!msg || isStreaming || !cumpleMinimos) return
     setInputValue('')
     sendMessage(msg)
   }
@@ -518,6 +590,19 @@ export default function EntrevistaPage() {
                 </p>
               </div>
             )}
+            {/* Indicador de la respuesta estructurada confirmada (Issue B parte 3).
+                Aparece arriba del textarea cuando hay panel interactivo activo
+                y el user ya confirmó su selección — visible solo en 3.B/3.D. */}
+            {(() => {
+              const resumen = resumenRespuestaEstructurada()
+              if (!resumen) return null
+              return (
+                <div className="mb-2 rounded-lg border border-blue-700/40 bg-blue-950/30 px-3 py-2 text-[12px] text-blue-200 leading-relaxed">
+                  <span className="font-semibold">✓ </span>{resumen}
+                </div>
+              )
+            })()}
+
             <div className="flex gap-2 items-end">
               <textarea
                 ref={inputRef}
@@ -534,20 +619,26 @@ export default function EntrevistaPage() {
                     ? 'Recargá la página antes de continuar'
                     : isPersisting
                       ? 'Podés ir escribiendo tu próxima respuesta… (se enviará cuando termine el guardado)'
-                      : 'Escribí tu respuesta… (Cmd+Enter para enviar)'
+                      : (placeholderModel ?? 'Explicá tu razonamiento — qué viste, por qué elegiste esto, qué descartaste.')
                 }
                 rows={9}
                 className="flex-1 resize-y rounded-lg border border-sidebar-border bg-sidebar px-3 py-2 text-[15px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 min-h-[60px] max-h-[600px]"
               />
               <button
                 onClick={handleEnviar}
-                disabled={!inputValue.trim() || isStreaming || saveFailed}
+                disabled={!inputValue.trim() || isStreaming || saveFailed || !cumpleMinimos}
+                title={!cumpleMinimos ? mensajeFaltanteMinimo() ?? undefined : undefined}
                 className="flex-shrink-0 rounded-lg bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Enviar
               </button>
             </div>
-            <p className="mt-1.5 text-[10px] text-muted-foreground/50">Cmd+Enter para enviar</p>
+            <div className="mt-1.5 flex items-center justify-between gap-3">
+              <p className="text-[10px] text-muted-foreground/50">Cmd+Enter para enviar</p>
+              {!cumpleMinimos && inputValue.trim().length > 0 && (
+                <p className="text-[11px] text-yellow-400/80 italic">{mensajeFaltanteMinimo()}</p>
+              )}
+            </div>
           </div>
         </div>
 
