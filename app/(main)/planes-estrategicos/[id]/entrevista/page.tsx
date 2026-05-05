@@ -52,6 +52,12 @@ export default function EntrevistaPage() {
   // Sub-bloque 3.B/3.D — Panel Interactivo de Fichas (Fase D Chunk A).
   // savingRespuestaEstructurada: indica si estamos haciendo PATCH al endpoint.
   const [savingRespuestaEstructurada, setSavingRespuestaEstructurada] = useState(false)
+  // Drawer del Panel Plan: cuando hay panel interactivo activo, el panel
+  // plan se colapsa a una barra vertical de 32px en el borde derecho. Click
+  // en la barra abre drawer overlay 380px sobre el panel fichas. Click fuera
+  // del drawer (o ESC) cierra. (Opción 1 de UX por Issue 2 — viewport target
+  // 1366-1440px, evita 4 paneles compitiendo por espacio).
+  const [drawerPlanAbierto, setDrawerPlanAbierto] = useState(false)
 
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -159,6 +165,15 @@ export default function EntrevistaPage() {
                 // del load inicial y no reacciona a cambios durante la conversación.
                 if (evt.panelUpdate.sub_bloque_actual) {
                   setSubBloqueActual(evt.panelUpdate.sub_bloque_actual)
+                }
+                // Sincronizar plan.plan (Paso 3) con el último PANEL_UPDATE.
+                // Sin esto, las preguntas del panel interactivo (3.B/3.D) que
+                // el modelo emite turno a turno NO disparan el render del panel
+                // hasta refresh manual del browser. Bug detectado en Chunk A.
+                if (evt.panelUpdate.plan) {
+                  setPlan(prev => prev
+                    ? { ...prev, plan: { ...prev.plan, ...evt.panelUpdate.plan } }
+                    : prev)
                 }
                 // Trigger automático del validador del Sub-bloque 3.B:
                 // si el modelo emitió plan.palancas.preguntas_principal con 5 items
@@ -537,22 +552,30 @@ export default function EntrevistaPage() {
         </div>
 
         {/* Panel lateral — modo dual:
-            - Si hay pregunta interactiva activa (3.B/3.D + última pregunta sin
-              respuesta_estructurada + modo definido): renderizar PanelInventarioInteractivo
-              expandido (40vw). Reemplaza al panel lateral normal durante el flow.
+            - Si hay pregunta interactiva activa: PanelInventarioInteractivo
+              expandido (40vw) + barra colapsada 32px con drawer del Plan.
             - Sino: panel lateral normal (380px) con resumen del plan. */}
         {(() => {
           const preguntaPanel = preguntaActualParaPanel()
-          if (preguntaPanel && plan.plan?.inventario?.movimientos) {
+          const conPanelInteractivo = preguntaPanel && plan.plan?.inventario?.movimientos
+          if (conPanelInteractivo) {
             return (
-              <div className="w-[40vw] min-w-[480px] max-w-[640px] flex-shrink-0 overflow-hidden border-l border-sidebar-border">
-                <PanelInventarioInteractivo
-                  pregunta={preguntaPanel}
-                  movimientos={plan.plan.inventario.movimientos}
-                  onConfirmar={(resp) => handleConfirmarRespuestaEstructurada(preguntaPanel.id, resp)}
-                  saving={savingRespuestaEstructurada}
+              <>
+                {/* Panel fichas */}
+                <div className="w-[40vw] min-w-[480px] max-w-[640px] flex-shrink-0 overflow-hidden border-l border-sidebar-border">
+                  <PanelInventarioInteractivo
+                    pregunta={preguntaPanel!}
+                    movimientos={plan.plan!.inventario!.movimientos}
+                    onConfirmar={(resp) => handleConfirmarRespuestaEstructurada(preguntaPanel!.id, resp)}
+                    saving={savingRespuestaEstructurada}
+                  />
+                </div>
+                {/* Barra colapsada del Plan — click abre drawer */}
+                <BarraPlanColapsada
+                  plan={plan}
+                  onAbrir={() => setDrawerPlanAbierto(true)}
                 />
-              </div>
+              </>
             )
           }
           return (
@@ -562,6 +585,17 @@ export default function EntrevistaPage() {
           )
         })()}
       </div>
+
+      {/* Drawer overlay del Panel Plan — slide-in desde la derecha cuando
+          hay panel interactivo Y user clickeó la barra colapsada. */}
+      {drawerPlanAbierto && (
+        <DrawerPlan
+          plan={plan}
+          panel={panelData}
+          planSr={planSr}
+          onCerrar={() => setDrawerPlanAbierto(false)}
+        />
+      )}
 
       {/* Modal del Inventario (3.A) — overlay sobre todo */}
       {mostrarModalInventario && (inventarioOverride || plan.plan?.inventario) && (
@@ -587,6 +621,94 @@ export default function EntrevistaPage() {
           onAvanzar={handleAvanzarPostValidador}
         />
       )}
+    </div>
+  )
+}
+
+// Barra vertical colapsada del Panel Plan, visible solo cuando hay panel
+// interactivo activo. Indicadores de progreso por sub-bloque del Paso 3.
+// Click → abre drawer overlay con el PanelLateral completo.
+function BarraPlanColapsada({ plan, onAbrir }: { plan: PlanEstrategico; onAbrir: () => void }) {
+  const planoP3 = plan.plan
+  const items: Array<{ key: string; label: string; completo: boolean }> = [
+    { key: '1', label: 'Propósito', completo: !!plan.proposito?.escena },
+    { key: '2', label: 'Situación', completo: !!plan.situacion?.desvio_principal },
+    { key: '3.0', label: '3.0 Preparativos', completo: !!planoP3?.preparativos },
+    { key: '3.A', label: '3.A Inventario', completo: !!planoP3?.inventario?.movimientos?.length },
+    { key: '3.B', label: '3.B Palancas', completo: (planoP3?.palancas?.preguntas_principal?.length ?? 0) >= 5 },
+    { key: '3.C', label: '3.C Borrador', completo: (planoP3?.borrador?.iteraciones?.length ?? 0) > 0 },
+    { key: '3.D', label: '3.D Estrés', completo: (planoP3?.estres?.preguntas?.length ?? 0) > 0 },
+    { key: '3.E', label: '3.E Plan curado', completo: !!planoP3?.curado },
+  ]
+
+  return (
+    <button
+      type="button"
+      onClick={onAbrir}
+      title="Abrir Panel del Plan"
+      className="w-8 flex-shrink-0 border-l border-sidebar-border bg-sidebar/50 hover:bg-sidebar transition-colors flex flex-col items-center py-3 gap-3 cursor-pointer"
+    >
+      <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/80" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+        Plan ↗
+      </span>
+      <div className="flex flex-col gap-1 mt-2" aria-label="Progreso del plan">
+        {items.map(it => (
+          <div
+            key={it.key}
+            title={`${it.label} — ${it.completo ? 'completo' : 'pendiente'}`}
+            className={`h-1.5 w-1.5 rounded-full ${it.completo ? 'bg-green-500' : 'bg-muted-foreground/30'}`}
+          />
+        ))}
+      </div>
+    </button>
+  )
+}
+
+// Drawer overlay con el PanelLateral completo. Slide-in desde la derecha,
+// backdrop click-outside para cerrar, ESC también cierra. Width 380px en
+// notebooks chicos para no comerse el panel fichas que está abajo.
+function DrawerPlan({ plan, panel, planSr, onCerrar }: {
+  plan: PlanEstrategico
+  panel: PanelUpdatePE | null
+  planSr: PlanEstrategico | null
+  onCerrar: () => void
+}) {
+  // Listener ESC para cerrar
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onCerrar()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onCerrar])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]"
+      onClick={onCerrar}
+      aria-modal="true"
+      role="dialog"
+    >
+      <div
+        className="absolute right-0 top-0 h-full w-[380px] bg-background border-l border-sidebar-border shadow-2xl flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        <header className="flex-shrink-0 flex items-center justify-between border-b border-sidebar-border px-4 py-3">
+          <p className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+            Panel del Plan
+          </p>
+          <button
+            onClick={onCerrar}
+            aria-label="Cerrar"
+            className="rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 p-1 text-[16px] leading-none"
+          >
+            ✕
+          </button>
+        </header>
+        <div className="flex-1 overflow-y-auto p-4">
+          <PanelLateral plan={plan} panel={panel} planSr={planSr} />
+        </div>
+      </div>
     </div>
   )
 }
