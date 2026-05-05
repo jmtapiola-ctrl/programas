@@ -14,6 +14,7 @@ import type { DragEndEvent, DragOverEvent } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy, sortableKeyboardCoordinates, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { MovimientoPE, CampoFichaMovimiento, RespuestaEstructurada } from '@/lib/types'
+import type { GestionInventario } from './FichaMovimiento'
 
 interface Props {
   movimientos: MovimientoPE[]
@@ -23,11 +24,16 @@ interface Props {
   // Labels de las fases — pueden venir del modelo via instruccion_panel
   // o usar defaults "Fase 1 / Fase 2 / Fase 3 / No clasificados".
   labelFases?: string[]
+  // Mejora 2 — durante 3.B/3.C/3.D, las filas de fase muestran badge NUEVO/MOD.
+  // Editar/Quitar NO se exponen acá (las filas son drag handles, conflicto UX);
+  // si el user necesita modificar el inventario, usa el botón "+ Agregar" del
+  // header del Panel o cambia de modo.
+  gestion?: GestionInventario
 }
 
 const FASES_DEFAULT = ['Fase 1', 'Fase 2', 'Fase 3', 'No clasificados']
 
-export function ModoSecuenciacion({ movimientos, campos, fases, onChange, labelFases }: Props) {
+export function ModoSecuenciacion({ movimientos, campos, fases, onChange, labelFases, gestion }: Props) {
   const labels = labelFases && labelFases.length > 0 ? labelFases : FASES_DEFAULT
 
   // Asegurar que todas las fases existan en el state, incluso si vienen vacías
@@ -109,6 +115,7 @@ export function ModoSecuenciacion({ movimientos, campos, fases, onChange, labelF
             todosLosMovimientos={movimientos}
             campos={campos}
             activeId={activeId}
+            gestion={gestion}
           />
         ))}
       </div>
@@ -116,12 +123,13 @@ export function ModoSecuenciacion({ movimientos, campos, fases, onChange, labelF
   )
 }
 
-function FaseContainer({ fase, movimientoIds, todosLosMovimientos, campos: _campos, activeId }: {
+function FaseContainer({ fase, movimientoIds, todosLosMovimientos, campos: _campos, activeId, gestion }: {
   fase: string
   movimientoIds: string[]
   todosLosMovimientos: MovimientoPE[]
   campos: CampoFichaMovimiento[]
   activeId: string | null
+  gestion?: GestionInventario
 }) {
   return (
     <div className="rounded-lg border border-sidebar-border bg-sidebar/20 p-3">
@@ -138,7 +146,8 @@ function FaseContainer({ fase, movimientoIds, todosLosMovimientos, campos: _camp
             movimientoIds.map(id => {
               const m = todosLosMovimientos.find(mm => mm.id === id)
               if (!m) return null
-              return <SortableRow key={id} movimiento={m} isActive={activeId === id} />
+              const cambio = gestion?.agregados.has(id) ? 'agregado' : gestion?.editados.has(id) ? 'editado' : undefined
+              return <SortableRow key={id} movimiento={m} isActive={activeId === id} cambioReciente={cambio} />
             })
           )}
         </div>
@@ -147,7 +156,7 @@ function FaseContainer({ fase, movimientoIds, todosLosMovimientos, campos: _camp
   )
 }
 
-function SortableRow({ movimiento, isActive }: { movimiento: MovimientoPE; isActive: boolean }) {
+function SortableRow({ movimiento, isActive, cambioReciente }: { movimiento: MovimientoPE; isActive: boolean; cambioReciente?: 'agregado' | 'editado' }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: movimiento.id })
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -159,6 +168,13 @@ function SortableRow({ movimiento, isActive }: { movimiento: MovimientoPE; isAct
       <span className="text-muted-foreground/60 text-[11px]">⋮⋮</span>
       <span className="font-mono text-[11px] text-muted-foreground/70">{movimiento.id}</span>
       <span className="flex-1 text-[12px] text-foreground truncate">{movimiento.nombre}</span>
+      {cambioReciente && (
+        <span className={`rounded px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider ${
+          cambioReciente === 'agregado' ? 'bg-emerald-500 text-emerald-50' : 'bg-blue-500 text-blue-50'
+        }`}>
+          {cambioReciente === 'agregado' ? 'NUEVO' : 'MOD'}
+        </span>
+      )}
     </div>
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import type { MovimientoPE, CampoFichaMovimiento, RespuestaEstructurada } from '@/lib/types'
-import { FichaMovimiento, type EstadoFicha } from './FichaMovimiento'
+import { FichaMovimiento, type EstadoFicha, type GestionInventario } from './FichaMovimiento'
 
 interface Props {
   movimientos: MovimientoPE[]
@@ -9,9 +9,10 @@ interface Props {
   marcados: string[]
   onChange: (marcados: string[]) => void
   restriccionMaxima?: number
+  gestion?: GestionInventario
 }
 
-export function ModoMarcadoSimple({ movimientos, campos, marcados, onChange, restriccionMaxima }: Props) {
+export function ModoMarcadoSimple({ movimientos, campos, marcados, onChange, restriccionMaxima, gestion }: Props) {
   function toggle(id: string) {
     if (marcados.includes(id)) {
       onChange(marcados.filter(m => m !== id))
@@ -39,6 +40,9 @@ export function ModoMarcadoSimple({ movimientos, campos, marcados, onChange, res
               campos={campos}
               estado={estado}
               onClick={() => toggle(m.id)}
+              cambioReciente={gestion?.agregados.has(m.id) ? 'agregado' : gestion?.editados.has(m.id) ? 'editado' : undefined}
+              onEditar={gestion ? () => gestion.onEditar(m.id) : undefined}
+              onQuitar={gestion ? () => gestion.onQuitar(m.id) : undefined}
             />
           )
         })}

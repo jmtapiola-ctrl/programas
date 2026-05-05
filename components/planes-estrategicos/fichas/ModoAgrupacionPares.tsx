@@ -10,16 +10,17 @@
 
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { MovimientoPE, CampoFichaMovimiento, RespuestaEstructurada } from '@/lib/types'
-import { FichaMovimiento, type EstadoFicha } from './FichaMovimiento'
+import { FichaMovimiento, type EstadoFicha, type GestionInventario } from './FichaMovimiento'
 
 interface Props {
   movimientos: MovimientoPE[]
   campos: CampoFichaMovimiento[]
   pares: Array<{ desde: string; hacia: string }>
   onChange: (pares: Array<{ desde: string; hacia: string }>) => void
+  gestion?: GestionInventario
 }
 
-export function ModoAgrupacionPares({ movimientos, campos, pares, onChange }: Props) {
+export function ModoAgrupacionPares({ movimientos, campos, pares, onChange, gestion }: Props) {
   const [asociandoDesde, setAsociandoDesde] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -104,6 +105,9 @@ export function ModoAgrupacionPares({ movimientos, campos, pares, onChange }: Pr
               estado={rolDeFicha(m.id)}
               onClick={() => handleClick(m.id)}
               htmlId={`ficha-pair-${m.id}`}
+              cambioReciente={gestion?.agregados.has(m.id) ? 'agregado' : gestion?.editados.has(m.id) ? 'editado' : undefined}
+              onEditar={gestion ? () => gestion.onEditar(m.id) : undefined}
+              onQuitar={gestion ? () => gestion.onQuitar(m.id) : undefined}
             />
           ))}
         </div>

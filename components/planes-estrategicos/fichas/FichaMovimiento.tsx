@@ -8,6 +8,19 @@
 
 import type { MovimientoPE, CampoFichaMovimiento } from '@/lib/types'
 
+// Mejora 2 — bundle de gestión de inventario durante 3.B/3.C/3.D que se
+// pasa común a los 5 modos para que cada uno lo forwardée a sus FichaMovimiento.
+// Si un modo recibe `gestion: undefined`, no se muestran controles (back-compat).
+export interface GestionInventario {
+  // IDs de movimientos modificados en el sub-bloque actual. Ambos sets se
+  // resetean al cambiar de sub-bloque.
+  agregados: Set<string>
+  editados: Set<string>
+  // Handlers — el modo los pasa como callbacks sin parámetros a cada ficha.
+  onEditar: (movimientoId: string) => void
+  onQuitar: (movimientoId: string) => void
+}
+
 export type EstadoFicha =
   | { tipo: 'normal' }
   | { tipo: 'atenuado' }                       // otras fichas cuando una está seleccionada (seleccion_unica)
@@ -27,11 +40,19 @@ interface Props {
   // ID del DOM para que SVG overlay pueda calcular posiciones (modo agrupacion_pares).
   // Pasamos del padre.
   htmlId?: string
+  // Mejora 2 — gestión de inventario durante 3.B/3.C/3.D.
+  // cambioReciente: badge "NUEVO" / "MODIFICADO" hasta que se cierra el sub-bloque.
+  // onEditar / onQuitar: botones overlay (visibles on hover) en esquina inferior
+  // derecha. stopPropagation evita disparar onClick de la ficha (selección del modo).
+  cambioReciente?: 'agregado' | 'editado'
+  onEditar?: () => void
+  onQuitar?: () => void
 }
 
-export function FichaMovimiento({ movimiento, campos, estado, onClick, htmlId }: Props) {
+export function FichaMovimiento({ movimiento, campos, estado, onClick, htmlId, cambioReciente, onEditar, onQuitar }: Props) {
   const claseEstado = renderClaseEstado(estado)
   const clickeable = onClick !== undefined
+  const conGestion = onEditar !== undefined || onQuitar !== undefined
 
   return (
     <div
@@ -45,8 +66,48 @@ export function FichaMovimiento({ movimiento, campos, estado, onClick, htmlId }:
           onClick?.()
         }
       }}
-      className={`relative rounded-lg border px-3 py-2 transition-all select-none ${claseEstado} ${clickeable ? 'cursor-pointer' : ''}`}
+      className={`group relative rounded-lg border px-3 py-2 transition-all select-none ${claseEstado} ${clickeable ? 'cursor-pointer' : ''}`}
     >
+      {/* Badge "NUEVO" / "MODIFICADO" en esquina superior izquierda.
+          Solo aparece durante 3.B/3.C/3.D y se resetea al cambiar sub-bloque. */}
+      {cambioReciente && (
+        <div className={`absolute -top-2 -left-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-md z-10 ${
+          cambioReciente === 'agregado'
+            ? 'bg-emerald-500 text-emerald-50'
+            : 'bg-blue-500 text-blue-50'
+        }`}>
+          {cambioReciente === 'agregado' ? 'NUEVO' : 'MODIFICADO'}
+        </div>
+      )}
+
+      {/* Botones overlay de gestión (Editar / Quitar) — visibles on hover.
+          stopPropagation: el click NO debe disparar la selección del modo.
+          Si la ficha NO recibió handlers, no se renderizan. */}
+      {conGestion && (
+        <div className="absolute bottom-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity z-10">
+          {onEditar && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onEditar() }}
+              title="Editar este movimiento"
+              className="rounded-md bg-blue-600/90 hover:bg-blue-500 text-white text-[10px] font-semibold px-2 py-0.5 shadow"
+            >
+              ✎ Editar
+            </button>
+          )}
+          {onQuitar && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onQuitar() }}
+              title="Quitar este movimiento del inventario"
+              className="rounded-md bg-red-700/80 hover:bg-red-600 text-white text-[10px] font-semibold px-2 py-0.5 shadow"
+            >
+              ✕ Quitar
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Badge de estado en esquina superior derecha (si aplica) */}
       <BadgeEstado estado={estado} />
 

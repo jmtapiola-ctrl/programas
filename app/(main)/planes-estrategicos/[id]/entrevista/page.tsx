@@ -1,13 +1,19 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ChatInterface } from '@/components/planes-estrategicos/ChatInterface'
 import { PanelLateral } from '@/components/planes-estrategicos/PanelLateral'
 import { InventarioCategoria } from '@/components/planes-estrategicos/InventarioCategoria'
 import { PalancasValidadorModal } from '@/components/planes-estrategicos/PalancasValidadorModal'
 import { PanelInventarioInteractivo } from '@/components/planes-estrategicos/PanelInventarioInteractivo'
-import type { PlanEstrategico, TurnoPE, PanelUpdatePE, InventarioPE, PalancaQAPE, EstresQAPE, RespuestaEstructurada } from '@/lib/types'
+import {
+  ModalAgregarMovimiento,
+  ModalEditarMovimiento,
+  ConfirmacionQuitarMovimiento,
+} from '@/components/planes-estrategicos/GestionInventarioModales'
+import type { GestionInventario } from '@/components/planes-estrategicos/fichas/FichaMovimiento'
+import type { PlanEstrategico, TurnoPE, PanelUpdatePE, InventarioPE, MovimientoPE, PalancaQAPE, EstresQAPE, RespuestaEstructurada } from '@/lib/types'
 
 const PANEL_UPDATE_RE = /<!--PANEL_UPDATE-->[\s\S]*?<!--\/PANEL_UPDATE-->/g
 
@@ -58,6 +64,40 @@ export default function EntrevistaPage() {
   // del drawer (o ESC) cierra. (Opción 1 de UX por Issue 2 — viewport target
   // 1366-1440px, evita 4 paneles compitiendo por espacio).
   const [drawerPlanAbierto, setDrawerPlanAbierto] = useState(false)
+
+  // Mejora 2 — gestión de inventario durante 3.B/3.C/3.D (H7 retroactividad).
+  // Tracking de cambios efectuados durante el sub-bloque actual para:
+  //   (a) badges NUEVO/MODIFICADO en fichas
+  //   (b) banner resumen al transicionar al siguiente sub-bloque
+  // Reset cuando subBloqueActual cambia. NO persistido — se pierde en refresh,
+  // trade-off aceptable (los cambios al inventario sí persisten en plan).
+  const [cambiosInventario, setCambiosInventario] = useState<{
+    subBloque: string
+    agregados: Set<string>
+    editados: Set<string>
+    quitados: Set<string>
+    quitadosNombres: Map<string, string>  // para mostrar en el banner aún post-filtrado
+  }>({
+    subBloque: '0',
+    agregados: new Set(),
+    editados: new Set(),
+    quitados: new Set(),
+    quitadosNombres: new Map(),
+  })
+  // Banner notificación post-cierre de sub-bloque con cambios. Se muestra
+  // ~10s con un texto resumen "Durante 3.B agregaste 2, editaste 1...".
+  const [bannerCambiosPrev, setBannerCambiosPrev] = useState<{
+    subBloque: string
+    agregados: number
+    editados: number
+    quitados: number
+    quitadosNombres: string[]
+  } | null>(null)
+  // Modales de gestión de inventario.
+  const [modalAgregarFicha, setModalAgregarFicha] = useState(false)
+  const [modalEditarFicha, setModalEditarFicha] = useState<{ id: string } | null>(null)
+  const [modalQuitarFicha, setModalQuitarFicha] = useState<{ id: string } | null>(null)
+  const [savingFicha, setSavingFicha] = useState(false)
 
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -273,7 +313,7 @@ export default function EntrevistaPage() {
   // pregunta con respuesta_estructurada ya confirmada). Aparece arriba del
   // textarea como "Elegiste: M-1 'Contratar QA Lead' — explicá tu razonamiento".
   function resumenRespuestaEstructurada(): string | null {
-    const preg = preguntaActualParaPanelOConRespuesta()
+    const preg = preguntaActualParaPanel()
     if (!preg?.respuesta_estructurada) return null
     const re = preg.respuesta_estructurada
     const movs = plan?.plan?.inventario?.movimientos ?? []
@@ -299,25 +339,6 @@ export default function EntrevistaPage() {
     return null
   }
 
-  // Encuentra la pregunta actual del panel CON o SIN respuesta_estructurada.
-  // Diferente de preguntaActualParaPanel() que solo devuelve las SIN respuesta.
-  // Útil para mostrar el resumen "Elegiste: ..." después de confirmar.
-  function preguntaActualParaPanelOConRespuesta(): PalancaQAPE | EstresQAPE | null {
-    if (!plan?.plan) return null
-    const enB = subBloqueActual === '3.B'
-    const enD = subBloqueActual === '3.D'
-    if (!enB && !enD) return null
-    const candidatos: Array<PalancaQAPE | EstresQAPE> = enB
-      ? plan.plan.palancas?.preguntas_principal ?? []
-      : plan.plan.estres?.preguntas ?? []
-    // Última con modo definido (independiente de si tiene respuesta_estructurada)
-    for (let i = candidatos.length - 1; i >= 0; i--) {
-      const q = candidatos[i]
-      if (q.modo_interaccion) return q
-    }
-    return null
-  }
-
   async function handleEnviar() {
     const msg = inputValue.trim()
     if (!msg || isStreaming || !cumpleMinimos) return
@@ -331,6 +352,156 @@ export default function EntrevistaPage() {
       handleEnviar()
     }
   }
+
+  // ── Mejora 2 — Gestión de inventario durante 3.B/3.C/3.D ─────────────────
+
+  // Reset tracking al cambiar de sub-bloque + emitir banner si el saliente
+  // tenía cambios. Se ejecuta solo cuando cambia subBloqueActual.
+  useEffect(() => {
+    if (cambiosInventario.subBloque === subBloqueActual) return
+    const tieneCambios = cambiosInventario.agregados.size + cambiosInventario.editados.size + cambiosInventario.quitados.size > 0
+    const veniaDe3 = ['3.B', '3.C', '3.D'].includes(cambiosInventario.subBloque)
+    if (tieneCambios && veniaDe3) {
+      setBannerCambiosPrev({
+        subBloque: cambiosInventario.subBloque,
+        agregados: cambiosInventario.agregados.size,
+        editados: cambiosInventario.editados.size,
+        quitados: cambiosInventario.quitados.size,
+        quitadosNombres: Array.from(cambiosInventario.quitadosNombres.values()),
+      })
+    }
+    setCambiosInventario({
+      subBloque: subBloqueActual,
+      agregados: new Set(),
+      editados: new Set(),
+      quitados: new Set(),
+      quitadosNombres: new Map(),
+    })
+  }, [subBloqueActual, cambiosInventario])
+
+  // Auto-dismiss del banner tras 12s para no bloquear permanentemente.
+  useEffect(() => {
+    if (!bannerCambiosPrev) return
+    const t = setTimeout(() => setBannerCambiosPrev(null), 12000)
+    return () => clearTimeout(t)
+  }, [bannerCambiosPrev])
+
+  // Categorías existentes en el inventario actual (para el dropdown de Agregar).
+  const categoriasInventario = useMemo(() => {
+    const movs = plan?.plan?.inventario?.movimientos ?? []
+    const seen = new Set<string>()
+    const ordered: string[] = []
+    for (const m of movs) {
+      if (!seen.has(m.categoria)) { seen.add(m.categoria); ordered.push(m.categoria) }
+    }
+    return ordered
+  }, [plan?.plan?.inventario?.movimientos])
+
+  // Handler: agregar movimiento. Llama al endpoint /paso3/inventario/decision
+  // (modo agregar). El endpoint ya existe y soporta esto. NO disparamos
+  // inferencia de dependencias durante 3.B/3.C/3.D — el flow tiene que ser
+  // rápido para no romper el ritmo conversacional. El user puede ajustar
+  // dependencias luego si quiere.
+  async function handleAgregarFichaInventario(nuevo: Omit<MovimientoPE, 'id' | 'estado_usuario'>) {
+    setSavingFicha(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/planes-estrategicos/${id}/paso3/inventario/decision`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agregar: { categoria: nuevo.categoria, movimiento: nuevo } }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      const invActualizado: InventarioPE = data.inventario_actualizado
+      // Actualizar plan local
+      setPlan(prev => prev?.plan ? { ...prev, plan: { ...prev.plan, inventario: invActualizado } } : prev)
+      // Detectar el ID del movimiento recién creado (el que NO estaba antes)
+      const previo = plan?.plan?.inventario?.movimientos ?? []
+      const previoIds = new Set(previo.map(m => m.id))
+      const nuevoMov = invActualizado.movimientos.find(m => !previoIds.has(m.id))
+      if (nuevoMov) {
+        setCambiosInventario(prev => ({
+          ...prev,
+          agregados: new Set([...prev.agregados, nuevoMov.id]),
+        }))
+      }
+      setModalAgregarFicha(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSavingFicha(false)
+    }
+  }
+
+  async function handleEditarFichaInventario(movId: string, patch: Partial<MovimientoPE>) {
+    setSavingFicha(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/planes-estrategicos/${id}/paso3/inventario/decision`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ movimiento_id: movId, estado: 'editado', patch }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      const invActualizado: InventarioPE = data.inventario_actualizado
+      setPlan(prev => prev?.plan ? { ...prev, plan: { ...prev.plan, inventario: invActualizado } } : prev)
+      setCambiosInventario(prev => ({
+        ...prev,
+        editados: new Set([...prev.editados, movId]),
+      }))
+      setModalEditarFicha(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSavingFicha(false)
+    }
+  }
+
+  async function handleQuitarFichaInventario(movId: string) {
+    setSavingFicha(true)
+    setError(null)
+    try {
+      const movRef = plan?.plan?.inventario?.movimientos.find(m => m.id === movId)
+      const res = await fetch(`/api/planes-estrategicos/${id}/paso3/inventario/decision`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ movimiento_id: movId, estado: 'quitado' }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      const invActualizado: InventarioPE = data.inventario_actualizado
+      setPlan(prev => prev?.plan ? { ...prev, plan: { ...prev.plan, inventario: invActualizado } } : prev)
+      setCambiosInventario(prev => {
+        const quitadosNombres = new Map(prev.quitadosNombres)
+        if (movRef) quitadosNombres.set(movId, `${movId} "${movRef.nombre}"`)
+        return {
+          ...prev,
+          quitados: new Set([...prev.quitados, movId]),
+          quitadosNombres,
+        }
+      })
+      setModalQuitarFicha(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSavingFicha(false)
+    }
+  }
+
+  // Bundle GestionInventario que se pasa al PanelInventarioInteractivo.
+  // Se construye solo si estamos en 3.B/3.C/3.D — sino undefined (back-compat
+  // y para que el panel de fichas en otras situaciones no muestre controles).
+  const gestionInventarioActiva: GestionInventario | undefined = useMemo(() => {
+    if (!['3.B', '3.C', '3.D'].includes(subBloqueActual)) return undefined
+    return {
+      agregados: cambiosInventario.agregados,
+      editados: cambiosInventario.editados,
+      onEditar: (movId: string) => setModalEditarFicha({ id: movId }),
+      onQuitar: (movId: string) => setModalQuitarFicha({ id: movId }),
+    }
+  }, [subBloqueActual, cambiosInventario.agregados, cambiosInventario.editados])
 
   // ── Sub-bloque 3.A — generación + cierre del Inventario ───────────────────
 
@@ -384,7 +555,14 @@ export default function EntrevistaPage() {
 
   // Helper: encontrar la pregunta actual del Panel Interactivo. Es la última
   // pregunta de plan.palancas.preguntas_principal (o estres) que tiene
-  // modo_interaccion definido y NO tiene respuesta_estructurada todavía.
+  // modo_interaccion definido (con o sin respuesta_estructurada).
+  //
+  // Mejora 1: el panel persiste DESPUÉS de "Confirmar selección" para que el
+  // user pueda cambiar de idea mientras escribe el "por qué" en el chat. Solo
+  // se reemplaza cuando el modelo emite una nueva pregunta (P-N+1) en su turno
+  // siguiente — el componente PanelInventarioInteractivo resetea su state al
+  // cambiar pregunta.id (useEffect ya implementado). Si la respuesta_estructurada
+  // ya existe, el panel hidrata su state desde ahí (también ya implementado).
   function preguntaActualParaPanel(): PalancaQAPE | EstresQAPE | null {
     if (!plan?.plan) return null
     const enSubBloqueB = subBloqueActual === '3.B'
@@ -395,10 +573,9 @@ export default function EntrevistaPage() {
       ? plan.plan.palancas?.preguntas_principal ?? []
       : plan.plan.estres?.preguntas ?? []
 
-    // Última con modo definido y sin respuesta_estructurada
     for (let i = candidatos.length - 1; i >= 0; i--) {
       const q = candidatos[i]
-      if (q.modo_interaccion && !q.respuesta_estructurada) return q
+      if (q.modo_interaccion) return q
     }
     return null
   }
@@ -659,6 +836,8 @@ export default function EntrevistaPage() {
                     movimientos={plan.plan!.inventario!.movimientos}
                     onConfirmar={(resp) => handleConfirmarRespuestaEstructurada(preguntaPanel!.id, resp)}
                     saving={savingRespuestaEstructurada}
+                    gestion={gestionInventarioActiva}
+                    onAgregarMovimiento={gestionInventarioActiva ? () => setModalAgregarFicha(true) : undefined}
                   />
                 </div>
                 {/* Barra colapsada del Plan — click abre drawer */}
@@ -711,6 +890,76 @@ export default function EntrevistaPage() {
           onCerrar={handleCerrarValidador}
           onAvanzar={handleAvanzarPostValidador}
         />
+      )}
+
+      {/* Mejora 2 — Modales de gestión de inventario durante 3.B/3.C/3.D */}
+      {modalAgregarFicha && (
+        <ModalAgregarMovimiento
+          categorias={categoriasInventario}
+          saving={savingFicha}
+          onGuardar={handleAgregarFichaInventario}
+          onCancelar={() => setModalAgregarFicha(false)}
+        />
+      )}
+      {modalEditarFicha && (() => {
+        const mov = plan.plan?.inventario?.movimientos.find(m => m.id === modalEditarFicha.id)
+        if (!mov) return null
+        return (
+          <ModalEditarMovimiento
+            movimiento={mov}
+            saving={savingFicha}
+            onGuardar={(patch) => handleEditarFichaInventario(modalEditarFicha.id, patch)}
+            onCancelar={() => setModalEditarFicha(null)}
+          />
+        )
+      })()}
+      {modalQuitarFicha && (() => {
+        const mov = plan.plan?.inventario?.movimientos.find(m => m.id === modalQuitarFicha.id)
+        if (!mov) return null
+        return (
+          <ConfirmacionQuitarMovimiento
+            movimiento={mov}
+            todosLosMovimientos={plan.plan?.inventario?.movimientos ?? []}
+            saving={savingFicha}
+            onConfirmar={() => handleQuitarFichaInventario(modalQuitarFicha.id)}
+            onCancelar={() => setModalQuitarFicha(null)}
+          />
+        )
+      })()}
+
+      {/* Banner notificación post-cierre de sub-bloque con cambios de inventario.
+          Auto-dismiss tras 12s. Click X para cerrar antes. */}
+      {bannerCambiosPrev && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 max-w-md rounded-lg border border-blue-700/60 bg-blue-950/90 backdrop-blur px-4 py-3 shadow-2xl">
+          <div className="flex items-start gap-3">
+            <div className="flex-1 text-[12px] text-blue-100">
+              <p className="font-semibold mb-1">
+                Cambios al inventario durante {bannerCambiosPrev.subBloque}
+              </p>
+              <ul className="space-y-0.5 text-blue-200">
+                {bannerCambiosPrev.agregados > 0 && (
+                  <li>✓ Agregaste {bannerCambiosPrev.agregados} movimiento{bannerCambiosPrev.agregados === 1 ? '' : 's'}</li>
+                )}
+                {bannerCambiosPrev.editados > 0 && (
+                  <li>✎ Editaste {bannerCambiosPrev.editados} movimiento{bannerCambiosPrev.editados === 1 ? '' : 's'}</li>
+                )}
+                {bannerCambiosPrev.quitados > 0 && (
+                  <li>✕ Quitaste {bannerCambiosPrev.quitados} movimiento{bannerCambiosPrev.quitados === 1 ? '' : 's'}</li>
+                )}
+              </ul>
+              <p className="mt-1 text-[11px] italic text-blue-300/80">
+                El modelo verá el inventario actualizado al continuar.
+              </p>
+            </div>
+            <button
+              onClick={() => setBannerCambiosPrev(null)}
+              aria-label="Cerrar"
+              className="rounded text-blue-300/80 hover:text-blue-100 hover:bg-blue-900/50 px-1 text-[14px] leading-none"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

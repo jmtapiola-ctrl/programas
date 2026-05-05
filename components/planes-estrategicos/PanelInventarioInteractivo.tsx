@@ -12,6 +12,7 @@ import { ModoSeleccionMultipleRanked, buildRespuesta_seleccionRanked, isCompleto
 import { ModoAgrupacionPares, buildRespuesta_agrupacionPares, isCompleto_agrupacionPares } from './fichas/ModoAgrupacionPares'
 import { ModoSecuenciacion, buildRespuesta_secuenciacion, isCompleto_secuenciacion } from './fichas/ModoSecuenciacion'
 import { ModoMarcadoSimple, buildRespuesta_marcadoSimple, isCompleto_marcadoSimple } from './fichas/ModoMarcadoSimple'
+import type { GestionInventario } from './fichas/FichaMovimiento'
 
 type Pregunta = PalancaQAPE | EstresQAPE
 
@@ -26,9 +27,15 @@ interface Props {
   onConfirmar: (respuesta: RespuestaEstructurada) => void
   // saving: el padre lo setea en true mientras hace el PATCH.
   saving?: boolean
+  // Mejora 2 — gestión de inventario durante 3.B/3.C/3.D.
+  // Si el padre pasa `gestion`, las fichas muestran botones overlay Editar/Quitar
+  // y badges NUEVO/MODIFICADO. Si pasa `onAgregarMovimiento`, el header muestra
+  // un botón "+ Agregar movimiento". Ambos son opcionales (back-compat).
+  gestion?: GestionInventario
+  onAgregarMovimiento?: () => void
 }
 
-export function PanelInventarioInteractivo({ pregunta, movimientos, onConfirmar, saving }: Props) {
+export function PanelInventarioInteractivo({ pregunta, movimientos, onConfirmar, saving, gestion, onAgregarMovimiento }: Props) {
   // Filtrar movimientos quitados — no se muestran en el panel.
   const movsActivos = movimientos.filter(m => m.estado_usuario !== 'quitado')
 
@@ -130,10 +137,26 @@ export function PanelInventarioInteractivo({ pregunta, movimientos, onConfirmar,
     <div className="flex flex-col h-full">
       {/* Header */}
       <header className="flex-shrink-0 border-b border-sidebar-border px-4 py-3 bg-sidebar/30">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1">
-          Panel interactivo · {pregunta.id}
-        </p>
-        <p className="text-[14px] text-foreground leading-snug font-medium">{pregunta.pregunta}</p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1">
+              Panel interactivo · {pregunta.id}
+            </p>
+            <p className="text-[14px] text-foreground leading-snug font-medium">{pregunta.pregunta}</p>
+          </div>
+          {/* Botón "+ Agregar movimiento" — solo si el padre lo habilitó (Mejora 2).
+              Reusa el endpoint /paso3/inventario/decision modo agregar. */}
+          {onAgregarMovimiento && (
+            <button
+              type="button"
+              onClick={onAgregarMovimiento}
+              title="Agregar un movimiento al inventario"
+              className="flex-shrink-0 rounded-lg border border-emerald-700/70 bg-emerald-950/30 hover:bg-emerald-900/50 px-2.5 py-1 text-[11px] font-semibold text-emerald-200 hover:text-emerald-50 transition-colors"
+            >
+              + Agregar mov.
+            </button>
+          )}
+        </div>
         {pregunta.instruccion_panel && (
           <p className="mt-2 text-[12px] text-amber-300 italic leading-relaxed">
             💡 {pregunta.instruccion_panel}
@@ -162,6 +185,7 @@ export function PanelInventarioInteractivo({ pregunta, movimientos, onConfirmar,
             campos={campos}
             seleccionado={seleccionUnica}
             onChange={setSeleccionUnica}
+            gestion={gestion}
           />
         )}
         {modo === 'seleccion_multiple_ranked' && (
@@ -172,6 +196,7 @@ export function PanelInventarioInteractivo({ pregunta, movimientos, onConfirmar,
             onChange={setRanking}
             restriccionMinima={min}
             restriccionMaxima={max}
+            gestion={gestion}
           />
         )}
         {modo === 'agrupacion_pares' && (
@@ -180,6 +205,7 @@ export function PanelInventarioInteractivo({ pregunta, movimientos, onConfirmar,
             campos={campos}
             pares={pares}
             onChange={setPares}
+            gestion={gestion}
           />
         )}
         {modo === 'secuenciacion' && (
@@ -188,6 +214,7 @@ export function PanelInventarioInteractivo({ pregunta, movimientos, onConfirmar,
             campos={campos}
             fases={fases}
             onChange={setFases}
+            gestion={gestion}
           />
         )}
         {modo === 'marcado_simple' && (
@@ -197,19 +224,33 @@ export function PanelInventarioInteractivo({ pregunta, movimientos, onConfirmar,
             marcados={marcados}
             onChange={setMarcados}
             restriccionMaxima={max}
+            gestion={gestion}
           />
         )}
       </div>
 
-      {/* Footer */}
+      {/* Footer.
+          Si pregunta.respuesta_estructurada ya existe, el user ya confirmó al
+          menos una vez. El botón cambia a "Actualizar selección" para indicar
+          que un click va a sobreescribir lo persistido. Mejora 1 — Juan pidió
+          que el panel persista post-Confirmar y permita cambios. */}
       <footer className="flex-shrink-0 border-t border-sidebar-border px-4 py-3 flex items-center justify-between gap-3 bg-sidebar/30">
-        <p className="text-[12px] text-muted-foreground">{resumen}</p>
+        <div className="flex flex-col gap-0.5 min-w-0">
+          <p className="text-[12px] text-muted-foreground truncate">{resumen}</p>
+          {pregunta.respuesta_estructurada && (
+            <p className="text-[10px] text-green-400/80 italic">✓ Ya guardado · podés cambiar y re-confirmar</p>
+          )}
+        </div>
         <button
           onClick={handleConfirmar}
           disabled={!completo || saving}
-          className="rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className="flex-shrink-0 rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
-          {saving ? 'Guardando…' : 'Confirmar selección →'}
+          {saving
+            ? 'Guardando…'
+            : pregunta.respuesta_estructurada
+              ? 'Actualizar selección →'
+              : 'Confirmar selección →'}
         </button>
       </footer>
     </div>

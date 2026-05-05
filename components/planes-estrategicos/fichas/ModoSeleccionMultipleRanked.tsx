@@ -5,7 +5,7 @@ import type { DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy, sortableKeyboardCoordinates, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { MovimientoPE, CampoFichaMovimiento, RespuestaEstructurada } from '@/lib/types'
-import { FichaMovimiento, type EstadoFicha } from './FichaMovimiento'
+import { FichaMovimiento, type EstadoFicha, type GestionInventario } from './FichaMovimiento'
 
 // ranking[] preserva el orden: posicion = índice + 1
 interface Props {
@@ -15,9 +15,10 @@ interface Props {
   onChange: (ranking: string[]) => void
   restriccionMinima?: number
   restriccionMaxima?: number
+  gestion?: GestionInventario
 }
 
-export function ModoSeleccionMultipleRanked({ movimientos, campos, ranking, onChange, restriccionMaxima }: Props) {
+export function ModoSeleccionMultipleRanked({ movimientos, campos, ranking, onChange, restriccionMaxima, gestion }: Props) {
   const movsRanked = ranking.map(id => movimientos.find(m => m.id === id)).filter((m): m is MovimientoPE => !!m)
 
   const sensors = useSensors(
@@ -79,6 +80,9 @@ export function ModoSeleccionMultipleRanked({ movimientos, campos, ranking, onCh
               campos={campos}
               estado={estado}
               onClick={() => toggleMovimiento(m.id)}
+              cambioReciente={gestion?.agregados.has(m.id) ? 'agregado' : gestion?.editados.has(m.id) ? 'editado' : undefined}
+              onEditar={gestion ? () => gestion.onEditar(m.id) : undefined}
+              onQuitar={gestion ? () => gestion.onQuitar(m.id) : undefined}
             />
           )
         })}
