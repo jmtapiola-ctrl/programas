@@ -339,9 +339,10 @@ export default function EntrevistaPage() {
     return null
   }
 
-  async function handleEnviar() {
+  async function handleEnviar(opts?: { forzar?: boolean }) {
     const msg = inputValue.trim()
-    if (!msg || isStreaming || !cumpleMinimos) return
+    if (!msg || isStreaming) return
+    if (!opts?.forzar && !cumpleMinimos) return
     setInputValue('')
     sendMessage(msg)
   }
@@ -802,7 +803,7 @@ export default function EntrevistaPage() {
                 className="flex-1 resize-y rounded-lg border border-sidebar-border bg-sidebar px-3 py-2 text-[16px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 min-h-[60px] max-h-[600px]"
               />
               <button
-                onClick={handleEnviar}
+                onClick={() => handleEnviar()}
                 disabled={!inputValue.trim() || isStreaming || saveFailed || !cumpleMinimos}
                 title={!cumpleMinimos ? mensajeFaltanteMinimo() ?? undefined : undefined}
                 className="flex-shrink-0 rounded-lg bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -813,7 +814,21 @@ export default function EntrevistaPage() {
             <div className="mt-1.5 flex items-center justify-between gap-3">
               <p className="text-[10px] text-muted-foreground/50">Cmd+Enter para enviar</p>
               {!cumpleMinimos && inputValue.trim().length > 0 && (
-                <p className="text-[11px] text-yellow-400/80 italic">{mensajeFaltanteMinimo()}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-[11px] text-yellow-400/80 italic">{mensajeFaltanteMinimo()}</p>
+                  {/* Escape hatch: si el modelo se equivocó al pedir mínimo en una
+                      pregunta de seguimiento/confirmación, el user puede mandar igual.
+                      Robusto ante regresiones del prompt o decisiones probabilísticas
+                      del modelo en preguntas que no requieren razonamiento desarrollado. */}
+                  <button
+                    onClick={() => handleEnviar({ forzar: true })}
+                    disabled={!inputValue.trim() || isStreaming || saveFailed}
+                    className="rounded-md border border-yellow-700/40 bg-yellow-950/20 px-2 py-0.5 text-[10px] font-medium text-yellow-200/90 hover:bg-yellow-900/30 hover:text-yellow-100 transition-colors disabled:opacity-40"
+                    title="Si la pregunta admite respuesta corta, mandá igual."
+                  >
+                    Enviar igual →
+                  </button>
+                </div>
               )}
             </div>
           </div>

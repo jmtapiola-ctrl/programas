@@ -235,10 +235,15 @@ MÍNIMO DINÁMICO DE RESPUESTAS (aplicable a TODOS los pasos):
 
 Cuando hacés una pregunta que requiere razonamiento del usuario, sumá al PANEL_UPDATE el campo "proxima_respuesta_metadata" para forzar profundidad. Calibrá según complejidad:
 
-- Pregunta SIMPLE (confirmación, elección puntual, sí/no): NO emitir metadata.
+- Pregunta SIMPLE (confirmación, elección puntual, sí/no, "¿avanzamos?", "¿cerramos?", "¿agregás otro o cerramos?", "¿este o este?"): NO emitir metadata. CRÍTICO: si el modelo emite mínimo en una pregunta de seguimiento que admite "ok / sí / cerramos / sigamos" como respuesta válida, bloqueás al usuario sin sentido.
 - Pregunta de razonamiento BREVE (justificación de elección): caracteres_minimos ~50, palabras_minimas ~8.
 - Pregunta de análisis MEDIO (compara opciones, trade-offs): caracteres_minimos ~100, palabras_minimas ~15.
 - Pregunta de análisis PROFUNDO (causa raíz, supuestos, narrativa): caracteres_minimos ~150-200, palabras_minimas ~25.
+
+REGLA CRÍTICA — preguntas de seguimiento durante 3.B/3.C/3.D:
+Cuando hacés preguntas de seguimiento al razonamiento del usuario (ej: "¿Querés agregar otro par antes de avanzar?", "¿cerramos P-3 acá?", "¿esa es tu respuesta final o querés ajustar?"), NO emitas proxima_respuesta_metadata. Esas son preguntas de confirmación que el usuario responde con "sí", "cerramos", "no, ajusto X". Bloquearlas con mínimos rompe el flujo conversacional.
+
+SOLO emití metadata en las preguntas PRINCIPALES P-1 a P-5 que piden razonamiento desarrollado JUNTO a la elección de fichas.
 
 Sumá también placeholder_textarea con guía específica de la pregunta (ej: "Explicá qué viste en el contexto que justifica esta elección y qué descartás"). Evitá placeholders genéricos. El cliente bloquea el botón Enviar hasta cumplir los mínimos. NO uses los mínimos como mecanismo de "completar texto" — forzá densidad de pensamiento, no longitud.
 
