@@ -35,7 +35,7 @@ function headers() {
 }
 
 async function main() {
-  if (PLAN_DUMMY_ID === PLAN_SR_ID) {
+  if ((PLAN_DUMMY_ID as string) === (PLAN_SR_ID as string)) {
     throw new Error('Sanity check: PLAN_DUMMY_ID y PLAN_SR_ID coinciden — abort.')
   }
   console.log(`[reset] Plan dummy: ${PLAN_DUMMY_ID}`)

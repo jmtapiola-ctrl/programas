@@ -779,13 +779,24 @@ function mergePalancas(
     const out: PalancaQAPE[] = []
     for (const inc of incArr) {
       const cur = curById.get(inc.id)
+      // Caso especial: cur tiene respuesta y inc la dejó vacía → preservar cur completo.
       if (cur && cur.respuesta && !inc.respuesta) {
-        // Preservar respuesta del current si incoming la dejó vacía
         out.push(cur)
         events.push({ type: 'preserved_empty', field: `plan.palancas.${label}[${inc.id}].respuesta` })
-      } else {
-        out.push(inc)
+        curById.delete(inc.id)
+        continue
       }
+      // Caso general: usar inc como base, pero preservar campos persistidos por el
+      // CLIENTE que el modelo no reemite. respuesta_estructurada se persiste vía
+      // PATCH /paso3/palancas/respuesta-estructurada (Mejora 1 / Fase D Chunk A) —
+      // el modelo NO la conoce ni debe regenerarla. Si el modelo emite incoming
+      // sin respuesta_estructurada pero current la tenía, preservar.
+      const merged: PalancaQAPE = { ...inc }
+      if (cur?.respuesta_estructurada !== undefined && inc.respuesta_estructurada === undefined) {
+        merged.respuesta_estructurada = cur.respuesta_estructurada
+        events.push({ type: 'preserved_empty', field: `plan.palancas.${label}[${inc.id}].respuesta_estructurada (cliente-only)` })
+      }
+      out.push(merged)
       curById.delete(inc.id)
     }
     // Items que estaban en current pero no en incoming: preservar
