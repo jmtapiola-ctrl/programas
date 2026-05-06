@@ -195,12 +195,51 @@ export async function POST(req: NextRequest) {
         // operacional en CLAUDE.md / wrap-up Fase 0) — base de la métrica
         // `first_attempt_no_block_rate` agregada en lib/audit-metrics.ts (Fase 5.3).
         const cierreSugeridoEmitido = panelUpdate?.cierre_sugerido === true
+
+        // Telemetría temporal — qué sub-trees emite el modelo en cada turno.
+        // Aprobada por Juan junto al fix de latencia (regla "no re-emitir
+        // sub-trees congelados"). Sirve para verificar si la nueva instrucción
+        // del system prompt se respeta turno a turno. Una vez validado, se puede
+        // mover a debug-mode o eliminar.
+        const subBloqueIncoming = panelUpdate?.sub_bloque_actual ?? entrevista.sub_bloque_actual
+        const fullText = fullResponse  // incluye el bloque PANEL_UPDATE crudo
+        const blockMatch = fullText.match(/<!--PANEL_UPDATE-->([\s\S]*?)<!--\/PANEL_UPDATE-->/)
+        const blockChars = blockMatch?.[1]?.length ?? 0
+        const blockTokensApprox = Math.ceil(blockChars / 4)
+        const emitted = panelUpdate ? {
+          proposito: !!panelUpdate.proposito && Object.keys(panelUpdate.proposito).length > 0,
+          situacion: !!panelUpdate.situacion && Object.keys(panelUpdate.situacion).length > 0,
+          datos_faltantes: Array.isArray(panelUpdate.datos_faltantes) && panelUpdate.datos_faltantes.length > 0,
+          'plan.preparativos': !!panelUpdate.plan?.preparativos,
+          'plan.inventario': !!panelUpdate.plan?.inventario,
+          'plan.palancas': !!panelUpdate.plan?.palancas,
+          'plan.borrador': !!panelUpdate.plan?.borrador,
+          'plan.estres': !!panelUpdate.plan?.estres,
+          'plan.curado': !!panelUpdate.plan?.curado,
+        } : null
+
+        // Detectar sub-trees emitidos innecesariamente según sub_bloque (los
+        // que la regla nueva del system prompt pide omitir). Sirve para
+        // validar adopción de la regla turno a turno.
+        const supuestamenteCongelados: Record<string, string[]> = {
+          '3.A': ['plan.preparativos'],
+          '3.B': ['plan.preparativos', 'plan.inventario'],
+          '3.C': ['plan.preparativos', 'plan.inventario', 'plan.palancas'],
+          '3.D': ['plan.preparativos', 'plan.inventario', 'plan.palancas', 'plan.borrador'],
+          '3.E': ['plan.preparativos', 'plan.inventario', 'plan.palancas', 'plan.borrador', 'plan.estres'],
+        }
+        const congeladosEsperados = supuestamenteCongelados[subBloqueIncoming] ?? []
+        const reemitidosInnecesariamente = emitted
+          ? congeladosEsperados.filter(k => emitted[k as keyof typeof emitted])
+          : []
+
         console.log('[PE chat panel]', JSON.stringify({
           event: 'panel_update_processed',
           plan_id: planId,
           entrevista_id: entrevista.id,
           turn_index: historial.length,
           paso_actual: entrevista.paso_actual,
+          sub_bloque: subBloqueIncoming,
           panel_ok: panelOK,
           parse_first_attempt: parseResult.ok ? 'ok' : parseResult.reason,
           retry_disparado: retryDisparado,
@@ -212,7 +251,15 @@ export async function POST(req: NextRequest) {
           // Para first_attempt_no_block_rate: marcar turnos donde el modelo
           // sugirió cierre Y el primer intento no_block (señal de regresión).
           first_attempt_no_block_in_cierre: cierreSugeridoEmitido && parseResult.ok === false && parseResult.reason === 'no_block',
+          // Telemetría temporal de sub-trees emitidos
+          subtrees_emitted: emitted,
+          panel_block_chars: blockChars,
+          panel_block_tokens_approx: blockTokensApprox,
+          subtrees_reemitidos_innecesariamente: reemitidosInnecesariamente,
         }))
+        if (reemitidosInnecesariamente.length > 0) {
+          console.warn(`[PE chat panel] modelo re-emitió sub-trees congelados en ${subBloqueIncoming}: ${reemitidosInnecesariamente.join(', ')} — la nueva regla del system prompt no se respetó este turno (latencia inflada).`)
+        }
 
         // Texto limpio (sin el bloque PANEL_UPDATE)
         const textoLimpio = fullResponse.replace(PANEL_UPDATE_RE, '').trim()
@@ -310,7 +357,21 @@ export async function POST(req: NextRequest) {
           // Si subEstadoActual !== 'en_curso': no-op silencioso (el flow ya avanzó).
         }
 
-        send({ type: 'done', panelUpdate })
+        // Re-leer el plan post-merge desde Airtable y mandarlo al cliente.
+        // El cliente lo usa como ground truth en vez de aplicar panelUpdate.plan
+        // crudo (que puede tener shrinkage o sub-keys omitidas que el merge
+        // protector preservó del current). Sin esto, el cliente queda con
+        // estado inconsistente: ej. P-5 con modo_interaccion pero plan.inventario
+        // vacío en cliente porque el modelo no lo re-emitió.
+        let planPostMerge = null
+        if (saveResult.ok) {
+          try {
+            planPostMerge = await getPlanEstrategico(planId)
+          } catch (e) {
+            console.warn('[PE chat] No se pudo re-leer plan post-merge:', e instanceof Error ? e.message : String(e))
+          }
+        }
+        send({ type: 'done', panelUpdate, plan: planPostMerge })
       } catch (err: any) {
         console.error('[PE chat] Error en stream:', err)
         send({ type: 'error', message: 'Error al procesar la respuesta' })

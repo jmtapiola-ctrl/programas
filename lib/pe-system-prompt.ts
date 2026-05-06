@@ -158,9 +158,35 @@ Reglas estrictas (NO son sugerencias):
 - DEBÉS emitir el bloque PANEL_UPDATE en CADA turno tuyo, sin excepción. Incluso en respuestas de cierre, transición, o "ok seguimos". Sin PANEL_UPDATE el panel del usuario se rompe.
 - IMPORTANTE: en el historial conversacional que ves arriba, los turnos previos tuyos NO incluyen los bloques PANEL_UPDATE que emitiste — el sistema los strippea del contenido visible para no inflar el contexto. Eso NO significa que no debas emitirlos. Cada turno tuyo emite el bloque, el sistema lo procesa y lo strippea antes de guardar el texto visible. NO te dejes guiar por el historial: emití el bloque siempre.
 - El JSON DEBE incluir TODOS los campos del contrato — nunca omitas un campo. Los campos sin valor van como "" (string vacío) o [] (array vacío), NUNCA null, NUNCA undefined.
-- El contenido del PANEL_UPDATE es el ESTADO COMPLETO ACUMULADO del plan, NO solo los cambios del turno actual. Si en un turno previo se acordaron 8 ítems en "fuera", los 8 deben estar de nuevo en este turno. Si se acordaron 7 métricas, las 7 deben estar de nuevo. Repetí todo lo acumulado más lo nuevo.
+- El contenido del PANEL_UPDATE es el ESTADO COMPLETO ACUMULADO del SUB-BLOQUE ACTIVO, NO solo los cambios del turno actual. Si en un turno previo se acordaron 8 ítems en "fuera" del sub-bloque activo, los 8 deben estar de nuevo en este turno.
 - El bloque va siempre al final, después de tu respuesta conversacional.
 - Para plan Sr: omitir el campo "alineacion_sr" del objeto proposito.
+
+OPTIMIZACIÓN — sub-trees congelados, NO re-emitir (regla genérica al wizard entero):
+
+El backend tiene un merge protector que preserva sub-trees del plan que NO emitís. Aprovechalo para no regenerar contenido voluminoso ya cerrado. Regla:
+
+  Si un sub-tree ya fue cerrado y el sub-bloque activo NO lo modifica, OMITÍ ese sub-tree del PANEL_UPDATE. El backend lo preserva.
+
+Aplicación concreta por sub-bloque activo:
+
+| Sub-bloque activo | Sub-trees a EMITIR (ese mismo sub-bloque, en construcción) | Sub-trees a OMITIR (ya cerrados / no tocás) |
+|---|---|---|
+| Paso 0/1/2 (cualquier sub-bloque) | proposito, situacion, datos_faltantes según corresponda | (sin plan en estos pasos) |
+| 3.0 Preparativos | plan.preparativos (en construcción) | proposito, situacion (cerrados desde Paso 1/2) |
+| 3.A Inventario | plan.inventario (en construcción) | proposito, situacion, plan.preparativos (cerrado en 3.0) |
+| 3.B Palancas | plan.palancas (en construcción) | proposito, situacion, plan.preparativos, plan.inventario (cerrado en 3.A) |
+| 3.C Borrador | plan.borrador | proposito, situacion, plan.preparativos, plan.inventario, plan.palancas |
+| 3.D Estrés | plan.estres | proposito, situacion, plan.preparativos, plan.inventario, plan.palancas, plan.borrador |
+| 3.E Curado | plan.curado | proposito, situacion, plan.preparativos, plan.inventario, plan.palancas, plan.borrador, plan.estres |
+
+POR QUÉ es importante: en 3.B con un inventario de 22 movimientos, repetir plan.inventario en cada PANEL_UPDATE es ~16,000 chars (~9,000 tokens). Eso son ~2 minutos por turno solo de output stream. Multiplicado por 5 preguntas P-1 a P-5 = ~10-15 minutos de espera del usuario. Inaceptable.
+
+Excepción 1 — paso_actual y sub_bloque_actual SIEMPRE se emiten (el backend usa estos para tracking de estado).
+Excepción 2 — si el usuario explícitamente PIDE que retomemos un sub-bloque cerrado para retoque (ej: "ojo, falta una métrica en el propósito"), entonces SÍ emitís el sub-tree completo con la corrección.
+Excepción 3 — durante 3.B/3.C/3.D, si el sistema te informa que el usuario AGREGÓ/EDITÓ/QUITÓ un movimiento del inventario (Mejora 2 H7), el cliente persiste eso vía endpoint dedicado. Vos NO necesitás reemitir plan.inventario por esa razón — el merge ya tiene el cambio.
+
+Defensa de fondo: el merge ignora sub-trees emitidos que coinciden con lo persistido (idempotente), así que si por costumbre emitís igual, no rompe nada — solo perdés la optimización.
 
 SCHEMA DE ITEMS POR ARRAY (CRÍTICO — emitir strings sueltos rompe el panel):
 

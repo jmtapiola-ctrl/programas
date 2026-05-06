@@ -206,11 +206,14 @@ export default function EntrevistaPage() {
                 if (evt.panelUpdate.sub_bloque_actual) {
                   setSubBloqueActual(evt.panelUpdate.sub_bloque_actual)
                 }
-                // Sincronizar plan.plan (Paso 3) con el último PANEL_UPDATE.
-                // Sin esto, las preguntas del panel interactivo (3.B/3.D) que
-                // el modelo emite turno a turno NO disparan el render del panel
-                // hasta refresh manual del browser. Bug detectado en Chunk A.
-                if (evt.panelUpdate.plan) {
+                // Sincronizar plan.plan (Paso 3) con ground truth post-merge.
+                // Preferencia: evt.plan (plan re-leído del backend después del
+                // merge protector — incluye los sub-trees congelados aunque el
+                // modelo NO los reemita). Fallback: shallow merge con
+                // evt.panelUpdate.plan para compatibilidad.
+                if (evt.plan) {
+                  setPlan(evt.plan)
+                } else if (evt.panelUpdate.plan) {
                   setPlan(prev => prev
                     ? { ...prev, plan: { ...prev.plan, ...evt.panelUpdate.plan } }
                     : prev)
