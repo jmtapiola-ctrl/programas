@@ -75,12 +75,12 @@ export function ChatInterface({
 
         {/* Error banner */}
         {error && (
-          <div className="flex items-center gap-3 rounded-lg border border-red-800 bg-red-950/50 px-4 py-3 text-[13px] text-red-300">
+          <div className="flex items-center gap-3 rounded-lg border border-red-800 bg-red-950/50 px-4 py-3 text-[14px] text-red-300">
             <span className="flex-1">{error}</span>
             {pendingMessage && (
               <button
                 onClick={onRetry}
-                className="flex-shrink-0 rounded-md bg-red-800 px-3 py-1 text-[12px] font-medium text-red-100 hover:bg-red-700 transition-colors"
+                className="flex-shrink-0 rounded-md bg-red-800 px-3 py-1 text-[13px] font-medium text-red-100 hover:bg-red-700 transition-colors"
               >
                 Reintentar
               </button>
@@ -110,7 +110,7 @@ function Burbuja({
   return (
     <div className={`flex ${isModel ? 'justify-start' : 'justify-end'}`}>
       <div
-        className={`max-w-[85%] rounded-xl px-4 py-3 text-[15px] leading-relaxed ${
+        className={`max-w-[85%] rounded-xl px-4 py-3 text-[16px] leading-relaxed ${
           isModel
             ? 'bg-sidebar border border-sidebar-border text-foreground'
             : 'bg-primary/15 border border-primary/25 text-foreground'
@@ -125,10 +125,10 @@ function Burbuja({
               ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-1 marker:text-muted-foreground/70">{children}</ol>,
               ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-1 marker:text-muted-foreground/70">{children}</ul>,
               li: ({ children }) => <li>{children}</li>,
-              h1: ({ children }) => <h1 className="text-[17px] font-bold text-foreground mt-4 mb-2 first:mt-0">{children}</h1>,
-              h2: ({ children }) => <h2 className="text-[15px] font-semibold text-foreground mt-3 mb-2 first:mt-0">{children}</h2>,
-              h3: ({ children }) => <h3 className="text-[14px] font-semibold text-foreground/95 mt-2 mb-1.5 first:mt-0">{children}</h3>,
-              h4: ({ children }) => <h4 className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground mt-2 mb-1 first:mt-0">{children}</h4>,
+              h1: ({ children }) => <h1 className="text-[18px] font-bold text-foreground mt-4 mb-2 first:mt-0">{children}</h1>,
+              h2: ({ children }) => <h2 className="text-[16px] font-semibold text-foreground mt-3 mb-2 first:mt-0">{children}</h2>,
+              h3: ({ children }) => <h3 className="text-[15px] font-semibold text-foreground/95 mt-2 mb-1.5 first:mt-0">{children}</h3>,
+              h4: ({ children }) => <h4 className="text-[14px] font-semibold uppercase tracking-wide text-muted-foreground mt-2 mb-1 first:mt-0">{children}</h4>,
               blockquote: ({ children }) => (
                 <blockquote className="border-l-2 border-primary/50 pl-3 my-2 italic text-foreground/85">{children}</blockquote>
               ),
@@ -138,13 +138,13 @@ function Burbuja({
                 const inline = !(props as any).className?.startsWith('language-')
                 if (inline) {
                   return (
-                    <code className="rounded bg-foreground/10 px-1 py-0.5 text-[13px] font-mono">{children}</code>
+                    <code className="rounded bg-foreground/10 px-1 py-0.5 text-[14px] font-mono">{children}</code>
                   )
                 }
-                return <code className="font-mono text-[13px]">{children}</code>
+                return <code className="font-mono text-[14px]">{children}</code>
               },
               pre: ({ children }) => (
-                <pre className="my-2 overflow-x-auto rounded-md bg-foreground/10 p-3 text-[13px] leading-relaxed">{children}</pre>
+                <pre className="my-2 overflow-x-auto rounded-md bg-foreground/10 p-3 text-[14px] leading-relaxed">{children}</pre>
               ),
               a: ({ children, href }) => (
                 <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80">{children}</a>
@@ -162,7 +162,7 @@ function Burbuja({
           </span>
         )}
         {streaming && persisting && (
-          <p className="mt-2 text-[11px] text-muted-foreground/70 italic flex items-center gap-2">
+          <p className="mt-2 text-[12px] text-muted-foreground/70 italic flex items-center gap-2">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-pulse" />
             Guardando…
           </p>

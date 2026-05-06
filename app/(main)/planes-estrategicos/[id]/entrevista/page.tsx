@@ -774,7 +774,7 @@ export default function EntrevistaPage() {
               const resumen = resumenRespuestaEstructurada()
               if (!resumen) return null
               return (
-                <div className="mb-2 rounded-lg border border-blue-700/40 bg-blue-950/30 px-3 py-2 text-[12px] text-blue-200 leading-relaxed">
+                <div className="mb-2 rounded-lg border border-blue-700/40 bg-blue-950/30 px-3 py-2 text-[13px] text-blue-200 leading-relaxed">
                   <span className="font-semibold">✓ </span>{resumen}
                 </div>
               )
@@ -799,7 +799,7 @@ export default function EntrevistaPage() {
                       : (placeholderModel ?? 'Explicá tu razonamiento — qué viste, por qué elegiste esto, qué descartaste.')
                 }
                 rows={9}
-                className="flex-1 resize-y rounded-lg border border-sidebar-border bg-sidebar px-3 py-2 text-[15px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 min-h-[60px] max-h-[600px]"
+                className="flex-1 resize-y rounded-lg border border-sidebar-border bg-sidebar px-3 py-2 text-[16px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 min-h-[60px] max-h-[600px]"
               />
               <button
                 onClick={handleEnviar}
