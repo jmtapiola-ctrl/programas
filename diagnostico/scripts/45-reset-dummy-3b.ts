@@ -127,11 +127,38 @@ async function main() {
   if (cortIndex === -1) {
     console.log(`[reset] No se borrarán turnos.`)
   } else {
-    const aBorrar = turnosEnt.filter(t => {
+    // Refinamiento: además de los turnos > cortIndex, queremos borrar también
+    // turnos PREVIOS al snapshot Paso 3 que sean "promesas no cumplidas" del
+    // modelo (ej: "Dame un momento que armo el inventario" — el modelo nunca
+    // cumple ese commit conversacional porque el inventario se arma en el
+    // modal, no en chat). Si dejamos esos turnos, el modelo se confunde al
+    // arrancar 3.B porque ve una acción pendiente + snapshot que la contradice.
+    //
+    // Heurística: borrar turnos del modelo ENTRE el último snapshot Paso 2
+    // (o el inicio del historial Paso 3) y el primer snapshot Paso 3, si el
+    // contenido tiene patterns de "voy a armar/preparar/generar".
+    const PROMESA_RE = /dame un momento|aguardame|voy a (armar|preparar|generar|construir)|listo en un momento/i
+    const promesasIncumplidas = turnosEnt.filter(t => {
+      const rol = t.fields?.['Rol']
+      const paso = t.fields?.['Paso']
       const indice = t.fields?.['Indice']
-      return typeof indice === 'number' && indice > cortIndex
+      const contenido: string = t.fields?.['Contenido'] ?? ''
+      return rol === 'model' && paso === 3 && typeof indice === 'number' && indice < cortIndex && PROMESA_RE.test(contenido)
     })
-    console.log(`[reset] Borrando ${aBorrar.length} turnos post-corte...`)
+    if (promesasIncumplidas.length > 0) {
+      console.log(`[reset] Encontradas ${promesasIncumplidas.length} promesas conversacionales no cumplidas (modelo dijo "voy a armar..." pero la acción ocurrió en modal). Las borro para no confundir al modelo en 3.B.`)
+      for (const t of promesasIncumplidas) {
+        console.log(`  - índice=${t.fields?.['Indice']}: "${(t.fields?.['Contenido'] ?? '').slice(-150)}"`)
+      }
+    }
+    const aBorrar = [
+      ...promesasIncumplidas,
+      ...turnosEnt.filter(t => {
+        const indice = t.fields?.['Indice']
+        return typeof indice === 'number' && indice > cortIndex
+      }),
+    ]
+    console.log(`[reset] Borrando ${aBorrar.length} turnos (promesas + post-corte)...`)
     // Airtable permite delete bulk de hasta 10 records con ?records[]=...
     const ids = aBorrar.map(t => t.id)
     for (let i = 0; i < ids.length; i += 10) {
