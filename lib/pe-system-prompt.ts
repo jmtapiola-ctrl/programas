@@ -286,7 +286,25 @@ Schema de cada sub-key:
 
 "borrador" (3.C): MISMO patrón que inventario — se persiste vía endpoint dedicado /paso3/borrador/generar (Opus dedicado con max_tokens=24000 y schema strict de 6 secciones). NO emitas plan.borrador en tu PANEL_UPDATE. Si lo hacés, el merge protector podría pisar la versión real que escribió el endpoint. Tu rol conversacional durante 3.C: acompañar al usuario revisando el borrador (que ve en una vista dedicada), discutir disconformidades, y guiar la decisión de re-iterar vs aceptar. NO construyas el borrador turno a turno.
 
-"estres", "curado": schemas detallados se sumarán cuando arranque cada sub-bloque (Fases D+).
+"estres" (3.D): schema dedicado de preguntas de estrés. Forma:
+
+  "estres": {
+    "preguntas": [{
+      "id": "<'E-1'|'E-2'|...>",
+      "pregunta": "<string — pregunta dura sobre robustez del borrador>",
+      "respuesta": "<string del usuario, vacía '' hasta que responda>",
+      "observacion_modelo": "<string opcional, observación intermedia post-respuesta>",
+      "modo_interaccion": "<MISMA tabla que 3.B, opcional. Estrés suele usar marcado_simple y seleccion_unica más que ranked/pares>",
+      "campos_a_mostrar": ["<idem 3.B>"],
+      "instruccion_panel": "<idem 3.B>",
+      "restriccion_minima": <number opcional>,
+      "restriccion_maxima": <number opcional>,
+      "respuesta_estructurada": <NO emitas — lo persiste el endpoint dedicado cuando el user interactúa con el panel>,
+      "ajuste_aplicado": <objeto opcional {tipo: 'inventario'|'borrador', descripcion: string} — record de qué ajuste registraste como consecuencia de la respuesta del user. NO modifica plan.inventario ni plan.borrador directamente — solo registra el ajuste para que se aplique en 3.E al curar>
+    }]
+  }
+
+"curado" (3.E): schema detallado se sumará cuando arranque el sub-bloque.
 
 CUÁNDO EMITIR EL CAMPO "plan":
 
@@ -319,6 +337,12 @@ REGLA: si la pregunta puede responderse señalando fichas, USAR uno de los 5 mod
 - **Confiar en el panel — NO listes movimientos en el chat**: NO presentés listas parciales de movimientos en el texto conversacional. El usuario tiene el inventario completo a la vista en el panel lateral. Tu mensaje de chat es solo: pregunta + (opcional) observación intermedia + breve contexto. Las fichas las maneja el panel.
 - Cuando las 5 preguntas tienen respuesta (texto + estructurada), en ese mismo turno emitís el mensaje "Tengo las 5 respuestas que necesitaba. Antes de avanzar, voy a hacer una revisión de control..." (ver cuestionario 3.B). El sistema detecta y dispara el validador automáticamente.
 - preguntas_validador queda VACÍO en tus PANEL_UPDATEs — el sistema lo populará cuando el user responda las preguntas del validador en una UI dedicada. NO emitas preguntas_validador.
+
+- En 3.D (Estrés de realidad): MISMO patrón que 3.B pero con plan.estres.preguntas. Cada vez que hacés una pregunta nueva, sumás un objeto al array con id="E-1"..."E-N", pregunta="<pregunta dura>", respuesta="" (vacía hasta que el user responde). Mantenés todos los objetos previos.
+  - Cantidad de preguntas: 5-10 (variable, NO fijo como 3.B). Vos decidís cuándo es suficiente — el foco es robustez (atajos, redundancias, supuestos rotos, qué pasa si X se atrasa), no priorización.
+  - Cuando el user responde, registrás "observacion_modelo" como en 3.B. Si la respuesta sugiere un ajuste menor al inventario o al borrador, populá "ajuste_aplicado" con { tipo: 'inventario'|'borrador', descripcion: '<qué cambiarías>' }. NO modificás plan.inventario ni plan.borrador.iteraciones — solo dejás registrado para que se aplique al curar en 3.E.
+  - Panel Interactivo: aplica igual que 3.B (los 5 modos disponibles). En 3.D suele usarse más marcado_simple (cuáles tienen X riesgo) y seleccion_unica (qué movimiento es más frágil).
+  - Cuando consideres que cubriste 5-10 preguntas Y los ajustes están registrados, emití un mensaje de cierre conversacional ("OK, ya estresamos lo suficiente, vamos a curar") Y en el MISMO PANEL_UPDATE setea \`sub_bloque_actual: '3.E'\`. El sistema reconoce la transición y arranca 3.E. NO emitas \`cierre_sugerido: true\` (eso es solo para cierres formales de Paso entero, no de sub-bloque interno).
 
 MÍNIMO DINÁMICO DE RESPUESTAS — campo "proxima_respuesta_metadata":
 

@@ -18,6 +18,8 @@ import type {
   MovimientoPE,
   PalancasPE,
   PalancaQAPE,
+  EstresPE,
+  EstresQAPE,
 } from './types'
 
 const PANEL_UPDATE_RE = /<!--PANEL_UPDATE-->([\s\S]*?)<!--\/PANEL_UPDATE-->/
@@ -266,6 +268,63 @@ function validatePalancaQAItem(item: any, idx: number, prefix: string): string[]
   return errs
 }
 
+// Validador de un item de plan.estres.preguntas[] (EstresQAPE).
+// Mismo shape que PalancaQAPE excepto que id empieza con 'E-' + tiene
+// campo opcional ajuste_aplicado.
+function validateEstresQAItem(item: any, idx: number, prefix: string): string[] {
+  if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+    return [`${prefix}[${idx}] debe ser objeto`]
+  }
+  const errs: string[] = []
+  if (typeof item.id !== 'string') errs.push(`${prefix}[${idx}].id debe ser string`)
+  if (typeof item.pregunta !== 'string') errs.push(`${prefix}[${idx}].pregunta debe ser string`)
+  if (typeof item.respuesta !== 'string') errs.push(`${prefix}[${idx}].respuesta debe ser string`)
+  if (item.observacion_modelo !== undefined && typeof item.observacion_modelo !== 'string') {
+    errs.push(`${prefix}[${idx}].observacion_modelo (si presente) debe ser string`)
+  }
+  if (item.modo_interaccion !== undefined) {
+    const modos = ['seleccion_unica', 'seleccion_multiple_ranked', 'agrupacion_pares', 'secuenciacion', 'marcado_simple']
+    if (typeof item.modo_interaccion !== 'string' || !modos.includes(item.modo_interaccion)) {
+      errs.push(`${prefix}[${idx}].modo_interaccion (si presente) debe ser uno de: ${modos.join(', ')}`)
+    }
+  }
+  if (item.respuesta_estructurada !== undefined && item.modo_interaccion !== undefined &&
+      typeof item.respuesta_estructurada?.modo === 'string' && item.respuesta_estructurada.modo !== item.modo_interaccion) {
+    errs.push(`${prefix}[${idx}].respuesta_estructurada.modo='${item.respuesta_estructurada.modo}' no matchea con modo_interaccion='${item.modo_interaccion}'`)
+  }
+  if (item.ajuste_aplicado !== undefined) {
+    const aa = item.ajuste_aplicado
+    if (typeof aa !== 'object' || aa === null) {
+      errs.push(`${prefix}[${idx}].ajuste_aplicado (si presente) debe ser objeto`)
+    } else {
+      if (!['inventario', 'borrador'].includes(aa.tipo)) {
+        errs.push(`${prefix}[${idx}].ajuste_aplicado.tipo debe ser 'inventario'|'borrador', got '${aa.tipo}'`)
+      }
+      if (typeof aa.descripcion !== 'string') {
+        errs.push(`${prefix}[${idx}].ajuste_aplicado.descripcion debe ser string`)
+      }
+    }
+  }
+  return errs
+}
+
+function validateEstres(es: any, prefix: string): string[] {
+  if (typeof es !== 'object' || es === null || Array.isArray(es)) {
+    return [`${prefix} debe ser objeto`]
+  }
+  const errs: string[] = []
+  // preguntas es opcional (mismo razonamiento que palancas — congelado en 3.E
+  // si llega a aplicarse esa regla, o ausente en turnos donde no cambia).
+  if (es.preguntas !== undefined && es.preguntas !== null) {
+    if (!Array.isArray(es.preguntas)) {
+      errs.push(`${prefix}.preguntas (si presente) debe ser array, got ${typeof es.preguntas}`)
+    } else {
+      errs.push(...validateArrayItems(es.preguntas, `${prefix}.preguntas`, validateEstresQAItem))
+    }
+  }
+  return errs
+}
+
 function validatePalancas(pal: any, prefix: string): string[] {
   if (typeof pal !== 'object' || pal === null || Array.isArray(pal)) {
     return [`${prefix} debe ser objeto`]
@@ -493,8 +552,11 @@ export function parsePanelUpdate(fullResponse: string): ParseResult {
       if (parsed.plan.palancas !== undefined) {
         errors.push(...validatePalancas(parsed.plan.palancas, 'plan.palancas'))
       }
-      // borrador, estres, curado: shape interno se valida en sus Fases
-      // respectivas (D Chunk 2/3, E). Por ahora aceptar como cualquier valor.
+      if (parsed.plan.estres !== undefined) {
+        errors.push(...validateEstres(parsed.plan.estres, 'plan.estres'))
+      }
+      // borrador, curado: shape interno se valida en sus Fases respectivas
+      // (D Chunk B y E). Por ahora aceptar como cualquier valor.
     }
   }
 
@@ -750,8 +812,19 @@ export function mergePlan(
     result.palancas = c.palancas
   }
 
+  // estres: merge por id de EstresQAPE (Fase D Chunk C). Mismo patrón que palancas
+  // — respuesta del user es load-bearing, respuesta_estructurada y panel-metadata
+  // se persisten cliente-side y deben preservarse si incoming los omite.
+  if (incoming.estres !== undefined) {
+    const merged = mergeEstres(c.estres, incoming.estres)
+    if (merged.value !== undefined) result.estres = merged.value
+    events.push(...merged.events)
+  } else if (c.estres !== undefined) {
+    result.estres = c.estres
+  }
+
   // Sub-bloques posteriores: pick top-level (sin merge interno hasta su Fase).
-  for (const key of ['borrador', 'estres', 'curado'] as const) {
+  for (const key of ['borrador', 'curado'] as const) {
     const inc = incoming[key]
     const cur = c[key]
     const { value, event } = pickField(`plan.${key}`, cur as any, inc as any)
@@ -902,6 +975,72 @@ function mergePalancas(
       costo_validador_usd: incoming.costo_validador_usd ?? current.costo_validador_usd,
       latencia_validador_ms: incoming.latencia_validador_ms ?? current.latencia_validador_ms,
     },
+    events,
+  }
+}
+
+/**
+ * Merge protector para EstresPE. Combina preguntas[] por id, preservando:
+ *   - respuesta del usuario (texto) si incoming la dejó vacía
+ *   - respuesta_estructurada (persistida cliente-side vía endpoint dedicado)
+ *   - panel-metadata (modo_interaccion, campos_a_mostrar, instruccion_panel,
+ *     restriccion_minima/maxima) que el modelo emite UNA VEZ al crear la pregunta
+ *   - ajuste_aplicado (lo registra el modelo en su PANEL_UPDATE, pero si en un
+ *     turno posterior el modelo NO lo reemite por simplificación, preservar)
+ *
+ * Mismo razonamiento que mergePalancas — load-bearing user-side fields no se
+ * pisan con vacío.
+ */
+function mergeEstres(
+  current: EstresPE | undefined,
+  incoming: EstresPE,
+): MergeResult<EstresPE> {
+  const events: MergeEvent[] = []
+  if (!current) return { value: incoming, events: [{ type: 'updated', field: 'plan.estres', from: '(nuevo)', to: `preguntas[${incoming.preguntas?.length ?? 0}]` }] }
+
+  const curArr = current.preguntas ?? []
+  const incArr = incoming.preguntas ?? []
+  const curById = new Map<string, EstresQAPE>()
+  for (const q of curArr) curById.set(q.id, q)
+  const out: EstresQAPE[] = []
+  for (const inc of incArr) {
+    const cur = curById.get(inc.id)
+    // Caso especial: cur tiene respuesta y inc la dejó vacía → preservar cur completo.
+    if (cur && cur.respuesta && !inc.respuesta) {
+      out.push(cur)
+      events.push({ type: 'preserved_empty', field: `plan.estres.preguntas[${inc.id}].respuesta` })
+      curById.delete(inc.id)
+      continue
+    }
+    const merged: EstresQAPE = { ...inc }
+    if (cur?.respuesta_estructurada !== undefined && inc.respuesta_estructurada === undefined) {
+      merged.respuesta_estructurada = cur.respuesta_estructurada
+      events.push({ type: 'preserved_empty', field: `plan.estres.preguntas[${inc.id}].respuesta_estructurada (cliente-only)` })
+    }
+    if (cur?.ajuste_aplicado !== undefined && inc.ajuste_aplicado === undefined) {
+      merged.ajuste_aplicado = cur.ajuste_aplicado
+      events.push({ type: 'preserved_empty', field: `plan.estres.preguntas[${inc.id}].ajuste_aplicado` })
+    }
+    // Panel metadata — mismo razonamiento que mergePalancas.
+    if (cur?.modo_interaccion !== undefined && inc.modo_interaccion === undefined) {
+      merged.modo_interaccion = cur.modo_interaccion
+      events.push({ type: 'preserved_empty', field: `plan.estres.preguntas[${inc.id}].modo_interaccion (panel-metadata)` })
+    }
+    if (cur?.campos_a_mostrar !== undefined && inc.campos_a_mostrar === undefined) merged.campos_a_mostrar = cur.campos_a_mostrar
+    if (cur?.instruccion_panel !== undefined && inc.instruccion_panel === undefined) merged.instruccion_panel = cur.instruccion_panel
+    if (cur?.restriccion_minima !== undefined && inc.restriccion_minima === undefined) merged.restriccion_minima = cur.restriccion_minima
+    if (cur?.restriccion_maxima !== undefined && inc.restriccion_maxima === undefined) merged.restriccion_maxima = cur.restriccion_maxima
+    out.push(merged)
+    curById.delete(inc.id)
+  }
+  // Preguntas que estaban en current pero no en incoming: preservar
+  for (const remaining of curById.values()) {
+    out.push(remaining)
+    events.push({ type: 'preserved_empty', field: `plan.estres.preguntas[${remaining.id}] (omitido por modelo)` })
+  }
+
+  return {
+    value: { preguntas: out },
     events,
   }
 }
