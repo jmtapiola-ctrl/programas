@@ -515,6 +515,32 @@ export function parsePanelUpdate(fullResponse: string): ParseResult {
     errors.push(`cierre_sugerido (si presente) must be boolean true/false, got ${parsed?.cierre_sugerido === null ? 'null' : typeof parsed?.cierre_sugerido}`)
   }
 
+  // cambio_retroactivo (Fase F — H7 control suave).
+  // Opcional. Si presente, validar shape mínimo: detectado debe ser boolean.
+  // Si detectado=true, los otros campos son altamente recomendados pero la
+  // ausencia parcial no bloquea (defensive: aplicar directo si falta info).
+  if (parsed?.cambio_retroactivo !== undefined) {
+    const cr = parsed.cambio_retroactivo
+    if (typeof cr !== 'object' || cr === null || Array.isArray(cr)) {
+      errors.push(`cambio_retroactivo (si presente) debe ser objeto, got ${Array.isArray(cr) ? 'array' : typeof cr}`)
+    } else {
+      if (typeof cr.detectado !== 'boolean') {
+        errors.push(`cambio_retroactivo.detectado debe ser boolean, got ${typeof cr.detectado}`)
+      }
+      // Si detectado=true, validar tipos pero permitir ausencia (graceful degradation).
+      if (cr.detectado === true) {
+        if (cr.toca_material_validado !== undefined && typeof cr.toca_material_validado !== 'boolean') errors.push(`cambio_retroactivo.toca_material_validado (si presente) debe ser boolean`)
+        if (cr.es_estructural !== undefined && typeof cr.es_estructural !== 'boolean') errors.push(`cambio_retroactivo.es_estructural (si presente) debe ser boolean`)
+        if (cr.bloque_afectado !== undefined && typeof cr.bloque_afectado !== 'string') errors.push(`cambio_retroactivo.bloque_afectado (si presente) debe ser string`)
+        if (cr.texto_previo !== undefined && typeof cr.texto_previo !== 'string') errors.push(`cambio_retroactivo.texto_previo (si presente) debe ser string`)
+        if (cr.descripcion_cambio !== undefined && typeof cr.descripcion_cambio !== 'string') errors.push(`cambio_retroactivo.descripcion_cambio (si presente) debe ser string`)
+        if (cr.impactos_detectados !== undefined && (!Array.isArray(cr.impactos_detectados) || cr.impactos_detectados.some((s: any) => typeof s !== 'string'))) {
+          errors.push(`cambio_retroactivo.impactos_detectados (si presente) debe ser array de strings`)
+        }
+      }
+    }
+  }
+
   // proxima_respuesta_metadata (Issue B / Mínimo dinámico de respuestas).
   // Opcional. Si presente, debe ser objeto con campos opcionales:
   // caracteres_minimos (number), palabras_minimas (number), placeholder_textarea (string).

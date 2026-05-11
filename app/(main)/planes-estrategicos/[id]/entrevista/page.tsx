@@ -9,6 +9,7 @@ import { PalancasValidadorModal } from '@/components/planes-estrategicos/Palanca
 import { PanelInventarioInteractivo } from '@/components/planes-estrategicos/PanelInventarioInteractivo'
 import { BorradorVista } from '@/components/planes-estrategicos/BorradorVista'
 import { CuradoVista } from '@/components/planes-estrategicos/CuradoVista'
+import { RetroactividadControlSuaveModal, type CambioRetroactivoPayload } from '@/components/planes-estrategicos/RetroactividadControlSuaveModal'
 import {
   ModalAgregarMovimiento,
   ModalEditarMovimiento,
@@ -127,6 +128,13 @@ export default function EntrevistaPage() {
   const [cierreSugeridoPaso, setCierreSugeridoPaso] = useState<number | null>(null)
   const [cerrandoPaso, setCerrandoPaso] = useState(false)
   const [cierrePasoError, setCierrePasoError] = useState<string | null>(null)
+
+  // Retroactividad con control suave (Fase F — H7). Cuando el modelo detecta
+  // un cambio estructural sobre material validado, chat/route emite SSE
+  // 'retroactividad_control_suave' con los datos del cambio. Mostramos modal.
+  const [retroactividadCambio, setRetroactividadCambio] = useState<CambioRetroactivoPayload | null>(null)
+  const [confirmandoRetroactividad, setConfirmandoRetroactividad] = useState(false)
+  const [retroactividadError, setRetroactividadError] = useState<string | null>(null)
 
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -290,6 +298,19 @@ export default function EntrevistaPage() {
             // (próxima llamada cargaría historial sin estos turnos). Bloqueamos.
             setSaveFailed(true)
             setError(`No se pudo guardar el último turno (${evt.detail ?? 'error desconocido'}). Recargá la página y reintentá tu último mensaje antes de continuar.`)
+          } else if (evt.type === 'retroactividad_control_suave') {
+            // Modelo detectó cambio retroactivo estructural sobre material
+            // validado. Abrimos modal con los datos. User confirma o cancela.
+            if (evt.cambio) {
+              console.log('[entrevista] retroactividad_control_suave — bloque:', evt.cambio.bloque_afectado)
+              setRetroactividadCambio({
+                bloque_afectado: evt.cambio.bloque_afectado ?? '(no especificado)',
+                texto_previo: evt.cambio.texto_previo ?? '',
+                descripcion_cambio: evt.cambio.descripcion_cambio ?? '',
+                impactos_detectados: Array.isArray(evt.cambio.impactos_detectados) ? evt.cambio.impactos_detectados : [],
+              })
+              setRetroactividadError(null)
+            }
           } else if (evt.type === 'cierre_sugerido') {
             // El modelo emitió cierre_sugerido=true en su PANEL_UPDATE
             // (típico al final del Paso N, después de aprobación del user).
@@ -789,6 +810,56 @@ export default function EntrevistaPage() {
 
   const curadoActual: PlanCuradoPE | null = plan?.plan?.curado ?? null
 
+  // ── Retroactividad con control suave (Fase F — H7) ───────────────────────
+  //
+  // Confirmar: 1) POST /paso3/retroactividad/confirmar (registra warning),
+  // 2) sendMessage al chat con "[Sistema] Usuario confirma cambio retroactivo: X"
+  // (el modelo aplica la mutación en su próximo turno).
+  // Cancelar: cerrar modal silenciosamente, no-op.
+  async function handleConfirmarRetroactividad() {
+    if (confirmandoRetroactividad || !retroactividadCambio) return
+    setConfirmandoRetroactividad(true)
+    setRetroactividadError(null)
+    try {
+      // 1. Registrar warning en plan.warnings_retroactivos (audit trail).
+      const res = await fetch(`/api/planes-estrategicos/${id}/paso3/retroactividad/confirmar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bloque_afectado: retroactividadCambio.bloque_afectado,
+          texto_previo: retroactividadCambio.texto_previo,
+          descripcion_cambio: retroactividadCambio.descripcion_cambio,
+          impactos_detectados: retroactividadCambio.impactos_detectados,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      if (data.plan_actualizado) {
+        setPlan(prev => prev ? { ...prev, plan: data.plan_actualizado } : prev)
+      }
+      // 2. Cerrar modal + enviar mensaje al chat para que el modelo aplique.
+      const descripcion = retroactividadCambio.descripcion_cambio
+      setRetroactividadCambio(null)
+      setTimeout(
+        () => sendMessage(
+          `[Sistema] Usuario confirma cambio retroactivo. Bloque afectado: ${retroactividadCambio.bloque_afectado}. Cambio a aplicar: ${descripcion}. El warning ya quedó registrado en plan.warnings_retroactivos — aplicá ahora la mutación correspondiente en tu PANEL_UPDATE.`,
+          historial,
+          plan,
+        ),
+        200,
+      )
+    } catch (e) {
+      setRetroactividadError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setConfirmandoRetroactividad(false)
+    }
+  }
+
+  function handleCancelarRetroactividad() {
+    setRetroactividadCambio(null)
+    setRetroactividadError(null)
+  }
+
   // ── Cierre formal de Paso N (cierre_sugerido → esperando_auditoria) ───────
   //
   // Disparado por el botón "Cerrar Paso N y revisar". Llama a /cerrar-paso
@@ -1014,7 +1085,7 @@ export default function EntrevistaPage() {
       <div className="flex-shrink-0 flex items-center justify-between border-b border-sidebar-border px-6 py-3">
         <div>
           <p className="text-[13px] font-semibold text-foreground">{plan.nombre}</p>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-[12px] text-muted-foreground">
             Plan {plan.tipo}{plan.plan_sr_nombre ? ` · alineado a: ${plan.plan_sr_nombre}` : ''}
           </p>
         </div>
@@ -1055,7 +1126,7 @@ export default function EntrevistaPage() {
                 <div className="space-y-2">
                   <div>
                     <p className="text-[12px] font-semibold text-foreground">Sub-bloque 3.A — Inventario de movimientos</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                    <p className="text-[12px] text-muted-foreground mt-0.5">
                       Voy a generar 15-25 movimientos candidatos basados en Propósito + Situación + Preparativos.
                       Tarda 30-60s. Después los revisás categoría por categoría.
                     </p>
@@ -1068,7 +1139,7 @@ export default function EntrevistaPage() {
                     {generandoInventario ? 'Generando inventario… (30-60s)' : 'Generar inventario'}
                   </button>
                   {generarError && (
-                    <p className="text-[11px] text-red-400">Error: {generarError}</p>
+                    <p className="text-[12px] text-red-400">Error: {generarError}</p>
                   )}
                 </div>
               )}
@@ -1092,7 +1163,7 @@ export default function EntrevistaPage() {
                 <div className="space-y-2">
                   <div>
                     <p className="text-[12px] font-semibold text-foreground">Sub-bloque 3.C — Borrador del plan</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                    <p className="text-[12px] text-muted-foreground mt-0.5">
                       Voy a armar el borrador integrando inventario + palancas + validador. Tarda 60-120s. Después lo revisás sección por sección.
                     </p>
                   </div>
@@ -1104,7 +1175,7 @@ export default function EntrevistaPage() {
                     {generandoBorrador ? 'Generando borrador… (60-120s)' : 'Generar borrador'}
                   </button>
                   {borradorError && (
-                    <p className="text-[11px] text-red-400">Error: {borradorError}</p>
+                    <p className="text-[12px] text-red-400">Error: {borradorError}</p>
                   )}
                 </div>
               )}
@@ -1128,7 +1199,7 @@ export default function EntrevistaPage() {
                 <div className="space-y-2">
                   <div>
                     <p className="text-[12px] font-semibold text-foreground">Sub-bloque 3.E — Plan curado</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                    <p className="text-[12px] text-muted-foreground mt-0.5">
                       Versión final integrando borrador aceptado + ajustes de 3.D. Tarda 60-90s. Después la leés entera y aprobás para disparar la auditoría obligatoria.
                     </p>
                   </div>
@@ -1140,7 +1211,7 @@ export default function EntrevistaPage() {
                     {generandoCurado ? 'Generando plan curado… (60-90s)' : 'Generar plan curado'}
                   </button>
                   {curadoError && (
-                    <p className="text-[11px] text-red-400">Error: {curadoError}</p>
+                    <p className="text-[12px] text-red-400">Error: {curadoError}</p>
                   )}
                 </div>
               )}
@@ -1169,11 +1240,11 @@ export default function EntrevistaPage() {
                   <p className="text-[13px] font-semibold text-foreground">
                     El modelo sugirió cerrar el Paso {cierreSugeridoPaso}.
                   </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                  <p className="text-[12px] text-muted-foreground mt-0.5">
                     Al cerrar, dispara la auditoría obligatoria por el Revisor independiente. Vas a ver el Paso entero + recibir las observaciones del Revisor para procesar antes de avanzar a Paso {cierreSugeridoPaso + 1}.
                   </p>
                   {cierrePasoError && (
-                    <p className="mt-1 text-[11px] text-red-400">Error: {cierrePasoError}</p>
+                    <p className="mt-1 text-[12px] text-red-400">Error: {cierrePasoError}</p>
                   )}
                 </div>
                 <button
@@ -1251,10 +1322,10 @@ export default function EntrevistaPage() {
               </button>
             </div>
             <div className="mt-1.5 flex items-center justify-between gap-3">
-              <p className="text-[10px] text-muted-foreground/50">Cmd+Enter para enviar</p>
+              <p className="text-[12px] text-muted-foreground/50">Cmd+Enter para enviar</p>
               {!cumpleMinimos && inputValue.trim().length > 0 && (
                 <div className="flex items-center gap-2">
-                  <p className="text-[11px] text-yellow-400/80 italic">{mensajeFaltanteMinimo()}</p>
+                  <p className="text-[12px] text-yellow-400/80 italic">{mensajeFaltanteMinimo()}</p>
                   {/* Escape hatch: si el modelo se equivocó al pedir mínimo en una
                       pregunta de seguimiento/confirmación, el user puede mandar igual.
                       Robusto ante regresiones del prompt o decisiones probabilísticas
@@ -1262,7 +1333,7 @@ export default function EntrevistaPage() {
                   <button
                     onClick={() => handleEnviar({ forzar: true })}
                     disabled={!inputValue.trim() || isStreaming || saveFailed}
-                    className="rounded-md border border-yellow-700/40 bg-yellow-950/20 px-2 py-0.5 text-[10px] font-medium text-yellow-200/90 hover:bg-yellow-900/30 hover:text-yellow-100 transition-colors disabled:opacity-40"
+                    className="rounded-md border border-yellow-700/40 bg-yellow-950/20 px-2 py-0.5 text-[12px] font-medium text-yellow-200/90 hover:bg-yellow-900/30 hover:text-yellow-100 transition-colors disabled:opacity-40"
                     title="Si la pregunta admite respuesta corta, mandá igual."
                   >
                     Enviar igual →
@@ -1372,6 +1443,21 @@ export default function EntrevistaPage() {
         />
       )}
 
+      {/* Modal de control suave (Fase F — H7 retroactividad).
+          Aparece automáticamente cuando el chat route emite SSE
+          'retroactividad_control_suave' (modelo detectó cambio estructural
+          sobre material validado). Confirmar registra warning + envía mensaje
+          al chat para que el modelo aplique. Cancelar cierra sin más. */}
+      {retroactividadCambio && (
+        <RetroactividadControlSuaveModal
+          cambio={retroactividadCambio}
+          onConfirmar={handleConfirmarRetroactividad}
+          onCancelar={handleCancelarRetroactividad}
+          saving={confirmandoRetroactividad}
+          error={retroactividadError}
+        />
+      )}
+
       {/* Mejora 2 — Modales de gestión de inventario durante 3.B/3.C/3.D */}
       {modalAgregarFicha && (
         <ModalAgregarMovimiento
@@ -1427,7 +1513,7 @@ export default function EntrevistaPage() {
                   <li>✕ Quitaste {bannerCambiosPrev.quitados} movimiento{bannerCambiosPrev.quitados === 1 ? '' : 's'}</li>
                 )}
               </ul>
-              <p className="mt-1 text-[11px] italic text-blue-300/80">
+              <p className="mt-1 text-[12px] italic text-blue-300/80">
                 El modelo verá el inventario actualizado al continuar.
               </p>
             </div>
@@ -1468,7 +1554,7 @@ function BarraPlanColapsada({ plan, onAbrir }: { plan: PlanEstrategico; onAbrir:
       title="Abrir Panel del Plan"
       className="w-8 flex-shrink-0 border-l border-sidebar-border bg-sidebar/50 hover:bg-sidebar transition-colors flex flex-col items-center py-3 gap-3 cursor-pointer"
     >
-      <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/80" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+      <span className="text-[12px] font-bold uppercase tracking-widest text-muted-foreground/80" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
         Plan ↗
       </span>
       <div className="flex flex-col gap-1 mt-2" aria-label="Progreso del plan">

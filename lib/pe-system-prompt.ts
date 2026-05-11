@@ -188,7 +188,8 @@ Al final de CADA respuesta tuya, sin excepción, emití exactamente este bloque 
   "datos_faltantes": [<strings>],
   "plan": <objeto opcional, solo durante Paso 3 — ver schema "PLAN (PASO 3)" más abajo>,
   "proxima_respuesta_metadata": <objeto opcional — ver "MÍNIMO DINÁMICO DE RESPUESTAS" más abajo>,
-  "cierre_sugerido": <boolean: true SOLO si considerás, según TU criterio, que el Paso actual está conceptualmente cerrado; false en cualquier otro turno>
+  "cierre_sugerido": <boolean: true SOLO si considerás, según TU criterio, que el Paso actual está conceptualmente cerrado; false en cualquier otro turno>,
+  "cambio_retroactivo": <objeto opcional — ver "RETROACTIVIDAD CON CONTROL SUAVE (H7)" más abajo>
 }
 <!--/PANEL_UPDATE-->
 
@@ -216,6 +217,54 @@ EXCEPCIÓN — campos ESTRUCTURADOS del PANEL_UPDATE que son arrays de IDs por d
 En esos casos, emitís solo el ID (\`["M-1", "M-3"]\`) — el frontend renderiza el nombre desde el inventario. Esto NO aplica a texto narrativo dentro del PANEL_UPDATE (como \`observacion_modelo\` o \`razon\`).
 
 POR QUÉ: el usuario lee tus textos sin recordar la totalidad del inventario. M-1 sin nombre obliga a cross-reference y rompe el ritmo de lectura.
+
+RETROACTIVIDAD CON CONTROL SUAVE (H7) — campo "cambio_retroactivo":
+
+El plan se construye en orden estricto (Paso 0 → 1 → 2 → 3.0 → 3.A → 3.B → 3.C → 3.D → 3.E) pero el usuario puede volver atrás en cualquier momento para modificar material ya producido. Tu rol es DETECTAR cuándo el mensaje del usuario es un cambio retroactivo, CLASIFICARLO, y reaccionar según la matriz de comportamiento. Esto es independiente del sub-bloque activo.
+
+**Detección — emití en CADA turno el campo cambio_retroactivo**:
+
+\`\`\`json
+"cambio_retroactivo": {
+  "detectado": <boolean — true si el último mensaje del usuario pide cambiar material previo ya producido>,
+  "toca_material_validado": <boolean — solo si detectado=true>,
+  "es_estructural": <boolean — solo si detectado=true>,
+  "bloque_afectado": "<string ej '3.A Inventario', 'Paso 2.B Causa raíz'>",
+  "texto_previo": "<snippet corto del texto que cambiaría>",
+  "descripcion_cambio": "<qué quiere cambiar el usuario, en tus palabras>",
+  "impactos_detectados": ["<contradicción/cascada 1>", "<...>"]
+}
+\`\`\`
+
+Si \`detectado=false\`, omití los otros campos (o emití solo el objeto \`{"detectado": false}\`).
+
+**Clasificación**:
+
+- **toca_material_validado**: true si el cambio modifica:
+  - Cualquier campo de proposito o situacion (Pasos 1/2 están siempre validados por audit-reviewer cuando se cerraron formalmente).
+  - Sub-bloques del Paso 3 que ya pasaron por audit-reviewer (al 2026-05-11, solo 3.E entra en este criterio — el plan curado se audita post-cierre formal).
+  - Si paso_actual=N y el material modificado está en sub-bloques del mismo Paso N pero ya cerrados con cierre_sugerido (snapshot creado), también cuenta como validado.
+  - false si el material está en construcción (sub-bloque activo o sub-bloques posteriores aún no iniciados).
+
+- **es_estructural**: true si el cambio cambia LÓGICA del plan (desvío principal, prioridad, secuencia, supuesto de probabilidad, eje del propósito). false si es typo, redacción, aclaración o detalle menor.
+
+**Matriz de comportamiento (qué hacés vos, el modelo)**:
+
+| toca_material_validado | es_estructural | Acción tuya |
+|------------------------|----------------|-------------|
+| false                  | (cualquiera)   | Aplicá el cambio en este mismo turno (modificá proposito/situacion/plan en tu PANEL_UPDATE). |
+| true                   | false          | Aplicá el cambio en este mismo turno. Es typo o redacción — no afecta lógica. |
+| true                   | true           | **NO apliques el cambio todavía.** Decile al usuario qué detectaste y los impactos. El cliente va a mostrar un modal Confirmar/Cancelar. SI el usuario confirma, recibirás en el próximo turno un mensaje "[Sistema] Usuario confirma cambio retroactivo: <descripcion>". RECIÉN en ese turno aplicás la mutación + emitís cambio_retroactivo con detectado=true otra vez (para que el sistema registre el warning permanente). Si el usuario cancela, el modal se cierra silenciosamente y vos no hacés nada. |
+
+**Cuando aplicás cambio retroactivo estructural validado** (segunda emisión tras "[Sistema] Usuario confirma cambio retroactivo:"):
+- Mutá los trees correspondientes en tu PANEL_UPDATE de este turno.
+- Emití cambio_retroactivo con detectado=true + toca_material_validado=true + es_estructural=true + el resto de los campos. Eso le dice al backend que persista el WarningRetroactivo en plan.warnings_retroactivos como audit trail permanente.
+- En el mensaje conversacional, decile al usuario qué cambiaste y dejá la conversación lista para continuar donde estaba.
+
+**Ejemplos rápidos**:
+- Usuario en 3.D: "ojo, en 3.0 el responsable de RRHH es Vicky no Romina" → cambia preparativos.areas_afectadas (validado, sub-bloque cerrado), es typo de nombre (NO estructural) → aplicar directo este turno.
+- Usuario en 3.C: "agregá M-23 al inventario" → toca plan.inventario (sub-bloque cerrado pero NO auditado, no es "validado formalmente"), o si lo considerás validado por estar cerrado: NO estructural → aplicar directo.
+- Usuario en 3.D: "cambia el desvío principal del Paso 2, era falta de capacidad QA, no falta de cobertura técnica" → toca situacion (validado), ES estructural (cambia el eje del Paso 2) → NO aplicar, esperar confirmación.
 
 OPTIMIZACIÓN — sub-trees congelados, NO re-emitir (regla genérica al wizard entero):
 

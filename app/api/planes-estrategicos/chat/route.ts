@@ -376,6 +376,33 @@ export async function POST(req: NextRequest) {
           // Si subEstadoActual !== 'en_curso': no-op silencioso (el flow ya avanzó).
         }
 
+        // ─── Detección de cambio_retroactivo estructural sobre material validado (H7) ──
+        //
+        // Si el modelo emitió cambio_retroactivo con detectado=true + toca_material_validado=true
+        // + es_estructural=true, NO debería haber mutado los trees. Le emitimos al frontend
+        // el evento 'retroactividad_control_suave' con los datos para abrir el modal.
+        // El user confirma o cancela en el modal. Si confirma, el frontend llama al
+        // endpoint /paso3/retroactividad/confirmar (registra warning) y envía mensaje
+        // [Sistema] al chat (el modelo entonces aplica la mutación en el próximo turno).
+        if (saveResult.ok && panelUpdate?.cambio_retroactivo?.detectado === true) {
+          const cr = panelUpdate.cambio_retroactivo
+          const requiereConfirmacion = cr.toca_material_validado === true && cr.es_estructural === true
+          if (requiereConfirmacion) {
+            send({
+              type: 'retroactividad_control_suave',
+              cambio: {
+                bloque_afectado: cr.bloque_afectado ?? '(no especificado)',
+                texto_previo: cr.texto_previo ?? '',
+                descripcion_cambio: cr.descripcion_cambio ?? '',
+                impactos_detectados: cr.impactos_detectados ?? [],
+              },
+            })
+            console.log(`[PE chat] retroactividad_control_suave emitido — bloque='${cr.bloque_afectado}' (entrevista ${entrevista.id})`)
+          } else {
+            console.log(`[PE chat] cambio_retroactivo detectado pero aplicado directo (no estructural o no validado) — bloque='${cr.bloque_afectado ?? '?'}', validado=${cr.toca_material_validado}, estructural=${cr.es_estructural}`)
+          }
+        }
+
         // Re-leer el plan post-merge desde Airtable y mandarlo al cliente.
         // El cliente lo usa como ground truth en vez de aplicar panelUpdate.plan
         // crudo (que puede tener shrinkage o sub-keys omitidas que el merge

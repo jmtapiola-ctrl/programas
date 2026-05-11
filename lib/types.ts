@@ -303,6 +303,33 @@ export interface ProximaRespuestaMetadata {
   placeholder_textarea?: string
 }
 
+// Detección de cambio retroactivo por el modelo (Fase F — H7 retroactividad
+// fluida con control suave). El modelo emite esto en su PANEL_UPDATE cuando
+// detecta que el último turno del usuario es un pedido de cambio sobre
+// material ya producido en sub-bloques previos.
+//
+// Lógica de aplicación (backend):
+//   - detectado=false              → no-op (no es cambio retroactivo).
+//   - !toca_material_validado      → aplicar directo (material en construcción).
+//   - !es_estructural              → aplicar directo (typo, redacción, aclaración).
+//   - validado + estructural       → emitir SSE 'retroactividad_control_suave'
+//                                    → frontend muestra modal Confirmar/Cancelar.
+//
+// "Material validado" = Pasos 0/1/2 cerrados con cierre formal + audit-reviewer,
+// O sub-bloques 3.X cerrados con su flujo correspondiente. La clasificación
+// detallada de qué cuenta como validado para cada sub-bloque queda en el system
+// prompt — el modelo decide.
+export interface CambioRetroactivoDetectado {
+  detectado: boolean
+  // Solo poblar el resto si detectado=true.
+  toca_material_validado?: boolean
+  es_estructural?: boolean
+  bloque_afectado?: string          // ej "3.A Inventario", "Paso 2.B Causa raíz"
+  texto_previo?: string             // qué decía antes (snippet contextual)
+  descripcion_cambio?: string       // qué querría cambiar el user
+  impactos_detectados?: string[]    // contradicciones/cascadas que el modelo detecta
+}
+
 export interface PanelUpdatePE {
   paso_actual: number
   sub_bloque_actual: string
@@ -323,6 +350,21 @@ export interface PanelUpdatePE {
   // confirmadas, datos críticos registrados). Opcional con default false implícito
   // para no romper rehidratación de PANEL_UPDATEs viejos sin el campo.
   cierre_sugerido?: boolean
+  // Detección de cambio retroactivo (Fase F — H7). Opcional, default { detectado: false }.
+  cambio_retroactivo?: CambioRetroactivoDetectado
+}
+
+// Audit trail permanente de cambios retroactivos confirmados por el usuario
+// sobre material validado. Vive en plan.warnings_retroactivos. Append-only.
+export interface WarningRetroactivo {
+  timestamp: string                 // ISO 8601
+  bloque_afectado: string           // ej "3.A Inventario"
+  paso_de_origen: number            // dónde estaba el user cuando hizo el cambio
+  sub_bloque_de_origen: string
+  texto_previo: string              // snippet del material previo
+  descripcion_cambio: string        // qué cambió
+  impactos_detectados: string[]     // impactos que el modelo había advertido
+  confirmado_por_user: boolean      // siempre true en este shape (los rechazados no se guardan)
 }
 
 export interface PlanEstrategico {
@@ -543,6 +585,10 @@ export interface PlanoPE {
   borrador?: BorradorPE
   estres?: EstresPE
   curado?: PlanCuradoPE
+  // Audit trail de cambios retroactivos confirmados por el user sobre material
+  // validado (Fase F — H7 control suave). Append-only. Cada entry queda
+  // permanentemente como trazabilidad. Los rechazados (Cancelar) NO se persisten.
+  warnings_retroactivos?: WarningRetroactivo[]
 }
 
 // Rol del turno. Extendido en Fase 1 del feat/audit-reviewer:
