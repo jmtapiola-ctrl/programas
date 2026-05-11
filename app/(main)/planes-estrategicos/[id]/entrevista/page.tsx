@@ -7,13 +7,14 @@ import { PanelLateral } from '@/components/planes-estrategicos/PanelLateral'
 import { InventarioCategoria } from '@/components/planes-estrategicos/InventarioCategoria'
 import { PalancasValidadorModal } from '@/components/planes-estrategicos/PalancasValidadorModal'
 import { PanelInventarioInteractivo } from '@/components/planes-estrategicos/PanelInventarioInteractivo'
+import { BorradorVista } from '@/components/planes-estrategicos/BorradorVista'
 import {
   ModalAgregarMovimiento,
   ModalEditarMovimiento,
   ConfirmacionQuitarMovimiento,
 } from '@/components/planes-estrategicos/GestionInventarioModales'
 import type { GestionInventario } from '@/components/planes-estrategicos/fichas/FichaMovimiento'
-import type { PlanEstrategico, TurnoPE, PanelUpdatePE, InventarioPE, MovimientoPE, PalancaQAPE, EstresQAPE, RespuestaEstructurada } from '@/lib/types'
+import type { PlanEstrategico, TurnoPE, PanelUpdatePE, InventarioPE, MovimientoPE, PalancaQAPE, EstresQAPE, RespuestaEstructurada, BorradorIteracionPE, FaseSecuenciaPE } from '@/lib/types'
 
 const PANEL_UPDATE_RE = /<!--PANEL_UPDATE-->[\s\S]*?<!--\/PANEL_UPDATE-->/g
 
@@ -99,6 +100,18 @@ export default function EntrevistaPage() {
   const [modalQuitarFicha, setModalQuitarFicha] = useState<{ id: string } | null>(null)
   const [savingFicha, setSavingFicha] = useState(false)
 
+  // Sub-bloque 3.C — Borrador del plan (B.2).
+  // borradorAbierto: visibilidad del modal de vista.
+  // generandoBorrador: loading mientras Opus genera (60-120s).
+  // borradorError: mensaje de error si la generación falla.
+  // secuenciaPropuestaB2: reorden local del user vía drag-and-drop sobre la
+  //   última iteración. Lo guardamos en memoria sin persistir — B.3 lo usará
+  //   como input para re-iteración.
+  const [borradorAbierto, setBorradorAbierto] = useState(false)
+  const [generandoBorrador, setGenerandoBorrador] = useState(false)
+  const [borradorError, setBorradorError] = useState<string | null>(null)
+  const [secuenciaPropuestaB2, setSecuenciaPropuestaB2] = useState<FaseSecuenciaPE[] | null>(null)
+
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // Cargar plan y entrevista al montar
@@ -144,7 +157,12 @@ export default function EntrevistaPage() {
   const sendMessage = useCallback(async (
     mensaje: string,
     historialActual?: TurnoPE[],
-    planActual?: PlanEstrategico | null
+    planActual?: PlanEstrategico | null,
+    // Hint para sobreescribir la lectura stale de entrevista.sub_bloque_actual
+    // en el servidor (eventual consistency de Airtable list endpoint — patrón
+    // documentado en CLAUDE.md). Lo pasan los callers que acaban de hacer un
+    // PATCH a la entrevista y saben qué sub_bloque debería leerse.
+    opts?: { expected_sub_bloque?: string }
   ) => {
     const histToUse = historialActual ?? historial
     const planToUse = planActual ?? plan
@@ -160,7 +178,11 @@ export default function EntrevistaPage() {
       const res = await fetch('/api/planes-estrategicos/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId: id, mensaje }),
+        body: JSON.stringify({
+          planId: id,
+          mensaje,
+          expected_sub_bloque: opts?.expected_sub_bloque,
+        }),
       })
 
       if (!res.ok) throw new Error('Error en la solicitud')
@@ -177,75 +199,81 @@ export default function EntrevistaPage() {
         const lines = chunk.split('\n')
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue
+          // Separar JSON.parse (que sí puede fallar legítimamente con líneas SSE
+          // malformadas) del manejo del evento. Si parseamos OK pero el handler
+          // hace `throw` (caso 'error'), ese throw debe propagarse al outer catch
+          // para que el usuario vea un banner — no quedar tragado como si fuera
+          // una línea malformada.
+          let evt: any
           try {
-            const evt = JSON.parse(line.slice(6))
-            if (evt.type === 'delta') {
-              accumulated += evt.content
-              setStreamingContent(accumulated)
-            } else if (evt.type === 'content_done') {
-              // Modelo terminó de emitir tokens. El backend ahora persiste
-              // (parser + Airtable + transiciones). UI cambia a "Guardando...".
-              setIsPersisting(true)
-            } else if (evt.type === 'sub_bloque_cerrado') {
-              // Cierre interno de un sub-bloque del Paso 3 (3.0 o 3.A). El
-              // backend creó snapshot. El sub_bloque_actual de la entrevista ya
-              // se actualizó al siguiente sub-bloque por el PANEL_UPDATE del
-              // modelo. Refrescamos el state local desde el evento para que la
-              // UI condicional (banner del 3.A) reaccione sin esperar refresh.
-              if (evt.sub_bloque) {
-                // El evento dice qué sub-bloque se cerró; el actual es el siguiente
-                const siguiente = evt.sub_bloque === '3.0' ? '3.A' : evt.sub_bloque === '3.A' ? '3.B' : evt.sub_bloque
-                setSubBloqueActual(siguiente)
-              }
-            } else if (evt.type === 'done') {
-              if (evt.panelUpdate) {
-                setPanelData(evt.panelUpdate)
-                // Sincronizar subBloqueActual local con el último PANEL_UPDATE.
-                // Sin esto, la UI condicional (banner 3.A) queda con el sub_bloque
-                // del load inicial y no reacciona a cambios durante la conversación.
-                if (evt.panelUpdate.sub_bloque_actual) {
-                  setSubBloqueActual(evt.panelUpdate.sub_bloque_actual)
-                }
-                // Sincronizar plan.plan (Paso 3) con ground truth post-merge.
-                // Preferencia: evt.plan (plan re-leído del backend después del
-                // merge protector — incluye los sub-trees congelados aunque el
-                // modelo NO los reemita). Fallback: shallow merge con
-                // evt.panelUpdate.plan para compatibilidad.
-                if (evt.plan) {
-                  setPlan(evt.plan)
-                } else if (evt.panelUpdate.plan) {
-                  setPlan(prev => prev
-                    ? { ...prev, plan: { ...prev.plan, ...evt.panelUpdate.plan } }
-                    : prev)
-                }
-                // Trigger automático del validador del Sub-bloque 3.B:
-                // si el modelo emitió plan.palancas.preguntas_principal con 5 items
-                // todos respondidos, y todavía no llamamos al validador, dispararlo.
-                const palancas = evt.panelUpdate.plan?.palancas
-                const principal = palancas?.preguntas_principal ?? []
-                const todasResp = principal.length === 5 && principal.every((q: any) => q.respuesta?.trim())
-                const yaTieneValidador = (palancas?.preguntas_validador ?? []).length > 0
-                if (todasResp && !yaTieneValidador && !validadorDisparado && !palancasValidador) {
-                  setValidadorDisparado(true)
-                  void dispararValidadorPalancas()
-                }
-              }
-            } else if (evt.type === 'save_failed') {
-              // El modelo respondió pero la persistencia falló los 3 reintentos.
-              // No se pueden mandar mensajes nuevos sin reproducir el bug original
-              // (próxima llamada cargaría historial sin estos turnos). Bloqueamos.
-              setSaveFailed(true)
-              setError(`No se pudo guardar el último turno (${evt.detail ?? 'error desconocido'}). Recargá la página y reintentá tu último mensaje antes de continuar.`)
-            } else if (evt.type === 'panel_unhealthy') {
-              // El panel lateral no se está actualizando — la conversación sigue,
-              // pero los datos estructurados del plan pueden estar desactualizados.
-              // Banner amarillo (warning), no bloquea el input.
-              setPanelUnhealthy({ reason: evt.reason ?? 'unknown', detail: evt.detail ?? '' })
-            } else if (evt.type === 'error') {
-              throw new Error(evt.message)
+            evt = JSON.parse(line.slice(6))
+          } catch {
+            continue
+          }
+          if (evt.type === 'delta') {
+            accumulated += evt.content
+            setStreamingContent(accumulated)
+          } else if (evt.type === 'content_done') {
+            // Modelo terminó de emitir tokens. El backend ahora persiste
+            // (parser + Airtable + transiciones). UI cambia a "Guardando...".
+            setIsPersisting(true)
+          } else if (evt.type === 'sub_bloque_cerrado') {
+            // Cierre interno de un sub-bloque del Paso 3 (3.0 o 3.A). El
+            // backend creó snapshot. El sub_bloque_actual de la entrevista ya
+            // se actualizó al siguiente sub-bloque por el PANEL_UPDATE del
+            // modelo. Refrescamos el state local desde el evento para que la
+            // UI condicional (banner del 3.A) reaccione sin esperar refresh.
+            if (evt.sub_bloque) {
+              // El evento dice qué sub-bloque se cerró; el actual es el siguiente
+              const siguiente = evt.sub_bloque === '3.0' ? '3.A' : evt.sub_bloque === '3.A' ? '3.B' : evt.sub_bloque
+              setSubBloqueActual(siguiente)
             }
-          } catch (parseErr) {
-            // línea malformada, continuar
+          } else if (evt.type === 'done') {
+            if (evt.panelUpdate) {
+              setPanelData(evt.panelUpdate)
+              // Sincronizar subBloqueActual local con el último PANEL_UPDATE.
+              // Sin esto, la UI condicional (banner 3.A) queda con el sub_bloque
+              // del load inicial y no reacciona a cambios durante la conversación.
+              if (evt.panelUpdate.sub_bloque_actual) {
+                setSubBloqueActual(evt.panelUpdate.sub_bloque_actual)
+              }
+              // Sincronizar plan.plan (Paso 3) con ground truth post-merge.
+              // Preferencia: evt.plan (plan re-leído del backend después del
+              // merge protector — incluye los sub-trees congelados aunque el
+              // modelo NO los reemita). Fallback: shallow merge con
+              // evt.panelUpdate.plan para compatibilidad.
+              if (evt.plan) {
+                setPlan(evt.plan)
+              } else if (evt.panelUpdate.plan) {
+                setPlan(prev => prev
+                  ? { ...prev, plan: { ...prev.plan, ...evt.panelUpdate.plan } }
+                  : prev)
+              }
+              // Trigger automático del validador del Sub-bloque 3.B:
+              // si el modelo emitió plan.palancas.preguntas_principal con 5 items
+              // todos respondidos, y todavía no llamamos al validador, dispararlo.
+              const palancas = evt.panelUpdate.plan?.palancas
+              const principal = palancas?.preguntas_principal ?? []
+              const todasResp = principal.length === 5 && principal.every((q: any) => q.respuesta?.trim())
+              const yaTieneValidador = (palancas?.preguntas_validador ?? []).length > 0
+              if (todasResp && !yaTieneValidador && !validadorDisparado && !palancasValidador) {
+                setValidadorDisparado(true)
+                void dispararValidadorPalancas()
+              }
+            }
+          } else if (evt.type === 'save_failed') {
+            // El modelo respondió pero la persistencia falló los 3 reintentos.
+            // No se pueden mandar mensajes nuevos sin reproducir el bug original
+            // (próxima llamada cargaría historial sin estos turnos). Bloqueamos.
+            setSaveFailed(true)
+            setError(`No se pudo guardar el último turno (${evt.detail ?? 'error desconocido'}). Recargá la página y reintentá tu último mensaje antes de continuar.`)
+          } else if (evt.type === 'panel_unhealthy') {
+            // El panel lateral no se está actualizando — la conversación sigue,
+            // pero los datos estructurados del plan pueden estar desactualizados.
+            // Banner amarillo (warning), no bloquea el input.
+            setPanelUnhealthy({ reason: evt.reason ?? 'unknown', detail: evt.detail ?? '' })
+          } else if (evt.type === 'error') {
+            throw new Error(evt.message ?? 'Error en el stream')
           }
         }
       }
@@ -275,7 +303,13 @@ export default function EntrevistaPage() {
       setPendingMessage(null)
     } catch (err: any) {
       console.error('[Entrevista] Error en stream:', err)
-      setError('Hubo un problema con la conexión.')
+      // Si el server emitió un evt.type==='error' con mensaje útil (ej. rate
+      // limit de Anthropic, max_tokens excedido, content policy), surface el
+      // texto real al user. Sino, fallback genérico de conexión.
+      const msg = err instanceof Error && err.message
+        ? err.message
+        : 'Hubo un problema con la conexión.'
+      setError(msg)
     } finally {
       setIsStreaming(false)
       setIsPersisting(false)
@@ -531,6 +565,137 @@ export default function EntrevistaPage() {
     }
   }
 
+  // ── Sub-bloque 3.C — Generación del Borrador del plan (B.2) ───────────────
+  //
+  // Disparo explícito por botón (decisión de Juan: control sobre el costo de
+  // ~$0.50-2 USD por iteración). max 3 iteraciones. En B.2 solo se genera
+  // la 1ra iteración + se renderiza la vista. Re-iterar + aceptar = B.3.
+  async function handleGenerarBorrador() {
+    if (generandoBorrador) return
+    const iteracionesPrevias = plan?.plan?.borrador?.iteraciones ?? []
+    if (iteracionesPrevias.length >= 3) {
+      setBorradorError('Ya hay 3 iteraciones — alcanzaste el máximo. Volvé a 3.A o 3.B si necesitás refinar.')
+      return
+    }
+    setGenerandoBorrador(true)
+    setBorradorError(null)
+    try {
+      const res = await fetch(`/api/planes-estrategicos/${id}/paso3/borrador/generar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          numero_iteracion: iteracionesPrevias.length + 1,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      // Refrescar plan local con el plan_actualizado del endpoint.
+      if (data.plan_actualizado) {
+        setPlan(prev => prev ? { ...prev, plan: data.plan_actualizado } : prev)
+      }
+      // Reset reorden local — nueva iteración arranca con la secuencia que emitió Opus.
+      setSecuenciaPropuestaB2(null)
+      setBorradorAbierto(true)
+    } catch (e) {
+      setBorradorError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setGenerandoBorrador(false)
+    }
+  }
+
+  // Última iteración persistida — la que se muestra en el modal cuando se abre.
+  const ultimaIteracionBorrador: BorradorIteracionPE | null = (() => {
+    const its = plan?.plan?.borrador?.iteraciones ?? []
+    return its.length > 0 ? its[its.length - 1] : null
+  })()
+
+  // ── Sub-bloque 3.C — Re-iteración + Aceptación (B.3) ──────────────────────
+  //
+  // Re-iterar: llamar a /paso3/borrador/generar con numero+1 + disconformidades.
+  // Aceptar: llamar a /paso3/borrador/iteracion (PATCH action='aceptar') que
+  // setea iteracion_aceptada + transiciona sub_bloque a 3.D + dispara mensaje
+  // explícito al chat para arrancar 3.D (con sentinel anti-stale-read).
+  async function handleReIterarBorrador(disconformidades: Array<{ elemento: string; elementoLabel: string; razon: string }>) {
+    if (generandoBorrador) return
+    if (!ultimaIteracionBorrador) return
+    if (ultimaIteracionBorrador.numero >= 3) {
+      setBorradorError('Ya alcanzaste el máximo de 3 iteraciones.')
+      return
+    }
+    if (disconformidades.length === 0) {
+      setBorradorError('No hay disconformidades marcadas — no hay nada que re-iterar.')
+      return
+    }
+    setGenerandoBorrador(true)
+    setBorradorError(null)
+    try {
+      // Convertir disconformidades del componente al shape del endpoint.
+      // elementoLabel se concatena con elemento como hint para Opus.
+      const payload = disconformidades.map(d => ({
+        elemento: d.elementoLabel || d.elemento,
+        razon: d.razon,
+      }))
+      const res = await fetch(`/api/planes-estrategicos/${id}/paso3/borrador/generar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          numero_iteracion: ultimaIteracionBorrador.numero + 1,
+          disconformidades: payload,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      if (data.plan_actualizado) {
+        setPlan(prev => prev ? { ...prev, plan: data.plan_actualizado } : prev)
+      }
+      setSecuenciaPropuestaB2(null)  // reset reorden — nueva iteración arranca limpia
+      // Modal queda abierto, va a re-renderizar con la nueva iteración
+    } catch (e) {
+      setBorradorError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setGenerandoBorrador(false)
+    }
+  }
+
+  async function handleAceptarBorrador() {
+    if (generandoBorrador) return
+    if (!ultimaIteracionBorrador) return
+    setGenerandoBorrador(true)
+    setBorradorError(null)
+    try {
+      const res = await fetch(`/api/planes-estrategicos/${id}/paso3/borrador/iteracion`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'aceptar',
+          numero_iteracion: ultimaIteracionBorrador.numero,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      if (data.plan_actualizado) {
+        setPlan(prev => prev ? { ...prev, plan: data.plan_actualizado } : prev)
+      }
+      // Transición local a 3.D + cerrar modal + disparar mensaje explícito al chat
+      // con sentinel anti-stale-read (mismo patrón que handleAvanzarPostValidador).
+      setSubBloqueActual('3.D')
+      setBorradorAbierto(false)
+      setTimeout(
+        () => sendMessage(
+          '[Sistema] Acepté la iteración del borrador. Por favor proseguí con 3.D — Estrés de realidad.',
+          historial,
+          plan,
+          { expected_sub_bloque: '3.D' },
+        ),
+        500,
+      )
+    } catch (e) {
+      setBorradorError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setGenerandoBorrador(false)
+    }
+  }
+
   // ── Sub-bloque 3.B — Validador cross-provider de Palancas ─────────────────
 
   // ── Sub-bloque 3.B/3.D — Confirmar respuesta_estructurada del Panel ───────
@@ -579,10 +744,45 @@ export default function EntrevistaPage() {
 
     for (let i = candidatos.length - 1; i >= 0; i--) {
       const q = candidatos[i]
-      if (q.modo_interaccion) return q
+      // Match si la pregunta tiene modo_interaccion (caso normal) O si tiene
+      // respuesta_estructurada (caso recuperación: el modelo re-emitió la
+      // pregunta sin metadata del panel pero el user ya había marcado). El
+      // componente del panel infiere el modo desde respuesta_estructurada.modo
+      // cuando modo_interaccion no está.
+      if (q.modo_interaccion || q.respuesta_estructurada) return q
     }
     return null
   }
+
+  // Auto-recovery del validador al cargar la página.
+  // Dos casos de stuck que detecta:
+  //  (1) Validador NUNCA corrió: 5 preguntas_principal respondidas pero
+  //      preguntas_validador vacío y costo_validador_usd undefined → re-disparar
+  //      el validador para regenerar la propuesta.
+  //  (2) Validador SÍ corrió y respuestas SÍ persistidas, pero sub_bloque_actual
+  //      retrocedió a 3.B (bug histórico de backslide del chat route — ya
+  //      arreglado pero los planes existentes pueden estar en este estado):
+  //      forzar la transición a 3.C directamente vía handleAvanzarPostValidador.
+  // Sentinel anti-loop: validadorRecoveryDisparado solo se setea una vez por mount.
+  const [recoveryDisparado, setRecoveryDisparado] = useState(false)
+  useEffect(() => {
+    if (!plan?.plan || loading || recoveryDisparado) return
+    if (subBloqueActual !== '3.B') return
+    const palancas = plan.plan.palancas
+    const principal = palancas?.preguntas_principal ?? []
+    const todasResp = principal.length === 5 && principal.every(q => q.respuesta?.trim())
+    const yaTieneValidador = (palancas?.preguntas_validador ?? []).length > 0
+    const yaCorrio = palancas?.costo_validador_usd !== undefined
+
+    if (todasResp && !yaTieneValidador && !yaCorrio && !validadorDisparado && !palancasValidador) {
+      setRecoveryDisparado(true)
+      setValidadorDisparado(true)
+      void dispararValidadorPalancas()
+    } else if (todasResp && yaTieneValidador && yaCorrio) {
+      setRecoveryDisparado(true)
+      void handleAvanzarPostValidador()
+    }
+  }, [plan, subBloqueActual, loading, validadorDisparado, palancasValidador, recoveryDisparado])
 
   async function dispararValidadorPalancas() {
     setPalancasValidador({ status: 'inferring' })
@@ -613,7 +813,7 @@ export default function EntrevistaPage() {
 
   async function handleAvanzarPostValidador() {
     // Persist ya hecho por el modal mismo. Aquí solo refrescamos estado local
-    // y disparamos mensaje vacío al chat para que el modelo arranque 3.C.
+    // y disparamos mensaje al chat para que el modelo arranque 3.C.
     setPalancasValidador(null)
     setSubBloqueActual('3.C')
     // Recargar plan del backend para tener plan.palancas.preguntas_validador
@@ -625,7 +825,20 @@ export default function EntrevistaPage() {
         if (planFresh) setPlan(planFresh)
       }
     } catch { /* fall-through, no bloqueante */ }
-    setTimeout(() => sendMessage('', historial, plan), 500)
+    // Mensaje explícito (no vacío) para evitar ambigüedad: si la lectura de
+    // entrevista.sub_bloque está stale (eventual consistency de Airtable list
+    // endpoint), el modelo podría pensar que seguimos en 3.B y "esperando
+    // validador". El mensaje explícito + el hint expected_sub_bloque resuelven
+    // ambos lados del problema (model + server).
+    setTimeout(
+      () => sendMessage(
+        '[Sistema] Completé las preguntas del validador en la UI dedicada. Las respuestas están persistidas en plan.palancas.preguntas_validador. Por favor proseguí con 3.C — Borrador del plan.',
+        historial,
+        plan,
+        { expected_sub_bloque: '3.C' },
+      ),
+      500,
+    )
   }
 
   async function handleCerrarInventario() {
@@ -746,6 +959,42 @@ export default function EntrevistaPage() {
                   className="rounded-lg border border-sidebar-border px-4 py-2 text-[13px] font-medium text-foreground hover:bg-accent/50 transition-colors"
                 >
                   Continuar revisión del inventario →
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Banner del Sub-bloque 3.C — Borrador del plan (B.2).
+              Aparece cuando estamos en 3.C. Si no hay iteración aún, botón
+              "Generar borrador". Si ya hay, botón "Ver borrador (iteración N/3)". */}
+          {subBloqueActual === '3.C' && (
+            <div className="flex-shrink-0 border-t border-sidebar-border bg-sidebar/30 px-4 py-3">
+              {ultimaIteracionBorrador === null && (
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-[12px] font-semibold text-foreground">Sub-bloque 3.C — Borrador del plan</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Voy a armar el borrador integrando inventario + palancas + validador. Tarda 60-120s. Después lo revisás sección por sección.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleGenerarBorrador}
+                    disabled={generandoBorrador}
+                    className="rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {generandoBorrador ? 'Generando borrador… (60-120s)' : 'Generar borrador'}
+                  </button>
+                  {borradorError && (
+                    <p className="text-[11px] text-red-400">Error: {borradorError}</p>
+                  )}
+                </div>
+              )}
+              {ultimaIteracionBorrador !== null && !borradorAbierto && (
+                <button
+                  onClick={() => setBorradorAbierto(true)}
+                  className="rounded-lg border border-sidebar-border px-4 py-2 text-[13px] font-medium text-foreground hover:bg-accent/50 transition-colors"
+                >
+                  Ver borrador (iteración {ultimaIteracionBorrador.numero}/3) →
                 </button>
               )}
             </div>
@@ -905,8 +1154,23 @@ export default function EntrevistaPage() {
           propuesta={palancasValidador.status === 'ready' ? palancasValidador.propuesta : undefined}
           costoUsd={palancasValidador.status === 'ready' ? palancasValidador.costoUsd : undefined}
           latenciaMs={palancasValidador.status === 'ready' ? palancasValidador.latenciaMs : undefined}
+          movimientos={plan.plan?.inventario?.movimientos ?? []}
           onCerrar={handleCerrarValidador}
           onAvanzar={handleAvanzarPostValidador}
+        />
+      )}
+
+      {/* Modal del Borrador del plan (3.C) — vista con drag-and-drop, marcas
+          por elemento, footer de re-iteración + aceptación. */}
+      {borradorAbierto && ultimaIteracionBorrador && (
+        <BorradorVista
+          iteracion={ultimaIteracionBorrador}
+          movimientos={plan.plan?.inventario?.movimientos ?? []}
+          onReorderSecuencia={(nueva) => setSecuenciaPropuestaB2(nueva)}
+          onReIterar={handleReIterarBorrador}
+          onAceptar={handleAceptarBorrador}
+          saving={generandoBorrador}
+          onCerrar={() => setBorradorAbierto(false)}
         />
       )}
 

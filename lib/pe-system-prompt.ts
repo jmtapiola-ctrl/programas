@@ -12,6 +12,34 @@ import {
   K_PE_ESTRATEGIA_VS_TACTICA,
 } from './knowledge-pe'
 import { getContextoTemporalArg } from './types'
+import type { RespuestaEstructurada } from './types'
+
+// Renderiza la respuesta_estructurada de una pregunta (3.B/3.D Panel
+// Interactivo de Fichas) en una línea legible para el modelo. Sin esto, el
+// modelo solo ve `respuesta` (texto del razonamiento) y no sabe qué fichas
+// marcó/eligió/rankeó el usuario en el panel — terminaba pidiendo "decime
+// cuáles movimientos" cuando ya estaban marcados.
+function formatRespuestaEstructurada(re: RespuestaEstructurada | undefined): string {
+  if (!re) return ''
+  switch (re.modo) {
+    case 'seleccion_unica':
+      return `eligió ficha: ${re.movimiento_id}`
+    case 'seleccion_multiple_ranked': {
+      const ordenado = [...re.ranking].sort((a, b) => a.posicion - b.posicion)
+      return `ranking: ${ordenado.map(r => `${r.posicion}.${r.movimiento_id}`).join(' → ')}`
+    }
+    case 'agrupacion_pares':
+      return re.pares.length === 0
+        ? 'pares: (ninguno)'
+        : `pares: ${re.pares.map(p => `${p.desde}→${p.hacia}`).join(', ')}`
+    case 'secuenciacion':
+      return `fases: ${re.fases.map(f => `${f.fase}=[${f.movimientos.join(',')}]`).join(' | ')}`
+    case 'marcado_simple':
+      return re.marcados.length === 0
+        ? 'marcó: ninguna ficha (respuesta válida = "ninguno tiene este atributo")'
+        : `marcó fichas: ${re.marcados.join(', ')}`
+  }
+}
 
 // TODO: el campo cierre_sugerido del PANEL_UPDATE (sumado al schema y al bloque
 // DETECCIÓN DE CIERRE DE PASO más abajo) se consume en feat/audit-reviewer
@@ -85,10 +113,19 @@ Preparativos: ${plan.plan.preparativos ? 'declarados' : '(pendiente)'}
 Inventario: ${plan.plan.inventario?.movimientos?.length ? `${plan.plan.inventario.movimientos.length} movimientos` : '(pendiente)'}
 Palancas: ${plan.plan.palancas ? `${plan.plan.palancas.preguntas_principal?.length ?? 0} principal + ${plan.plan.palancas.preguntas_validador?.length ?? 0} validador` : '(pendiente)'}
 ${plan.plan.palancas?.preguntas_principal?.length ? `Preguntas principal hechas hasta ahora:
-${plan.plan.palancas.preguntas_principal.map((q: any) => `  ${q.id}: "${q.pregunta.slice(0, 100)}${q.pregunta.length > 100 ? '...' : ''}"${q.respuesta ? ` → respondida: "${q.respuesta.slice(0, 60)}${q.respuesta.length > 60 ? '...' : ''}"` : ' (sin responder)'}`).join('\n')}
+${plan.plan.palancas.preguntas_principal.map((q: any) => {
+  const reStr = formatRespuestaEstructurada(q.respuesta_estructurada)
+  const respTxt = q.respuesta ? ` → respondida: "${q.respuesta.slice(0, 60)}${q.respuesta.length > 60 ? '...' : ''}"` : ' (sin responder)'
+  const reTxt = reStr ? ` [panel: ${reStr}]` : ''
+  return `  ${q.id}: "${q.pregunta.slice(0, 100)}${q.pregunta.length > 100 ? '...' : ''}"${respTxt}${reTxt}`
+}).join('\n')}
 ` : ''}
 ${plan.plan.palancas?.preguntas_validador?.length ? `Preguntas validador (ya respondidas en UI dedicada):
-${plan.plan.palancas.preguntas_validador.map((q: any) => `  ${q.id}: "${q.pregunta.slice(0, 100)}${q.pregunta.length > 100 ? '...' : ''}" → "${q.respuesta.slice(0, 80)}${q.respuesta.length > 80 ? '...' : ''}"`).join('\n')}
+${plan.plan.palancas.preguntas_validador.map((q: any) => {
+  const reStr = formatRespuestaEstructurada(q.respuesta_estructurada)
+  const reTxt = reStr ? ` [panel: ${reStr}]` : ''
+  return `  ${q.id}: "${q.pregunta.slice(0, 100)}${q.pregunta.length > 100 ? '...' : ''}" → "${q.respuesta.slice(0, 80)}${q.respuesta.length > 80 ? '...' : ''}"${reTxt}`
+}).join('\n')}
 ` : ''}
 Borrador: ${plan.plan.borrador ? `${plan.plan.borrador.iteraciones?.length ?? 0} iteraciones` : '(pendiente)'}
 Estrés: ${plan.plan.estres?.preguntas?.length ? `${plan.plan.estres.preguntas.length} preguntas` : '(pendiente)'}
@@ -162,6 +199,23 @@ Reglas estrictas (NO son sugerencias):
 - El bloque va siempre al final, después de tu respuesta conversacional.
 - Para plan Sr: omitir el campo "alineacion_sr" del objeto proposito.
 
+REGLA GLOBAL DE FORMATO — IDs de movimientos en texto narrativo:
+
+Cuando cites un ID de movimiento del inventario (M-1, M-2, ..., M-N) en CUALQUIER texto NARRATIVO (tu respuesta conversacional al usuario, observaciones intermedias en 3.B/3.D post-respuesta, mensajes de cierre/transición, observacion_modelo de una pregunta, razón de cualquier campo del plan, etc.), incluí SIEMPRE el nombre del movimiento entre paréntesis inmediatamente después. Formato obligatorio: \`M-X (nombre completo del movimiento)\`. Aplica a TODAS las apariciones, no solo a la primera mención dentro del mismo mensaje.
+
+Ejemplos:
+- ❌ MAL: "Bien, registro M-1 como palanca más fuerte. La cadena M-3 → M-4 → M-1 es el path crítico."
+- ✅ BIEN: "Bien, registro M-1 (Contratar QA Lead senior) como palanca más fuerte. La cadena M-3 (Construir business case) → M-4 (Aprobación presupuesto) → M-1 (Contratar QA Lead senior) es el path crítico."
+
+EXCEPCIÓN — campos ESTRUCTURADOS del PANEL_UPDATE que son arrays de IDs por diseño:
+- \`plan.inventario.movimientos[i].precondiciones[]\`
+- \`plan.inventario.movimientos[i].desbloquea[]\`
+- Cualquier respuesta_estructurada que incluya ids de movimientos.
+
+En esos casos, emitís solo el ID (\`["M-1", "M-3"]\`) — el frontend renderiza el nombre desde el inventario. Esto NO aplica a texto narrativo dentro del PANEL_UPDATE (como \`observacion_modelo\` o \`razon\`).
+
+POR QUÉ: el usuario lee tus textos sin recordar la totalidad del inventario. M-1 sin nombre obliga a cross-reference y rompe el ritmo de lectura.
+
 OPTIMIZACIÓN — sub-trees congelados, NO re-emitir (regla genérica al wizard entero):
 
 El backend tiene un merge protector que preserva sub-trees del plan que NO emitís. Aprovechalo para no regenerar contenido voluminoso ya cerrado. Regla:
@@ -228,7 +282,11 @@ Schema de cada sub-key:
   "preguntas_validador": [<idem schema PalancaQAPE pero origen='validador' e id 'V-1'..'V-5'. En V1 NO emitas modo_interaccion para validador — esas preguntas son texto puro>]
 }
 
-"inventario", "borrador", "estres", "curado": schemas detallados se sumarán cuando arranque cada sub-bloque (Fases C-E). Por ahora, solo emití "preparativos" durante 3.0 y "palancas" durante 3.B.
+"inventario": schema completo se persiste vía endpoint dedicado /paso3/inventario/generar — NO lo emitas vos. El sistema lo poblará en plan.inventario y vos solo lo VES como contexto en este system prompt (a través del rendering de "Inventario: N movimientos" arriba).
+
+"borrador" (3.C): MISMO patrón que inventario — se persiste vía endpoint dedicado /paso3/borrador/generar (Opus dedicado con max_tokens=24000 y schema strict de 6 secciones). NO emitas plan.borrador en tu PANEL_UPDATE. Si lo hacés, el merge protector podría pisar la versión real que escribió el endpoint. Tu rol conversacional durante 3.C: acompañar al usuario revisando el borrador (que ve en una vista dedicada), discutir disconformidades, y guiar la decisión de re-iterar vs aceptar. NO construyas el borrador turno a turno.
+
+"estres", "curado": schemas detallados se sumarán cuando arranque cada sub-bloque (Fases D+).
 
 CUÁNDO EMITIR EL CAMPO "plan":
 

@@ -246,6 +246,40 @@ Cuando el usuario reporta un bug observando datos en Airtable / Vercel / cualqui
   - `app/(main)/planes-estrategicos/[id]/vista/page.tsx` — lee al cargar vista de prestigio. Sin guards estrictos, riesgo bajo.
 - **Alternativa más radical (no aplicada):** refactorizar `getEntrevistaPE` para usar `fetchOne` cuando el plan tiene el linked `entrevistas_pe` ID. Cambiaría el read pattern de list a single-record (strong consistency). Mejora estructural pero invasiva.
 
+## Principio operativo: minimizar trabajo de Juan
+
+Juan es el arquitecto del proyecto pero NO quiere ser el operador. Su tiempo
+es para decisiones estratégicas, de scope, de criterio de negocio. NO para
+correr scripts, copiar tokens, armar curls, validar outputs técnicos rutinarios.
+
+### Hacé vos siempre que se pueda:
+- Smoke tests y validaciones técnicas (creá scripts que no requieran credenciales
+  del usuario, corrélos vos, reportá resultados interpretados).
+- Verificaciones de estado en Airtable (leé directo, no pidas a Juan que mire).
+- Reset de dummies después de tus implementaciones.
+- Type-checks, lint, compilación.
+- Búsquedas en el repo cuando necesités contexto.
+- Cualquier paso operativo intermedio entre "decisión tomada" y "feature funcionando".
+
+### Involucrá a Juan SOLO cuando:
+- Es decisión de scope, prioridad o criterio de negocio (no técnica).
+- Hay trade-off real con consecuencias no obvias.
+- Riesgo de divergir del diseño aprobado y necesitás confirmación.
+- Bloqueante crítico que requiere su input.
+- Terminaste un feature/fase y querés que valide el resultado funcional.
+
+### Reportá siempre:
+- Resultados ya interpretados, no logs crudos.
+- Qué funcionó / qué no / qué hiciste para arreglar.
+- Decisiones que tomaste vos (con razón breve).
+- Cronómetro real de cada fase.
+- Issues residuales o deuda técnica detectada.
+
+### Excepción:
+Juan es el único que puede probar UX/UI en navegador real con criterio humano.
+Cuando la validación requiera "mirar pantalla y dar feedback de diseño/usabilidad",
+ahí sí pedile que pruebe. No es tarea operativa — es criterio que solo él tiene.
+
 ## Backlog activo — features pausados
 
 ### Split de CLAUDE.md en docs/ — pendiente post-Paso 3+4
