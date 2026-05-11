@@ -207,10 +207,10 @@ function ContenidoValidador({ planId, propuesta, costoUsd, latenciaMs, movimient
               {movimientosReferenciados.length > 0 && (
                 <section className="rounded-lg border border-sidebar-border bg-sidebar/20 px-4 py-3 space-y-2">
                   <div className="flex items-baseline justify-between gap-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                    <p className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground/80">
                       Movimientos referenciados ({movimientosReferenciados.length})
                     </p>
-                    <p className="text-[10px] italic text-muted-foreground/60">
+                    <p className="text-[12px] italic text-muted-foreground/60">
                       Recordatorio rápido — qué es cada M-X
                     </p>
                   </div>
@@ -233,13 +233,13 @@ function ContenidoValidador({ planId, propuesta, costoUsd, latenciaMs, movimient
               <section key={q.id} className="space-y-2">
                 <div className="rounded-lg border border-sidebar-border bg-sidebar/30 px-4 py-3 space-y-2">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-[11px] text-muted-foreground/70">{q.id}</span>
-                    <span className="rounded-full bg-blue-950/50 border border-blue-800/50 px-2 py-0.5 text-[10px] uppercase tracking-wider text-blue-300">
+                    <span className="font-mono text-[12px] text-muted-foreground/70">{q.id}</span>
+                    <span className="rounded-full bg-blue-950/50 border border-blue-800/50 px-2 py-0.5 text-[12px] uppercase tracking-wider text-blue-300">
                       complementaria #{i + 1}
                     </span>
                   </div>
                   <p className="text-[15px] text-foreground leading-relaxed">{q.pregunta}</p>
-                  <p className="text-[11px] italic text-muted-foreground/80 leading-relaxed">
+                  <p className="text-[12px] italic text-muted-foreground/80 leading-relaxed">
                     Por qué esta pregunta: {q.razon_complementariedad}
                   </p>
                 </div>
@@ -262,7 +262,7 @@ function ContenidoValidador({ planId, propuesta, costoUsd, latenciaMs, movimient
         </div>
 
         <footer className="flex-shrink-0 border-t border-sidebar-border px-6 py-3 flex items-center justify-between gap-3">
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-[12px] text-muted-foreground">
             {tienePreguntas
               ? todasRespondidas
                 ? '✓ Todas respondidas'

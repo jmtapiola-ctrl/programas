@@ -131,7 +131,7 @@ export function ComentarFeedbackModal({ planId, paso, onClose, onApplied }: Prop
           </button>
         </div>
 
-        <p className="text-[10px] text-gray-500 text-center pt-1">
+        <p className="text-[12px] text-gray-500 text-center pt-1">
           Cada iteración llama a Claude Opus 4.7 (~$0.30-0.50 USD por iteración).
         </p>
       </div>

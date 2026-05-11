@@ -41,14 +41,14 @@ export function HallazgoErrorCard({ hallazgo, decision, onChange }: Props) {
     <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${SEVERIDAD_BG[hallazgo.severidad]}`}>
+          <span className={`text-[12px] font-bold uppercase px-2 py-0.5 rounded ${SEVERIDAD_BG[hallazgo.severidad]}`}>
             {hallazgo.severidad}
           </span>
-          <span className="text-[10px] text-gray-500 uppercase">{TIPO_LABEL[hallazgo.tipo] ?? `Tipo ${hallazgo.tipo}`}</span>
-          <span className="text-[10px] text-gray-600 font-mono">{hallazgo.id}</span>
+          <span className="text-[12px] text-gray-500 uppercase">{TIPO_LABEL[hallazgo.tipo] ?? `Tipo ${hallazgo.tipo}`}</span>
+          <span className="text-[12px] text-gray-600 font-mono">{hallazgo.id}</span>
         </div>
         {yaDecidido && (
-          <span className={`text-[11px] font-semibold ${isAprobado ? 'text-green-400' : 'text-gray-500'}`}>
+          <span className={`text-[12px] font-semibold ${isAprobado ? 'text-green-400' : 'text-gray-500'}`}>
             {decision.estado === 'aprobado' && '✓ aprobado'}
             {decision.estado === 'aprobado_con_cambios' && '✓ aprobado (editado)'}
             {decision.estado === 'ignorado' && '✗ ignorado'}
@@ -58,13 +58,13 @@ export function HallazgoErrorCard({ hallazgo, decision, onChange }: Props) {
 
       <div className="space-y-3">
         <div>
-          <p className="text-[11px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">Qué dice el resumen</p>
+          <p className="text-[12px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">Qué dice el resumen</p>
           <blockquote className="text-sm text-gray-100 leading-relaxed bg-gray-900/60 border-l-2 border-gray-500 rounded-r pl-3 pr-3 py-2">
             {hallazgo.que_dice_resumen}
           </blockquote>
         </div>
         <div>
-          <p className="text-[11px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">
+          <p className="text-[12px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">
             Qué se dijo en la conversación <span className="text-gray-400 normal-case">(turno {hallazgo.turno_referencia})</span>
           </p>
           <blockquote className="text-sm text-gray-100 leading-relaxed italic bg-gray-900/60 border-l-2 border-amber-600/60 rounded-r pl-3 pr-3 py-2">
@@ -72,7 +72,7 @@ export function HallazgoErrorCard({ hallazgo, decision, onChange }: Props) {
           </blockquote>
         </div>
         <div>
-          <p className="text-[11px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">Cambio propuesto por el revisor</p>
+          <p className="text-[12px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">Cambio propuesto por el revisor</p>
           {!editando ? (
             <p className="text-sm text-blue-100 leading-relaxed bg-blue-950/40 border-l-2 border-blue-500 rounded-r pl-3 pr-3 py-2">
               {hallazgo.cambio_propuesto}

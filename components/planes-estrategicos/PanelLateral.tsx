@@ -14,7 +14,7 @@ function VerPlanCompletoLink({ planId }: { planId: string }) {
       href={`/planes-estrategicos/${planId}/vista`}
       target="_blank"
       rel="noopener noreferrer"
-      className="block text-[11px] text-muted-foreground hover:text-foreground transition-colors text-right pb-2"
+      className="block text-[12px] text-muted-foreground hover:text-foreground transition-colors text-right pb-2"
     >
       Ver plan completo ↗
     </a>
@@ -34,7 +34,7 @@ export function PanelLateral({ plan, panel, planSr }: Props) {
         {/* Columna izq: Plan Sr */}
         <div className="w-[45%] flex-shrink-0 overflow-y-auto rounded-xl border border-sidebar-border bg-sidebar/50 p-4 space-y-4">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1">
+            <p className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1">
               Plan Sr
             </p>
             <p className="text-[12px] font-semibold text-foreground">{planSr.nombre}</p>
@@ -86,7 +86,7 @@ function PanelConstruccion({
     <>
       {alineacion && (
         <div className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground">Alineación con Plan Sr:</span>
+          <span className="text-[12px] text-muted-foreground">Alineación con Plan Sr:</span>
           <AlineacionBadge valor={alineacion} />
         </div>
       )}
@@ -226,7 +226,7 @@ function InventarioPanel({ inventario }: { inventario: any }) {
 
   return (
     <SeccionPanel titulo="Plan — Inventario (3.A)">
-      <div className="space-y-2 text-[11px]">
+      <div className="space-y-2 text-[12px]">
         <p className="text-foreground/90">
           <span className="font-semibold">{total}</span> movimientos en {porCategoria.size} categorías
         </p>
@@ -254,7 +254,7 @@ function PalancasPanel({ palancas }: { palancas: any }) {
 
   return (
     <SeccionPanel titulo="Plan — Palancas (3.B)">
-      <div className="space-y-2 text-[11px]">
+      <div className="space-y-2 text-[12px]">
         <p className="text-foreground/90">
           <span className="font-semibold">{principal.length}</span> preguntas modelo principal
           {principal.length > 0 && ` · ${respondidasPrincipal}/${principal.length} respondidas`}
@@ -273,7 +273,7 @@ function PalancasPanel({ palancas }: { palancas: any }) {
 function SeccionPanel({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-sidebar-border bg-sidebar/50 p-4 space-y-3">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+      <p className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground/60">
         {titulo}
       </p>
       {children}
@@ -285,11 +285,11 @@ function Campo({ label, valor, placeholder }: { label: string; valor?: string; p
   const texto = valor?.trim()
   return (
     <div className="space-y-0.5">
-      <p className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wide">{label}</p>
+      <p className="text-[12px] font-medium text-muted-foreground/70 uppercase tracking-wide">{label}</p>
       {texto ? (
         <p className="text-[12px] text-foreground/90 whitespace-pre-wrap leading-relaxed">{texto}</p>
       ) : (
-        <p className="text-[11px] text-muted-foreground/35 italic">{placeholder ?? '—'}</p>
+        <p className="text-[12px] text-muted-foreground/35 italic">{placeholder ?? '—'}</p>
       )}
     </div>
   )
@@ -302,7 +302,7 @@ function AlineacionBadge({ valor }: { valor: string }) {
     Rojo: 'bg-red-900 text-red-200 border-red-700',
   }
   return (
-    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${colors[valor] ?? 'bg-gray-700 text-gray-200 border-gray-600'}`}>
+    <span className={`rounded-full border px-2 py-0.5 text-[12px] font-semibold ${colors[valor] ?? 'bg-gray-700 text-gray-200 border-gray-600'}`}>
       {valor}
     </span>
   )

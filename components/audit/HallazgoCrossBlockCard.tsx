@@ -33,16 +33,16 @@ export function HallazgoCrossBlockCard({ hallazgo, decision, onChange }: Props) 
     <div className="bg-purple-950/20 border border-purple-800/40 rounded-lg p-4 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${SEVERIDAD_BG[hallazgo.severidad]}`}>
+          <span className={`text-[12px] font-bold uppercase px-2 py-0.5 rounded ${SEVERIDAD_BG[hallazgo.severidad]}`}>
             {hallazgo.severidad}
           </span>
-          <span className="text-[10px] text-purple-300 uppercase font-semibold">
+          <span className="text-[12px] text-purple-300 uppercase font-semibold">
             Bloque {hallazgo.bloque_afectado} · {hallazgo.seccion_afectada}
           </span>
-          <span className="text-[10px] text-gray-600 font-mono">{hallazgo.id}</span>
+          <span className="text-[12px] text-gray-600 font-mono">{hallazgo.id}</span>
         </div>
         {yaDecidido && (
-          <span className={`text-[11px] font-semibold ${isAprobado ? 'text-green-400' : 'text-gray-500'}`}>
+          <span className={`text-[12px] font-semibold ${isAprobado ? 'text-green-400' : 'text-gray-500'}`}>
             {decision.estado === 'aprobado' && '✓ aprobado'}
             {decision.estado === 'aprobado_con_cambios' && '✓ aprobado (editado)'}
             {decision.estado === 'ignorado' && '✗ ignorado'}
@@ -52,13 +52,13 @@ export function HallazgoCrossBlockCard({ hallazgo, decision, onChange }: Props) 
 
       <div className="space-y-3">
         <div>
-          <p className="text-[11px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">Qué dice actualmente el Bloque {hallazgo.bloque_afectado}</p>
+          <p className="text-[12px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">Qué dice actualmente el Bloque {hallazgo.bloque_afectado}</p>
           <blockquote className="text-sm text-gray-100 leading-relaxed bg-gray-900/60 border-l-2 border-gray-500 rounded-r pl-3 pr-3 py-2">
             {hallazgo.que_dice_actualmente}
           </blockquote>
         </div>
         <div>
-          <p className="text-[11px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">
+          <p className="text-[12px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">
             Qué se declaró que lo modifica <span className="text-gray-400 normal-case">(turno {hallazgo.turno_referencia})</span>
           </p>
           <blockquote className="text-sm text-gray-100 leading-relaxed italic bg-gray-900/60 border-l-2 border-amber-600/60 rounded-r pl-3 pr-3 py-2">
@@ -66,7 +66,7 @@ export function HallazgoCrossBlockCard({ hallazgo, decision, onChange }: Props) 
           </blockquote>
         </div>
         <div>
-          <p className="text-[11px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">Cambio propuesto</p>
+          <p className="text-[12px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">Cambio propuesto</p>
           {!editando ? (
             <p className="text-sm text-purple-100 leading-relaxed bg-purple-950/40 border-l-2 border-purple-500 rounded-r pl-3 pr-3 py-2">
               {hallazgo.cambio_propuesto}

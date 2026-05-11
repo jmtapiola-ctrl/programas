@@ -51,7 +51,7 @@ export function ModoSeleccionMultipleRanked({ movimientos, campos, ranking, onCh
       {/* Lista ranked (drag-to-reorder) — solo si hay marcados */}
       {ranking.length > 0 && (
         <div className="rounded-lg border border-blue-700/40 bg-blue-950/10 p-3 space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-300">
+          <p className="text-[12px] font-semibold uppercase tracking-wider text-blue-300">
             Tu ranking ({ranking.length}{restriccionMaxima ? `/${restriccionMaxima}` : ''}) — arrastrá para reordenar
           </p>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -107,7 +107,7 @@ function SortableRow({ movimiento, campos: _campos, posicion, onQuitar }: { movi
       <span className="h-6 w-6 rounded-full bg-blue-500 text-white text-[12px] font-bold flex items-center justify-center flex-shrink-0">
         {posicion}
       </span>
-      <span className="font-mono text-[11px] text-muted-foreground/70">{movimiento.id}</span>
+      <span className="font-mono text-[12px] text-muted-foreground/70">{movimiento.id}</span>
       <span className="flex-1 text-[12px] text-foreground truncate">{movimiento.nombre}</span>
       <button onClick={onQuitar} className="text-muted-foreground hover:text-red-400 text-[14px] px-1" aria-label="Quitar del ranking">
         ✕

@@ -98,7 +98,7 @@ function ProcesandoPanel({ paso, elapsedSeconds }: { paso: number; elapsedSecond
       <div className="bg-gray-900/60 rounded px-4 py-3 font-mono text-sm text-gray-300">
         Tiempo: <span className="text-white font-semibold">{formatElapsed(elapsedSeconds)}</span> · esperando reviewer...
       </div>
-      <p className="text-[11px] text-gray-500">No cierres esta ventana — el progreso se pierde.</p>
+      <p className="text-[12px] text-gray-500">No cierres esta ventana — el progreso se pierde.</p>
     </div>
   )
 }
@@ -143,7 +143,7 @@ function ErrorPanel({
         <h2 className="text-lg font-semibold text-red-300 mb-2">El revisor no respondió</h2>
         <p className="text-sm text-gray-300">{friendly}</p>
       </div>
-      <div className="bg-gray-900/60 rounded px-4 py-3 text-[11px] text-gray-400 font-mono space-y-1">
+      <div className="bg-gray-900/60 rounded px-4 py-3 text-[12px] text-gray-400 font-mono space-y-1">
         <div><span className="text-gray-500">code:</span> {error.code}</div>
         <div><span className="text-gray-500">tiempo:</span> {formatElapsed(elapsedSeconds)}</div>
         {metrics?.cost_usd ? <div><span className="text-gray-500">costo:</span> ${metrics.cost_usd.toFixed(3)}</div> : null}

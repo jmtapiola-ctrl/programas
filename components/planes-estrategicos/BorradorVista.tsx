@@ -139,7 +139,7 @@ function Contenido({ iteracion, movimientos, onReorderSecuencia, onReIterar, onA
             <h2 className="mt-1 text-[18px] font-semibold text-foreground">
               Iteración <span className="text-primary">{iteracion.numero}</span> de 3
             </h2>
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-[12px] text-muted-foreground">
               Generado {new Date(iteracion.generado_en).toLocaleString('es-AR')} · ${iteracion.costo_usd.toFixed(2)} USD · {(iteracion.latencia_ms / 1000).toFixed(0)}s
             </p>
           </div>
@@ -175,10 +175,10 @@ function Contenido({ iteracion, movimientos, onReorderSecuencia, onReIterar, onA
                   >
                     <p className="text-[13px] font-semibold text-foreground leading-snug">{i + 1}. {d.decision}</p>
                     <p className="mt-1.5 text-[12px] text-muted-foreground leading-relaxed">
-                      <span className="uppercase tracking-wider text-[10px] text-muted-foreground/80">Razón:</span> {d.razon}
+                      <span className="uppercase tracking-wider text-[12px] text-muted-foreground/80">Razón:</span> {d.razon}
                     </p>
                     {d.alternativas_descartadas?.length > 0 && (
-                      <p className="mt-1 text-[11px] text-muted-foreground/80 italic">
+                      <p className="mt-1 text-[12px] text-muted-foreground/80 italic">
                         Descartadas: {d.alternativas_descartadas.join(' · ')}
                       </p>
                     )}
@@ -224,15 +224,15 @@ function Contenido({ iteracion, movimientos, onReorderSecuencia, onReIterar, onA
           <Seccion titulo="5. Criterio de éxito">
             <div className="space-y-2.5">
               <ItemMarcable elementoId="criterio:pleno" marca={marcas.get('criterio:pleno')} onMarcar={setMarca} skin="green">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-green-300/80">Pleno</p>
+                <p className="text-[12px] font-semibold uppercase tracking-wider text-green-300/80">Pleno</p>
                 <p className="mt-1 text-[13px] text-green-100 leading-snug">{iteracion.criterio_exito.pleno}</p>
               </ItemMarcable>
               <ItemMarcable elementoId="criterio:minimo" marca={marcas.get('criterio:minimo')} onMarcar={setMarca} skin="yellow">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-yellow-300/80">Mínimo aceptable</p>
+                <p className="text-[12px] font-semibold uppercase tracking-wider text-yellow-300/80">Mínimo aceptable</p>
                 <p className="mt-1 text-[13px] text-yellow-100 leading-snug">{iteracion.criterio_exito.minimo}</p>
               </ItemMarcable>
               <ItemMarcable elementoId="criterio:path_minimo" marca={marcas.get('criterio:path_minimo')} onMarcar={setMarca} skin="blue">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-300/80">Path mínimo</p>
+                <p className="text-[12px] font-semibold uppercase tracking-wider text-blue-300/80">Path mínimo</p>
                 <p className="mt-1 text-[13px] text-blue-100 leading-snug">{iteracion.criterio_exito.path_minimo}</p>
               </ItemMarcable>
             </div>
@@ -258,13 +258,13 @@ function Contenido({ iteracion, movimientos, onReorderSecuencia, onReIterar, onA
 
         <footer className="flex-shrink-0 border-t border-sidebar-border px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex flex-col gap-0.5 min-w-0">
-            <p className="text-[11px] text-muted-foreground truncate">
+            <p className="text-[12px] text-muted-foreground truncate">
               {disconformidadesAEnviar.length === 0
                 ? 'Sin disconformidades marcadas — si todo te cierra, aceptá el borrador.'
                 : `${disconformidadesAEnviar.length} disconformidad(es) marcada(s).`}
             </p>
             {enMaxIteracion && (
-              <p className="text-[10px] italic text-yellow-300/80">
+              <p className="text-[12px] italic text-yellow-300/80">
                 Iteración 3/3 — última. Si seguís disconforme, volvé a 3.A o 3.B.
               </p>
             )}
@@ -315,7 +315,7 @@ function Seccion({ titulo, subtitulo, children }: { titulo: string; subtitulo?: 
     <section>
       <div className="mb-2.5">
         <h3 className="text-[15px] font-semibold text-foreground">{titulo}</h3>
-        {subtitulo && <p className="mt-0.5 text-[11px] text-muted-foreground italic">{subtitulo}</p>}
+        {subtitulo && <p className="mt-0.5 text-[12px] text-muted-foreground italic">{subtitulo}</p>}
       </div>
       {children}
     </section>
@@ -355,7 +355,7 @@ function ItemMarcable({
             type="button"
             onClick={() => onMarcar(elementoId, { marca: 'ok', razon: '' })}
             title="Esta sección te cierra OK"
-            className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+            className={`rounded-md px-2 py-0.5 text-[12px] font-semibold uppercase tracking-wider transition-colors ${
               marca?.marca === 'ok'
                 ? 'bg-green-600 text-green-50'
                 : 'bg-transparent border border-sidebar-border text-muted-foreground hover:bg-accent/30'
@@ -367,7 +367,7 @@ function ItemMarcable({
             type="button"
             onClick={() => onMarcar(elementoId, { marca: 'no' })}
             title="Marcá si no te cierra y agregá razón"
-            className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+            className={`rounded-md px-2 py-0.5 text-[12px] font-semibold uppercase tracking-wider transition-colors ${
               esNoMeCierra
                 ? 'bg-amber-600 text-amber-50'
                 : 'bg-transparent border border-sidebar-border text-muted-foreground hover:bg-accent/30'
@@ -443,12 +443,12 @@ function Timeline({
               <div className={`transition-all ${isDropTarget ? 'ring-2 ring-blue-500/50 rounded-md p-1 -m-1' : ''}`}>
                 <div className="flex items-baseline justify-between gap-2 mb-2">
                   <p className="text-[13px] font-semibold text-foreground">
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/70 mr-2">F{idx + 1}</span>
+                    <span className="text-[12px] font-mono uppercase tracking-wider text-muted-foreground/70 mr-2">F{idx + 1}</span>
                     {fase.fase}
                   </p>
-                  <p className="text-[10px] text-muted-foreground italic">{fase.movimientos.length} mov.</p>
+                  <p className="text-[12px] text-muted-foreground italic">{fase.movimientos.length} mov.</p>
                 </div>
-                <p className="text-[11px] text-muted-foreground leading-snug mb-2">{fase.razon_secuencia}</p>
+                <p className="text-[12px] text-muted-foreground leading-snug mb-2">{fase.razon_secuencia}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {fase.movimientos.map(movId => {
                     const mov = movimientosById.get(movId)
@@ -467,7 +467,7 @@ function Timeline({
                           setDropTargetIdx(null)
                         } : undefined}
                         title={mov ? `${mov.nombre} — ${mov.dueno}` : movId}
-                        className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-all ${
+                        className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[12px] transition-all ${
                           draggable ? 'cursor-move' : 'cursor-default'
                         } ${
                           isDragging
@@ -481,7 +481,7 @@ function Timeline({
                     )
                   })}
                   {fase.movimientos.length === 0 && (
-                    <p className="text-[11px] italic text-muted-foreground/60 py-2">(vacía — arrastrá un M-X acá)</p>
+                    <p className="text-[12px] italic text-muted-foreground/60 py-2">(vacía — arrastrá un M-X acá)</p>
                   )}
                 </div>
               </div>

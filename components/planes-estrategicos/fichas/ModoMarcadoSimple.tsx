@@ -24,7 +24,7 @@ export function ModoMarcadoSimple({ movimientos, campos, marcados, onChange, res
 
   return (
     <div className="space-y-2">
-      <p className="text-[11px] text-muted-foreground italic">
+      <p className="text-[12px] text-muted-foreground italic">
         {marcados.length} marcado{marcados.length === 1 ? '' : 's'}
         {restriccionMaxima ? ` (máx ${restriccionMaxima})` : ''}
       </p>

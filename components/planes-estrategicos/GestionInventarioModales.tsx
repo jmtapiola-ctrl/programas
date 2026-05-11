@@ -86,11 +86,11 @@ export function ModalAgregarMovimiento({ categorias, categoriaSugerida, saving, 
         onClick={e => e.stopPropagation()}
       >
         <header className="flex-shrink-0 border-b border-sidebar-border px-5 py-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+          <p className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground/70">
             Gestión de inventario
           </p>
           <h2 className="mt-0.5 text-[16px] font-semibold text-foreground">Agregar movimiento</h2>
-          <p className="mt-1 text-[11px] text-muted-foreground">
+          <p className="mt-1 text-[12px] text-muted-foreground">
             Se sumará al inventario y aparecerá en el panel del modo actual.
           </p>
         </header>
@@ -98,7 +98,7 @@ export function ModalAgregarMovimiento({ categorias, categoriaSugerida, saving, 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
           {/* Categoría — dropdown de existentes + opción custom */}
           <div className="space-y-1">
-            <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/80">Categoría *</label>
+            <label className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground/80">Categoría *</label>
             {!usaCategoriaCustom && categorias.length > 0 && (
               <div className="flex gap-2">
                 <select
@@ -111,7 +111,7 @@ export function ModalAgregarMovimiento({ categorias, categoriaSugerida, saving, 
                 <button
                   type="button"
                   onClick={() => setUsaCategoriaCustom(true)}
-                  className="rounded-md border border-sidebar-border px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent/40"
+                  className="rounded-md border border-sidebar-border px-2 py-1 text-[12px] text-muted-foreground hover:bg-accent/40"
                 >
                   Nueva categoría
                 </button>
@@ -130,7 +130,7 @@ export function ModalAgregarMovimiento({ categorias, categoriaSugerida, saving, 
                   <button
                     type="button"
                     onClick={() => setUsaCategoriaCustom(false)}
-                    className="rounded-md border border-sidebar-border px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent/40"
+                    className="rounded-md border border-sidebar-border px-2 py-1 text-[12px] text-muted-foreground hover:bg-accent/40"
                   >
                     Usar existente
                   </button>
@@ -151,7 +151,7 @@ export function ModalAgregarMovimiento({ categorias, categoriaSugerida, saving, 
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/80">Banda ancha</label>
+            <label className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground/80">Banda ancha</label>
             <div className="flex gap-2">
               {(['baja', 'media', 'alta'] as const).map(b => (
                 <button
@@ -238,7 +238,7 @@ export function ModalEditarMovimiento({ movimiento, saving, onGuardar, onCancela
         onClick={e => e.stopPropagation()}
       >
         <header className="flex-shrink-0 border-b border-sidebar-border px-5 py-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+          <p className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground/70">
             Gestión de inventario
           </p>
           <h2 className="mt-0.5 text-[16px] font-semibold text-foreground">
@@ -252,7 +252,7 @@ export function ModalEditarMovimiento({ movimiento, saving, onGuardar, onCancela
           <Field label="Ataca desvío" value={atacaDesvio} onChange={setAtacaDesvio} multiline />
           <Field label="Dueño" value={dueno} onChange={setDueno} />
           <Field label="Criterio de éxito" value={criterioExito} onChange={setCriterioExito} multiline />
-          <p className="text-[11px] text-muted-foreground italic mt-2">
+          <p className="text-[12px] text-muted-foreground italic mt-2">
             Ventana, costo, banda y dependencias siguen igual. Si necesitás editarlos, abrí el inventario completo (3.A).
           </p>
         </div>
@@ -331,7 +331,7 @@ export function ConfirmacionQuitarMovimiento({ movimiento, todosLosMovimientos, 
               <p>
                 <strong>{dependientes.huerfanizaPrecondiciones.length}</strong> movimiento(s) tienen este como precondición:
                 {' '}
-                <span className="font-mono text-[11px]">
+                <span className="font-mono text-[12px]">
                   {dependientes.huerfanizaPrecondiciones.map(m => m.id).join(', ')}
                 </span>
               </p>
@@ -340,7 +340,7 @@ export function ConfirmacionQuitarMovimiento({ movimiento, todosLosMovimientos, 
               <p>
                 <strong>{dependientes.huerfanizaDesbloqueos.length}</strong> movimiento(s) tienen este en desbloquea:
                 {' '}
-                <span className="font-mono text-[11px]">
+                <span className="font-mono text-[12px]">
                   {dependientes.huerfanizaDesbloqueos.map(m => m.id).join(', ')}
                 </span>
               </p>
@@ -373,7 +373,7 @@ export function ConfirmacionQuitarMovimiento({ movimiento, todosLosMovimientos, 
 function Field({ label, value, onChange, multiline }: { label: string; value: string; onChange: (v: string) => void; multiline?: boolean }) {
   return (
     <div className="space-y-1">
-      <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/80">{label}</label>
+      <label className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground/80">{label}</label>
       {multiline ? (
         <textarea
           value={value}

@@ -388,7 +388,7 @@ function ConfirmarDependenciasModal({
 
           {propuesta.razonamiento && (
             <div className="rounded-lg border border-sidebar-border bg-sidebar/30 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1">
+              <p className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1">
                 Razonamiento del modelo
               </p>
               <p className="text-[13px] text-foreground/90 leading-relaxed">{propuesta.razonamiento}</p>
@@ -464,7 +464,7 @@ function ConfirmarDependenciasModal({
                   </button>
                 ))}
               </div>
-              <p className="mt-1.5 text-[11px] text-muted-foreground italic">
+              <p className="mt-1.5 text-[12px] text-muted-foreground italic">
                 {tipoDep === 'dura' && 'Las precondiciones DEBEN estar terminadas antes de empezar este movimiento.'}
                 {tipoDep === 'blanda' && 'Las precondiciones FACILITAN este movimiento, pero podés arrancar sin ellas.'}
                 {tipoDep === 'ninguna' && 'Sin dependencia formal — el movimiento puede arrancar en cualquier momento.'}

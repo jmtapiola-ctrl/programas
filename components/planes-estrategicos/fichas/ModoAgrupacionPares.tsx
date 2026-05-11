@@ -71,7 +71,7 @@ export function ModoAgrupacionPares({ movimientos, campos, pares, onChange, gest
       {/* Lista compacta de pares creados */}
       {pares.length > 0 && (
         <div className="rounded-md border border-purple-700/40 bg-purple-950/20 p-2 space-y-1">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-purple-300 mb-1">
+          <p className="text-[12px] font-semibold uppercase tracking-wider text-purple-300 mb-1">
             Pares creados ({pares.length})
           </p>
           {pares.map((p, i) => {
@@ -79,10 +79,10 @@ export function ModoAgrupacionPares({ movimientos, campos, pares, onChange, gest
             const movHacia = movimientos.find(m => m.id === p.hacia)
             return (
               <div key={i} className="flex items-center gap-2 text-[12px]">
-                <span className="font-mono text-[11px] text-purple-300">{p.desde}</span>
+                <span className="font-mono text-[12px] text-purple-300">{p.desde}</span>
                 <span className="text-foreground/70 truncate flex-1">{movDesde?.nombre}</span>
                 <span className="text-purple-300">→</span>
-                <span className="font-mono text-[11px] text-purple-300">{p.hacia}</span>
+                <span className="font-mono text-[12px] text-purple-300">{p.hacia}</span>
                 <span className="text-foreground/70 truncate flex-1">{movHacia?.nombre}</span>
                 <button onClick={() => quitarPar(p.desde, p.hacia)} className="text-muted-foreground hover:text-red-400 px-1" aria-label="Quitar par">
                   ✕

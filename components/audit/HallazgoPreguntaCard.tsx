@@ -26,16 +26,16 @@ export function HallazgoPreguntaCard({ hallazgo, decision, onChange }: Props) {
     <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+          <span className={`text-[12px] font-bold uppercase px-2 py-0.5 rounded ${
             isCritica ? 'bg-orange-900/40 border border-orange-700 text-orange-200'
                       : 'bg-gray-700 border border-gray-600 text-gray-300'
           }`}>
             {hallazgo.categoria === 'CRITICA' ? 'Crítica' : 'Recomendada'}
           </span>
-          <span className="text-[10px] text-gray-600 font-mono">{hallazgo.id}</span>
+          <span className="text-[12px] text-gray-600 font-mono">{hallazgo.id}</span>
         </div>
         {yaDecidido && (
-          <span className={`text-[11px] font-semibold ${decision.estado === 'respondido' ? 'text-green-400' : 'text-gray-500'}`}>
+          <span className={`text-[12px] font-semibold ${decision.estado === 'respondido' ? 'text-green-400' : 'text-gray-500'}`}>
             {decision.estado === 'respondido' && '✓ respondido'}
             {decision.estado === 'ignorado' && '✗ ignorado'}
           </span>
@@ -46,11 +46,11 @@ export function HallazgoPreguntaCard({ hallazgo, decision, onChange }: Props) {
         <p className="text-base text-white font-medium leading-relaxed">{hallazgo.pregunta}</p>
         <div className="space-y-1">
           <p className="text-[12px] text-gray-200 leading-relaxed">
-            <span className="font-semibold text-white uppercase tracking-wide text-[10px]">Por qué importa: </span>
+            <span className="font-semibold text-white uppercase tracking-wide text-[12px]">Por qué importa: </span>
             <span className="text-gray-100">{hallazgo.por_que_importa}</span>
           </p>
           <p className="text-[12px] text-gray-300 leading-relaxed">
-            <span className="font-semibold text-gray-100 uppercase tracking-wide text-[10px]">Relación con el plan: </span>
+            <span className="font-semibold text-gray-100 uppercase tracking-wide text-[12px]">Relación con el plan: </span>
             {hallazgo.relacion_con_plan}
           </p>
         </div>
@@ -85,7 +85,7 @@ export function HallazgoPreguntaCard({ hallazgo, decision, onChange }: Props) {
 
       {decision.estado === 'respondido' && decision.respuesta_usuario && (
         <div className="bg-green-950/30 border border-green-900/40 rounded px-3 py-2">
-          <p className="text-[10px] text-green-500 uppercase tracking-wide mb-1">Tu respuesta</p>
+          <p className="text-[12px] text-green-500 uppercase tracking-wide mb-1">Tu respuesta</p>
           <p className="text-sm text-green-200 leading-relaxed whitespace-pre-wrap">{decision.respuesta_usuario}</p>
         </div>
       )}

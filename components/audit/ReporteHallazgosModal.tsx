@@ -234,7 +234,7 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
         <div className="px-6 py-4 border-t border-gray-800 flex-shrink-0 space-y-2">
           {readOnly ? (
             <>
-              <p className="text-[11px] text-gray-400 text-center leading-relaxed">
+              <p className="text-[12px] text-gray-400 text-center leading-relaxed">
                 Auditoría educativa / retroactiva — los hallazgos quedan registrados pero <strong>no se aplican al plan vivo</strong>.
                 Los hallazgos válidos podés aplicarlos manualmente al plan actual desde el wizard.
               </p>
@@ -248,7 +248,7 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
           ) : (
             <>
               {!habilitarFooter && dec.pendingCount > 0 && (
-                <p className="text-[11px] text-gray-500 text-center">
+                <p className="text-[12px] text-gray-500 text-center">
                   Quedan {dec.pendingCount} hallazgo{dec.pendingCount === 1 ? '' : 's'} sin procesar.
                 </p>
               )}

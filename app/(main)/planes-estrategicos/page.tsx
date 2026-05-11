@@ -75,14 +75,14 @@ function PlanCard({ plan }: { plan: PlanEstrategico }) {
     <div className="flex items-center justify-between rounded-xl border border-sidebar-border bg-sidebar/50 px-5 py-4">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2.5 mb-1">
-          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+          <span className={`rounded-full border px-2 py-0.5 text-[12px] font-semibold ${
             plan.tipo === 'Sr'
               ? 'bg-purple-900 text-purple-200 border-purple-700'
               : 'bg-blue-900 text-blue-200 border-blue-700'
           }`}>
             Plan {plan.tipo}
           </span>
-          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${color}`}>
+          <span className={`rounded-full border px-2 py-0.5 text-[12px] font-semibold ${color}`}>
             {plan.estado}
           </span>
         </div>

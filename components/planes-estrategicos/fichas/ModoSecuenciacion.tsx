@@ -139,7 +139,7 @@ function FaseContainer({ fase, movimientoIds, todosLosMovimientos, campos: _camp
       <SortableContext items={movimientoIds} strategy={verticalListSortingStrategy}>
         <div className="space-y-1.5 min-h-[40px]">
           {movimientoIds.length === 0 ? (
-            <p className="text-[11px] text-muted-foreground/50 italic px-2 py-2 border border-dashed border-sidebar-border rounded">
+            <p className="text-[12px] text-muted-foreground/50 italic px-2 py-2 border border-dashed border-sidebar-border rounded">
               Arrastrá movimientos acá
             </p>
           ) : (
@@ -165,11 +165,11 @@ function SortableRow({ movimiento, isActive, cambioReciente }: { movimiento: Mov
   }
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="flex items-center gap-2 rounded-md bg-background/40 border border-sidebar-border px-2 py-1.5 cursor-grab active:cursor-grabbing">
-      <span className="text-muted-foreground/60 text-[11px]">⋮⋮</span>
-      <span className="font-mono text-[11px] text-muted-foreground/70">{movimiento.id}</span>
+      <span className="text-muted-foreground/60 text-[12px]">⋮⋮</span>
+      <span className="font-mono text-[12px] text-muted-foreground/70">{movimiento.id}</span>
       <span className="flex-1 text-[12px] text-foreground truncate">{movimiento.nombre}</span>
       {cambioReciente && (
-        <span className={`rounded px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider ${
+        <span className={`rounded px-1.5 py-0 text-[12px] font-bold uppercase tracking-wider ${
           cambioReciente === 'agregado' ? 'bg-emerald-500 text-emerald-50' : 'bg-blue-500 text-blue-50'
         }`}>
           {cambioReciente === 'agregado' ? 'NUEVO' : 'MOD'}

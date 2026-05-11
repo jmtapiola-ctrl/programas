@@ -71,7 +71,7 @@ export function FichaMovimiento({ movimiento, campos, estado, onClick, htmlId, c
       {/* Badge "NUEVO" / "MODIFICADO" en esquina superior izquierda.
           Solo aparece durante 3.B/3.C/3.D y se resetea al cambiar sub-bloque. */}
       {cambioReciente && (
-        <div className={`absolute -top-2 -left-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-md z-10 ${
+        <div className={`absolute -top-2 -left-2 rounded-full px-1.5 py-0.5 text-[12px] font-bold uppercase tracking-wider shadow-md z-10 ${
           cambioReciente === 'agregado'
             ? 'bg-emerald-500 text-emerald-50'
             : 'bg-blue-500 text-blue-50'
@@ -90,7 +90,7 @@ export function FichaMovimiento({ movimiento, campos, estado, onClick, htmlId, c
               type="button"
               onClick={(e) => { e.stopPropagation(); onEditar() }}
               title="Editar este movimiento"
-              className="rounded-md bg-blue-600/90 hover:bg-blue-500 text-white text-[10px] font-semibold px-2 py-0.5 shadow"
+              className="rounded-md bg-blue-600/90 hover:bg-blue-500 text-white text-[12px] font-semibold px-2 py-0.5 shadow"
             >
               ✎ Editar
             </button>
@@ -100,7 +100,7 @@ export function FichaMovimiento({ movimiento, campos, estado, onClick, htmlId, c
               type="button"
               onClick={(e) => { e.stopPropagation(); onQuitar() }}
               title="Quitar este movimiento del inventario"
-              className="rounded-md bg-red-700/80 hover:bg-red-600 text-white text-[10px] font-semibold px-2 py-0.5 shadow"
+              className="rounded-md bg-red-700/80 hover:bg-red-600 text-white text-[12px] font-semibold px-2 py-0.5 shadow"
             >
               ✕ Quitar
             </button>
@@ -113,9 +113,9 @@ export function FichaMovimiento({ movimiento, campos, estado, onClick, htmlId, c
 
       {/* ID + categoría + banda — siempre visibles, formato compacto */}
       <div className="flex items-center gap-1.5 mb-1">
-        <span className="font-mono text-[11px] text-muted-foreground/70">{movimiento.id}</span>
+        <span className="font-mono text-[12px] text-muted-foreground/70">{movimiento.id}</span>
         {campos.includes('banda_ancha') && (
-          <span className={`rounded-full px-1.5 py-0 text-[10px] font-semibold uppercase ${
+          <span className={`rounded-full px-1.5 py-0 text-[12px] font-semibold uppercase ${
             movimiento.costo_banda_ancha === 'alta' ? 'bg-red-950/50 text-red-300 border border-red-800/50' :
             movimiento.costo_banda_ancha === 'media' ? 'bg-yellow-950/50 text-yellow-300 border border-yellow-800/50' :
             'bg-green-950/50 text-green-300 border border-green-800/50'
@@ -124,7 +124,7 @@ export function FichaMovimiento({ movimiento, campos, estado, onClick, htmlId, c
           </span>
         )}
         {campos.includes('estado_usuario') && movimiento.estado_usuario !== 'pendiente' && (
-          <span className="rounded-full bg-foreground/10 px-1.5 py-0 text-[10px] uppercase text-foreground/60">
+          <span className="rounded-full bg-foreground/10 px-1.5 py-0 text-[12px] uppercase text-foreground/60">
             {movimiento.estado_usuario}
           </span>
         )}
@@ -135,7 +135,7 @@ export function FichaMovimiento({ movimiento, campos, estado, onClick, htmlId, c
 
       {/* Campos opcionales según campos_a_mostrar */}
       {(campos.includes('que_resuelve') || campos.includes('ataca_desvio') || campos.includes('dueno') || campos.includes('costo') || campos.includes('ventana') || campos.includes('cantidad_precondiciones') || campos.includes('cantidad_desbloqueos') || campos.includes('criterio_exito')) && (
-        <div className="mt-1.5 space-y-0.5 text-[11px]">
+        <div className="mt-1.5 space-y-0.5 text-[12px]">
           {campos.includes('que_resuelve') && (
             <Linea label="Resuelve" valor={movimiento.que_resuelve} />
           )}
@@ -208,7 +208,7 @@ function BadgeEstado({ estado }: { estado: EstadoFicha }) {
   }
   if (estado.tipo === 'conectado') {
     return (
-      <div className="absolute -top-2 -right-2 h-5 px-2 rounded-full bg-purple-500 text-white text-[10px] font-semibold flex items-center justify-center shadow-lg">
+      <div className="absolute -top-2 -right-2 h-5 px-2 rounded-full bg-purple-500 text-white text-[12px] font-semibold flex items-center justify-center shadow-lg">
         {estado.rol === 'desde' ? 'Origen' : 'Destino'}
       </div>
     )
@@ -219,7 +219,7 @@ function BadgeEstado({ estado }: { estado: EstadoFicha }) {
 function Linea({ label, valor }: { label: string; valor: string }) {
   return (
     <p className="leading-snug">
-      <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mr-1">{label}:</span>
+      <span className="text-[12px] uppercase tracking-wider text-muted-foreground/70 mr-1">{label}:</span>
       <span className="text-foreground/90">{valor}</span>
     </p>
   )

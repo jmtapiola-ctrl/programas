@@ -214,6 +214,30 @@ Antes de declarar release del feature audit-reviewer (o de cualquier cambio sign
 
 Si algún step falla, parar antes del release. Documentar el bug y arreglar antes de continuar.
 
+### Sistema tipográfico del wizard PE — mínimo absoluto 12px
+
+Auditoría 2026-05-11 encontró 121 ocurrencias de tipografía bajo 12px (10/11/9px en caps labels, metadata, captions) distribuidas en 21 archivos del wizard PE. Eran ilegibles para humanos sin esfuerzo. Migradas todas a `text-[12px]` mínimo.
+
+**Regla operativa**: **ninguna tipografía bajo 12px en componentes del wizard PE** (`components/planes-estrategicos/`, `components/audit/`, `app/(main)/planes-estrategicos/`). Aplicable a desarrollos futuros del wizard.
+
+Sistema canónico de 6 niveles:
+
+| Nivel | Tailwind | Uso |
+|---|---|---|
+| **display** | `text-2xl` (24px) | Títulos de página/modal principales |
+| **heading-1** | `text-[18px]` / `text-lg` | Título de sección dentro de modal/panel |
+| **heading-2** | `text-[15-16px]` | Subtítulo de sección |
+| **body-strong** | `text-sm` / `text-[14px]` | Items destacados, contenido principal |
+| **body** | `text-[13px]` | Texto normal (mayoría del wizard) |
+| **small** | `text-[12px]` o `text-xs` | Labels, metadata, captions, hints, badges |
+
+Si necesitás MENOR prominencia para un texto:
+- Bajar `font-weight` (a `font-normal` o `font-light`).
+- Usar color más muted (`text-muted-foreground/70`, opacidad).
+- NUNCA bajar tamaño.
+
+**Scope NO incluido**: Dashboard, Programas, Login, etc. Esas secciones tienen su propio pase pendiente cuando se priorice. La regla aplica solo a wizard PE por ahora.
+
 ### Apply Opus: max_tokens y patch semantics obligatorios
 
 Llamadas a Opus desde endpoints `/apply` y `/comentar`:

@@ -95,21 +95,21 @@ function Contenido({ curado, onCerrar, onPedirAjuste, onAprobar, saving }: Props
                 <div key={i} className="rounded-lg border border-sidebar-border bg-sidebar/30 px-4 py-3">
                   <div className="flex items-baseline justify-between gap-2 mb-2">
                     <p className="text-[13px] font-semibold text-foreground">
-                      <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/70 mr-2">F{i + 1}</span>
+                      <span className="text-[12px] font-mono uppercase tracking-wider text-muted-foreground/70 mr-2">F{i + 1}</span>
                       {f.fase}
                     </p>
-                    <p className="text-[10px] text-muted-foreground italic">{f.movimientos.length} mov.</p>
+                    <p className="text-[12px] text-muted-foreground italic">{f.movimientos.length} mov.</p>
                   </div>
-                  <p className="text-[11px] text-muted-foreground leading-snug mb-2.5">{f.razon_secuencia}</p>
+                  <p className="text-[12px] text-muted-foreground leading-snug mb-2.5">{f.razon_secuencia}</p>
                   <div className="space-y-1.5">
                     {f.movimientos.map(m => (
                       <div key={m.id} className="rounded-md border border-sidebar-border/60 bg-background/40 px-3 py-1.5">
                         <div className="flex items-baseline gap-2">
-                          <span className="font-mono text-[10px] font-semibold text-muted-foreground/80">{m.id}</span>
+                          <span className="font-mono text-[12px] font-semibold text-muted-foreground/80">{m.id}</span>
                           <span className="text-[12px] font-semibold text-foreground leading-snug">{m.nombre}</span>
                         </div>
-                        <p className="mt-0.5 text-[11px] text-muted-foreground/90 leading-snug">{m.que_resuelve}</p>
-                        <p className="mt-0.5 text-[10px] text-muted-foreground/70 italic">Dueño: {m.dueno}</p>
+                        <p className="mt-0.5 text-[12px] text-muted-foreground/90 leading-snug">{m.que_resuelve}</p>
+                        <p className="mt-0.5 text-[12px] text-muted-foreground/70 italic">Dueño: {m.dueno}</p>
                       </div>
                     ))}
                   </div>
@@ -125,7 +125,7 @@ function Contenido({ curado, onCerrar, onPedirAjuste, onAprobar, saving }: Props
                   <p className="text-[13px] text-amber-100 leading-snug">
                     <span className="font-semibold text-amber-200">⚠</span> {s.descripcion}
                   </p>
-                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-amber-200/70">
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-amber-200/70">
                     <span>tipo: <span className="font-mono">{s.tipo}</span></span>
                     <span>probabilidad: <span className="font-mono">{s.probabilidad}</span></span>
                     <span>impacto: <span className="font-mono">{s.impacto_signo}/{s.impacto_magnitud}</span></span>
@@ -160,7 +160,7 @@ function Contenido({ curado, onCerrar, onPedirAjuste, onAprobar, saving }: Props
         <footer className="flex-shrink-0 border-t border-sidebar-border px-6 py-3 bg-sidebar/30">
           {!modoAjuste ? (
             <div className="flex items-center justify-between gap-3">
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-[12px] text-muted-foreground">
                 Curado generado en {new Date(curado.cerrado_en).toLocaleString('es-AR')}
               </p>
               <div className="flex gap-2">
@@ -194,7 +194,7 @@ function Contenido({ curado, onCerrar, onPedirAjuste, onAprobar, saving }: Props
             </div>
           ) : (
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold text-amber-200">Pedir ajuste narrativo al curado</p>
+              <p className="text-[12px] font-semibold text-amber-200">Pedir ajuste narrativo al curado</p>
               <textarea
                 value={textoAjuste}
                 onChange={e => setTextoAjuste(e.target.value)}
@@ -243,7 +243,7 @@ function CriterioRow({ label, valor, color }: { label: string; valor: string; co
     'border-blue-700/50 bg-blue-950/30 text-blue-100'
   return (
     <div className={`rounded-lg border ${c} px-4 py-2.5`}>
-      <p className="text-[10px] font-semibold uppercase tracking-wider opacity-80">{label}</p>
+      <p className="text-[12px] font-semibold uppercase tracking-wider opacity-80">{label}</p>
       <p className="mt-1 text-[13px] leading-snug">{valor}</p>
     </div>
   )
