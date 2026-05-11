@@ -19,6 +19,7 @@ import {
   mergeDatosFaltantes,
   mergePlan,
   mergePasoActual,
+  mergeSubBloque,
   type ParseResult,
 } from '@/lib/pe-panel-update'
 import type { TurnoPE, PanelUpdatePE } from '@/lib/types'
@@ -32,7 +33,15 @@ export async function POST(req: NextRequest) {
   if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const body = await req.json()
-  const { planId, mensaje } = body as { planId: string; mensaje: string }
+  const { planId, mensaje, expected_sub_bloque } = body as {
+    planId: string
+    mensaje: string
+    // Hint del cliente para mitigar stale read del list endpoint de Airtable
+    // (eventual consistency, patrón documentado en CLAUDE.md). Lo pasan callers
+    // que acaban de hacer un PATCH a entrevista y saben qué sub_bloque debería
+    // leerse — si el read devuelve uno anterior, lo overrideamos con este.
+    expected_sub_bloque?: string
+  }
 
   if (!planId) return NextResponse.json({ error: 'planId requerido' }, { status: 400 })
 
@@ -40,6 +49,15 @@ export async function POST(req: NextRequest) {
   const plan = await getPlanEstrategico(planId)
   const entrevista = await getEntrevistaPE(planId)
   if (!entrevista) return NextResponse.json({ error: 'Entrevista no encontrada' }, { status: 404 })
+
+  // Stale read mitigation: si el cliente nos dice "esperaba sub_bloque=X" y
+  // nosotros leímos uno distinto (caso típico: cliente hizo PATCH inmediatamente
+  // antes y el list endpoint de Airtable devolvió la versión pre-PATCH),
+  // overrideamos en memoria. No persistimos — la próxima request leerá el real.
+  if (expected_sub_bloque && entrevista.sub_bloque_actual !== expected_sub_bloque) {
+    console.log(`[PE chat] Stale read detectado — entrevista.sub_bloque_actual='${entrevista.sub_bloque_actual}' pero cliente esperaba '${expected_sub_bloque}'. Override en memoria para esta request.`)
+    entrevista.sub_bloque_actual = expected_sub_bloque
+  }
 
   // Cargar Plan Sr si es Jr
   let planSr: any = null
@@ -290,6 +308,7 @@ export async function POST(req: NextRequest) {
           planId,
           plan,
           entrevista.paso_actual,
+          entrevista.sub_bloque_actual,
           indiceInicial,
           [turnoUsuario, turnoModelo],
           panelUpdate,
@@ -374,7 +393,18 @@ export async function POST(req: NextRequest) {
         send({ type: 'done', panelUpdate, plan: planPostMerge })
       } catch (err: any) {
         console.error('[PE chat] Error en stream:', err)
-        send({ type: 'error', message: 'Error al procesar la respuesta' })
+        // Extraer mensaje útil del error de Anthropic SDK si está disponible
+        // (rate limit / spending cap / content policy / max_tokens / etc.).
+        // Esto reemplaza un genérico inútil por algo accionable que el frontend
+        // puede mostrar en el banner de error (ej: "You have reached your
+        // specified API usage limits. You will regain access on 2026-06-01...").
+        const anthropicMsg = err?.error?.error?.message
+        const detail = typeof anthropicMsg === 'string' && anthropicMsg.length > 0
+          ? anthropicMsg
+          : err instanceof Error
+            ? err.message
+            : 'Error desconocido al procesar la respuesta'
+        send({ type: 'error', message: detail })
       } finally {
         controller.close()
       }
@@ -395,6 +425,7 @@ async function saveWithRetry(
   planId: string,
   plan: any,
   pasoActualCurrent: number,
+  subBloqueActualCurrent: string,
   indiceInicial: number,
   nuevosTurnos: TurnoPE[],
   panelUpdate: PanelUpdatePE | null,
@@ -412,9 +443,17 @@ async function saveWithRetry(
     //    paso_actual usa mergePasoActual para nunca regresar (max).
     //    Siempre actualizamos los counters de salud del panel, haya panelUpdate o no.
     if (panelUpdate) {
+      // sub_bloque_actual nunca debe retroceder en el orden canónico. Sin esta
+      // protección, el modelo emitiendo un sub_bloque anterior por desconocer
+      // una transición hecha por endpoint dedicado (ej. /paso3/palancas/respuestas
+      // movió a 3.C pero el modelo aún cree estar en 3.B) lo hace backslide.
+      const subBloqueAEscribir = mergeSubBloque(subBloqueActualCurrent, panelUpdate.sub_bloque_actual)
+      if (subBloqueAEscribir !== panelUpdate.sub_bloque_actual) {
+        console.warn(`[PE chat] Backslide bloqueado en sub_bloque: current='${subBloqueActualCurrent}' incoming='${panelUpdate.sub_bloque_actual}' → preservando '${subBloqueAEscribir}'.`)
+      }
       await updateEntrevistaPE(entrevistaId, {
         paso_actual: mergePasoActual(pasoActualCurrent, panelUpdate.paso_actual),
-        sub_bloque_actual: panelUpdate.sub_bloque_actual,
+        sub_bloque_actual: subBloqueAEscribir,
         ultimo_panel_update_ok: panelHealth.ultimoPanelOK,
         turnos_sin_panel_consecutivos: panelHealth.counterSinPanel,
         retries_panel_update_acumulados: panelHealth.retriesAcumulados,
@@ -481,7 +520,7 @@ async function saveWithRetry(
   } catch (err) {
     if (attempt < maxAttempts - 1) {
       await new Promise(r => setTimeout(r, delay[attempt]))
-      return saveWithRetry(entrevistaId, planId, plan, pasoActualCurrent, indiceInicial, nuevosTurnos, panelUpdate, panelHealth, attempt + 1)
+      return saveWithRetry(entrevistaId, planId, plan, pasoActualCurrent, subBloqueActualCurrent, indiceInicial, nuevosTurnos, panelUpdate, panelHealth, attempt + 1)
     }
     const errMsg = err instanceof Error ? err.message : String(err)
     console.error('[PE chat] Fallo persistencia después de 3 intentos:', errMsg)
@@ -519,7 +558,13 @@ async function retryPanelUpdate(
 
 INSTRUCCIÓN ESTRICTA: en tu próxima respuesta, NO escribas NADA fuera del bloque. Empezá tu respuesta con "<!--PANEL_UPDATE-->" en la primera línea, después el JSON, después "<!--/PANEL_UPDATE-->" como última línea. Sin texto antes, sin texto después, sin saludos, sin explicaciones. Solo el bloque.
 
-El JSON DEBE incluir TODOS los campos del contrato con el estado COMPLETO ACUMULADO de la conversación: si se acordaron N ítems en cualquier campo, los N tienen que estar. Si paso_actual=3 y ya hay contenido del plan acumulado, el campo "plan" tiene que estar poblado. Campos sin valor: "" o [].`,
+El JSON debe incluir SÍ O SÍ: paso_actual (number) + sub_bloque_actual (string). Para el resto, seguí la regla "no re-emitir sub-trees congelados" que ya conocés del system prompt:
+
+  - Durante 3.0/3.A/3.B/3.C/3.D/3.E: OMITÍ las keys "proposito" y "situacion" (están congelados desde Paso 1/2 — el backend las preserva).
+  - "datos_faltantes": omitible si no los modificás este turno.
+  - "plan": SOLO la sub-key del sub-bloque activo. Las sub-keys de bloques cerrados anteriores se omiten.
+
+Para los sub-trees que SÍ emitís: el contenido es el ESTADO COMPLETO ACUMULADO del sub-bloque activo (si se acordaron N ítems, los N tienen que estar — no patches parciales). Si el sub-tree no tiene contenido todavía: omitir la key completa (NO emitir "" ni []).`,
     },
   ]
 

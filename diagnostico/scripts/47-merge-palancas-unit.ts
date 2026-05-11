@@ -171,6 +171,56 @@ console.log('\n─── Test 4: regresión del comportamiento existente — res
   assertEq('respuesta texto preservada cuando incoming la deja vacía', p1?.respuesta, 'razonamiento existente')
 }
 
+console.log('\n─── Test 5: panel metadata preservado si el modelo re-emite sin él ───')
+// Bug histórico: el modelo re-emite la pregunta P-5 con misma id pero como
+// follow-up text-only (sin modo_interaccion, sin campos_a_mostrar, etc.).
+// El merge dropeaba todo el metadata del panel → al re-entrar a la entrevista,
+// el panel ya no se renderizaba aunque el user había marcado fichas.
+{
+  const current: PlanoPE = {
+    palancas: {
+      preguntas_principal: [
+        {
+          id: 'P-5',
+          origen: 'principal',
+          pregunta: '¿Hay algún movimiento que NO se va a ejecutar?',
+          respuesta: '',
+          modo_interaccion: 'marcado_simple',
+          campos_a_mostrar: ['nombre', 'que_resuelve', 'dueno', 'ventana'],
+          instruccion_panel: 'Marcá las fichas que van a quedar relegadas',
+          restriccion_minima: 0,
+          respuesta_estructurada: { modo: 'marcado_simple', marcados: ['M-20'] },
+        },
+      ],
+      preguntas_validador: [],
+    },
+  }
+  // Modelo re-emite P-5 con texto follow-up actualizado pero SIN ninguna
+  // metadata del panel (modo_interaccion, campos_a_mostrar, etc. todas
+  // undefined porque las "olvidó" en este turno).
+  const incoming: Partial<PlanoPE> = {
+    palancas: {
+      preguntas_principal: [
+        {
+          id: 'P-5',
+          origen: 'principal',
+          pregunta: '¿Hay algún movimiento que NO se va a ejecutar? — seguimiento',
+          respuesta: 'requiere un montón de disciplina...',
+        },
+      ],
+      preguntas_validador: [],
+    },
+  }
+  const merged = mergePlan(current, incoming as PlanoPE)
+  const p5 = merged.value?.palancas?.preguntas_principal?.[0]
+  assertEq('respuesta texto del modelo se aplica', p5?.respuesta, 'requiere un montón de disciplina...')
+  assertEq('modo_interaccion PRESERVADO del current', p5?.modo_interaccion, 'marcado_simple')
+  assertEq('campos_a_mostrar PRESERVADO del current', p5?.campos_a_mostrar, ['nombre', 'que_resuelve', 'dueno', 'ventana'])
+  assertEq('instruccion_panel PRESERVADO del current', p5?.instruccion_panel, 'Marcá las fichas que van a quedar relegadas')
+  assertEq('restriccion_minima PRESERVADO del current', p5?.restriccion_minima, 0)
+  assertEq('respuesta_estructurada PRESERVADA del current', p5?.respuesta_estructurada, { modo: 'marcado_simple', marcados: ['M-20'] })
+}
+
 // ─── Resumen ───────────────────────────────────────────────────────────────
 console.log(`\n${'─'.repeat(60)}`)
 console.log(`Total: ${total} | Pasados: ${pasados} | Fallaron: ${total - pasados}`)

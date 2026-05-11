@@ -306,9 +306,12 @@ export interface ProximaRespuestaMetadata {
 export interface PanelUpdatePE {
   paso_actual: number
   sub_bloque_actual: string
-  proposito: PropositorPE
-  situacion: SituacionPE
-  datos_faltantes: string[]
+  // proposito/situacion/datos_faltantes son OPCIONALES desde la regla
+  // "no re-emitir sub-trees congelados" (commit bb689f5): durante 3.x el modelo
+  // omite estos sub-trees y el merge protector preserva los persistidos.
+  proposito?: PropositorPE
+  situacion?: SituacionPE
+  datos_faltantes?: string[]
   // Plan estructurado del Paso 3 (opcional — solo poblado durante o después del
   // Paso 3). Sigue el shape híbrido de D1: 6 keys top-level durante el flow.
   plan?: PlanoPE

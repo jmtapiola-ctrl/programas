@@ -271,15 +271,26 @@ function validatePalancas(pal: any, prefix: string): string[] {
     return [`${prefix} debe ser objeto`]
   }
   const errs: string[] = []
-  if (!Array.isArray(pal.preguntas_principal)) {
-    errs.push(`${prefix}.preguntas_principal debe ser array`)
-  } else {
-    errs.push(...validateArrayItems(pal.preguntas_principal, `${prefix}.preguntas_principal`, validatePalancaQAItem))
+  // preguntas_principal y preguntas_validador son OPCIONALES en el wire format.
+  // El system prompt (línea ~263) le dice al modelo "NO emitas preguntas_validador"
+  // durante 3.B — el campo se popula vía endpoint dedicado /paso3/palancas/respuestas
+  // cuando el user confirma el modal. Si el parser exige array, el modelo queda
+  // forzado a violar la regla del prompt → emite "" o omite → parser falla.
+  // Mismo razonamiento aplica a preguntas_principal en sub-bloques posteriores a 3.B
+  // (la regla "no re-emitir congelados" implica que palancas entero puede omitirse).
+  if (pal.preguntas_principal !== undefined && pal.preguntas_principal !== null) {
+    if (!Array.isArray(pal.preguntas_principal)) {
+      errs.push(`${prefix}.preguntas_principal (si presente) debe ser array, got ${typeof pal.preguntas_principal}`)
+    } else {
+      errs.push(...validateArrayItems(pal.preguntas_principal, `${prefix}.preguntas_principal`, validatePalancaQAItem))
+    }
   }
-  if (!Array.isArray(pal.preguntas_validador)) {
-    errs.push(`${prefix}.preguntas_validador debe ser array`)
-  } else {
-    errs.push(...validateArrayItems(pal.preguntas_validador, `${prefix}.preguntas_validador`, validatePalancaQAItem))
+  if (pal.preguntas_validador !== undefined && pal.preguntas_validador !== null) {
+    if (!Array.isArray(pal.preguntas_validador)) {
+      errs.push(`${prefix}.preguntas_validador (si presente) debe ser array, got ${typeof pal.preguntas_validador}`)
+    } else {
+      errs.push(...validateArrayItems(pal.preguntas_validador, `${prefix}.preguntas_validador`, validatePalancaQAItem))
+    }
   }
   return errs
 }
@@ -376,49 +387,62 @@ export function parsePanelUpdate(fullResponse: string): ParseResult {
     errors.push(`sub_bloque_actual must be string, got ${typeof parsed?.sub_bloque_actual}`)
   }
 
-  // Propósito (estructura + items)
+  // Propósito (estructura + items).
+  // OPCIONAL desde la regla "no re-emitir sub-trees congelados" (commit bb689f5):
+  // durante 3.x, el modelo OMITE proposito/situacion. Aceptamos ausente (undefined)
+  // o cadena vacía (caso modelo confundido entre "omitir" y "campo sin valor").
+  // Si está presente como objeto, validamos la estructura interna.
   const p = parsed?.proposito
-  if (!p || typeof p !== 'object' || Array.isArray(p)) {
-    errors.push('proposito must be object')
-  } else {
-    if (typeof p.escena !== 'string') errors.push(`proposito.escena must be string, got ${typeof p.escena}`)
-    if (!Array.isArray(p.metricas)) errors.push(`proposito.metricas must be array, got ${typeof p.metricas}`)
-    else errors.push(...validateArrayItems(p.metricas, 'proposito.metricas', validateMetricaItem))
-    if (!Array.isArray(p.fuera)) errors.push(`proposito.fuera must be array, got ${typeof p.fuera}`)
-    else errors.push(...validateArrayItems(p.fuera, 'proposito.fuera', validateFueraItem))
-    if (typeof p.horizonte !== 'string') errors.push(`proposito.horizonte must be string, got ${typeof p.horizonte}`)
-    if (typeof p.estabilidad !== 'string') errors.push(`proposito.estabilidad must be string, got ${typeof p.estabilidad}`)
-    if (p.alineacion_sr !== undefined && typeof p.alineacion_sr !== 'string') {
-      errors.push(`proposito.alineacion_sr (si presente) must be string, got ${typeof p.alineacion_sr}`)
+  const propositoOmitido = p === undefined || p === null || p === ''
+  if (!propositoOmitido) {
+    if (typeof p !== 'object' || Array.isArray(p)) {
+      errors.push('proposito must be object (or omitted)')
+    } else {
+      if (typeof p.escena !== 'string') errors.push(`proposito.escena must be string, got ${typeof p.escena}`)
+      if (!Array.isArray(p.metricas)) errors.push(`proposito.metricas must be array, got ${typeof p.metricas}`)
+      else errors.push(...validateArrayItems(p.metricas, 'proposito.metricas', validateMetricaItem))
+      if (!Array.isArray(p.fuera)) errors.push(`proposito.fuera must be array, got ${typeof p.fuera}`)
+      else errors.push(...validateArrayItems(p.fuera, 'proposito.fuera', validateFueraItem))
+      if (typeof p.horizonte !== 'string') errors.push(`proposito.horizonte must be string, got ${typeof p.horizonte}`)
+      if (typeof p.estabilidad !== 'string') errors.push(`proposito.estabilidad must be string, got ${typeof p.estabilidad}`)
+      if (p.alineacion_sr !== undefined && typeof p.alineacion_sr !== 'string') {
+        errors.push(`proposito.alineacion_sr (si presente) must be string, got ${typeof p.alineacion_sr}`)
+      }
     }
   }
 
-  // Situación (estructura + items)
+  // Situación (estructura + items). Misma regla de OPCIONAL que proposito.
   const s = parsed?.situacion
-  if (!s || typeof s !== 'object' || Array.isArray(s)) {
-    errors.push('situacion must be object')
-  } else {
-    const stringFields = [
-      'desvio_principal', 'desvio_cuantificado', 'causa_raiz',
-      'consecuencia_6m', 'consecuencia_12m',
-      'recursos_actuales', 'recursos_faltantes', 'intentos_previos',
-    ]
-    for (const f of stringFields) {
-      if (typeof s[f] !== 'string') errors.push(`situacion.${f} must be string, got ${typeof s[f]}`)
+  const situacionOmitida = s === undefined || s === null || s === ''
+  if (!situacionOmitida) {
+    if (typeof s !== 'object' || Array.isArray(s)) {
+      errors.push('situacion must be object (or omitted)')
+    } else {
+      const stringFields = [
+        'desvio_principal', 'desvio_cuantificado', 'causa_raiz',
+        'consecuencia_6m', 'consecuencia_12m',
+        'recursos_actuales', 'recursos_faltantes', 'intentos_previos',
+      ]
+      for (const f of stringFields) {
+        if (typeof s[f] !== 'string') errors.push(`situacion.${f} must be string, got ${typeof s[f]}`)
+      }
+      if (!Array.isArray(s.desvios_secundarios)) errors.push(`situacion.desvios_secundarios must be array, got ${typeof s.desvios_secundarios}`)
+      else errors.push(...validateArrayItems(s.desvios_secundarios, 'situacion.desvios_secundarios', validateDesvioSecundarioItem))
+      if (!Array.isArray(s.resistencias)) errors.push(`situacion.resistencias must be array, got ${typeof s.resistencias}`)
+      else errors.push(...validateArrayItems(s.resistencias, 'situacion.resistencias', validateResistenciaItem))
     }
-    if (!Array.isArray(s.desvios_secundarios)) errors.push(`situacion.desvios_secundarios must be array, got ${typeof s.desvios_secundarios}`)
-    else errors.push(...validateArrayItems(s.desvios_secundarios, 'situacion.desvios_secundarios', validateDesvioSecundarioItem))
-    if (!Array.isArray(s.resistencias)) errors.push(`situacion.resistencias must be array, got ${typeof s.resistencias}`)
-    else errors.push(...validateArrayItems(s.resistencias, 'situacion.resistencias', validateResistenciaItem))
   }
 
-  // Datos faltantes (array de strings)
-  if (!Array.isArray(parsed?.datos_faltantes)) {
-    errors.push(`datos_faltantes must be array, got ${typeof parsed?.datos_faltantes}`)
-  } else {
-    parsed.datos_faltantes.forEach((d: any, i: number) => {
-      if (typeof d !== 'string') errors.push(`datos_faltantes[${i}] must be string, got ${typeof d}`)
-    })
+  // Datos faltantes (array de strings). También OPCIONAL — durante 3.x suelen
+  // estar resueltos y el modelo puede omitirlos.
+  if (parsed?.datos_faltantes !== undefined && parsed?.datos_faltantes !== null) {
+    if (!Array.isArray(parsed.datos_faltantes)) {
+      errors.push(`datos_faltantes (si presente) must be array, got ${typeof parsed.datos_faltantes}`)
+    } else {
+      parsed.datos_faltantes.forEach((d: any, i: number) => {
+        if (typeof d !== 'string') errors.push(`datos_faltantes[${i}] must be string, got ${typeof d}`)
+      })
+    }
   }
 
   // cierre_sugerido (opcional, default false implícito).
@@ -577,9 +601,13 @@ function previewValue(v: unknown): string {
  */
 export function mergeProposito(
   current: PropositorPE | undefined,
-  incoming: PropositorPE,
+  incoming: PropositorPE | undefined,
 ): MergeResult<PropositorPE> {
   const c = current ?? PROPOSITO_DEFAULT
+  // Incoming omitido (regla "no re-emitir sub-trees congelados" en 3.x): preservar current intacto.
+  if (incoming === undefined || incoming === null) {
+    return { value: c, events: [{ type: 'preserved_empty', field: 'proposito (omitido por modelo)' }] }
+  }
   const events: MergeEvent[] = []
   const fields: (keyof PropositorPE)[] = ['escena', 'metricas', 'fuera', 'horizonte', 'estabilidad']
   const result: any = {}
@@ -598,9 +626,13 @@ export function mergeProposito(
 
 export function mergeSituacion(
   current: SituacionPE | undefined,
-  incoming: SituacionPE,
+  incoming: SituacionPE | undefined,
 ): MergeResult<SituacionPE> {
   const c = current ?? SITUACION_DEFAULT
+  // Incoming omitido (regla "no re-emitir sub-trees congelados" en 3.x): preservar current intacto.
+  if (incoming === undefined || incoming === null) {
+    return { value: c, events: [{ type: 'preserved_empty', field: 'situacion (omitido por modelo)' }] }
+  }
   const events: MergeEvent[] = []
   const fields: (keyof SituacionPE)[] = [
     'desvio_principal', 'desvio_cuantificado', 'desvios_secundarios',
@@ -619,9 +651,13 @@ export function mergeSituacion(
 
 export function mergeDatosFaltantes(
   current: string[] | undefined,
-  incoming: string[],
+  incoming: string[] | undefined,
 ): MergeResult<string[]> {
   const cur = current ?? []
+  // Incoming omitido: preservar current.
+  if (incoming === undefined || incoming === null) {
+    return { value: cur, events: [{ type: 'preserved_empty', field: 'datos_faltantes (omitido por modelo)' }] }
+  }
   const { value, event } = pickField('datos_faltantes', cur, incoming)
   return { value, events: event ? [event] : [] }
 }
@@ -629,6 +665,36 @@ export function mergeDatosFaltantes(
 /** paso_actual nunca debe regresar — toma el max. */
 export function mergePasoActual(current: number, incoming: number): number {
   return Math.max(current, incoming)
+}
+
+/**
+ * sub_bloque_actual nunca debe regresar en el orden canónico del wizard.
+ *
+ * Caso real (mayo 2026): el PATCH /paso3/palancas/respuestas transicionó
+ * entrevista de '3.B' a '3.C'. El siguiente turno del chat, el modelo emitió
+ * PANEL_UPDATE con sub_bloque_actual='3.B' (no se enteró de la transición), y
+ * saveWithRetry escribió ese valor sin filtrar → entrevista retrocedió a '3.B'.
+ * El usuario quedó stuck con preguntas_validador llenas pero sub_bloque atrás.
+ *
+ * Esta función define el orden canónico y devuelve el current si incoming es
+ * anterior. Si incoming es desconocido (ej. typo del modelo), también preservar
+ * current — más seguro que aceptar un sub_bloque inválido.
+ */
+const SUB_BLOQUE_ORDER = [
+  '0',
+  '1.A', '1.B', '1.C', '1.D', '1.E',
+  '2.A', '2.B', '2.C', '2.D', '2.E', '2.F', '2.G',
+  '3.0', '3.A', '3.B', '3.C', '3.D', '3.E',
+]
+export function mergeSubBloque(current: string, incoming: string): string {
+  const curIdx = SUB_BLOQUE_ORDER.indexOf(current)
+  const incIdx = SUB_BLOQUE_ORDER.indexOf(incoming)
+  // Incoming desconocido: preservar current (defensiva contra typos del modelo).
+  if (incIdx === -1) return current
+  // Current desconocido o vacío: aceptar incoming (caso inicial).
+  if (curIdx === -1) return incoming
+  // Solo permitir avance o quedarse en el mismo sub_bloque.
+  return incIdx >= curIdx ? incoming : current
 }
 
 /**
@@ -795,6 +861,28 @@ function mergePalancas(
       if (cur?.respuesta_estructurada !== undefined && inc.respuesta_estructurada === undefined) {
         merged.respuesta_estructurada = cur.respuesta_estructurada
         events.push({ type: 'preserved_empty', field: `plan.palancas.${label}[${inc.id}].respuesta_estructurada (cliente-only)` })
+      }
+      // Preservar metadata del Panel Interactivo (Fase D Chunk A): modo_interaccion
+      // y compañía se emiten UNA VEZ cuando la pregunta se crea. En turnos
+      // subsiguientes el modelo a veces re-emite la pregunta (misma id) con texto
+      // actualizado pero SIN re-emitir el metadata. Sin esta preservación, el
+      // merge dropea modo_interaccion → el panel deja de renderizarse y el user
+      // ve la pregunta de seguimiento sin las fichas, incluso si ya había marcado.
+      if (cur?.modo_interaccion !== undefined && inc.modo_interaccion === undefined) {
+        merged.modo_interaccion = cur.modo_interaccion
+        events.push({ type: 'preserved_empty', field: `plan.palancas.${label}[${inc.id}].modo_interaccion (panel-metadata)` })
+      }
+      if (cur?.campos_a_mostrar !== undefined && inc.campos_a_mostrar === undefined) {
+        merged.campos_a_mostrar = cur.campos_a_mostrar
+      }
+      if (cur?.instruccion_panel !== undefined && inc.instruccion_panel === undefined) {
+        merged.instruccion_panel = cur.instruccion_panel
+      }
+      if (cur?.restriccion_minima !== undefined && inc.restriccion_minima === undefined) {
+        merged.restriccion_minima = cur.restriccion_minima
+      }
+      if (cur?.restriccion_maxima !== undefined && inc.restriccion_maxima === undefined) {
+        merged.restriccion_maxima = cur.restriccion_maxima
       }
       out.push(merged)
       curById.delete(inc.id)

@@ -39,14 +39,18 @@ export function PanelInventarioInteractivo({ pregunta, movimientos, onConfirmar,
   // Filtrar movimientos quitados — no se muestran en el panel.
   const movsActivos = movimientos.filter(m => m.estado_usuario !== 'quitado')
 
-  // Si la pregunta NO tiene modo de interacción (caso edge Ajuste 4), el padre
-  // no debería renderizar este componente. Defensiva: log + return null.
-  if (!pregunta.modo_interaccion) {
-    console.warn('[PanelInventarioInteractivo] pregunta sin modo_interaccion — no se renderiza panel.')
+  // Modo efectivo de la pregunta. Caso normal: viene de modo_interaccion
+  // emitido por el modelo cuando creó la pregunta. Caso recuperación: si el
+  // modelo re-emitió la pregunta con la misma id y sin metadata del panel
+  // (bug histórico de mergePalancas pre-fix), modo_interaccion puede estar
+  // perdido pero respuesta_estructurada.modo sobrevive — lo usamos como
+  // fallback para que el panel se siga renderizando con los marcados del user.
+  const modo = pregunta.modo_interaccion ?? pregunta.respuesta_estructurada?.modo
+  if (!modo) {
+    console.warn('[PanelInventarioInteractivo] pregunta sin modo_interaccion ni respuesta_estructurada — no se renderiza panel.')
     return null
   }
 
-  const modo = pregunta.modo_interaccion
   const campos = pregunta.campos_a_mostrar ?? ['nombre', 'que_resuelve', 'banda_ancha', 'dueno']
 
   // State local de la respuesta-en-construcción según el modo

@@ -14,9 +14,10 @@
 //      por pregunta + botón "Guardar respuestas y avanzar a 3.C" (deshabilitado
 //      hasta que las N tengan respuesta)
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { PalancaQAPE } from '@/lib/types'
+import type { PalancaQAPE, MovimientoPE } from '@/lib/types'
+import { FichaMovimiento } from './fichas/FichaMovimiento'
 
 type PropuestaValidador = {
   preguntas: Array<{ id: string; pregunta: string; razon_complementariedad: string }>
@@ -29,11 +30,18 @@ interface Props {
   propuesta?: PropuestaValidador
   costoUsd?: number
   latenciaMs?: number
+  // Inventario completo del plan. Lo usamos para mostrar las fichas de los
+  // movimientos referenciados (M-X, M-Y) en las preguntas del validador,
+  // que sino son ilegibles para un humano (no se acuerda qué es M-4 vs M-5).
+  // Opcional: si el padre todavía no tiene plan.inventario poblado (caso edge
+  // de hot-reload o race condition en mount), el modal renderiza sin la sección
+  // de movimientos referenciados pero NO crashea.
+  movimientos?: MovimientoPE[]
   onCerrar: () => void
   onAvanzar: () => void  // dispara recarga del estado en el padre tras persistir
 }
 
-export function PalancasValidadorModal({ planId, status, propuesta, costoUsd, latenciaMs, onCerrar, onAvanzar }: Props) {
+export function PalancasValidadorModal({ planId, status, propuesta, costoUsd, latenciaMs, movimientos, onCerrar, onAvanzar }: Props) {
   if (typeof document === 'undefined') return null
   if (status === 'inferring') {
     return createPortal(<LoadingOverlay />, document.body)
@@ -45,11 +53,47 @@ export function PalancasValidadorModal({ planId, status, propuesta, costoUsd, la
       propuesta={propuesta}
       costoUsd={costoUsd}
       latenciaMs={latenciaMs}
+      movimientos={movimientos ?? []}
       onCerrar={onCerrar}
       onAvanzar={onAvanzar}
     />,
     document.body,
   )
+}
+
+// Regex para encontrar referencias a movimientos en el texto de las preguntas.
+// Match: M-1 ... M-99. Cap superior por defensiva contra IDs raros (M-100+).
+const MOV_REF_RE = /\bM-(\d{1,2})\b/g
+
+// Extrae los IDs de movimientos referenciados en los textos de las preguntas
+// del validador. Preserva orden de primera aparición para estabilidad visual.
+// Defensivo: si inventario es undefined o vacío (caso edge durante hot-reload
+// o si el padre re-mountea el modal antes de tener plan.inventario poblado),
+// retorna [] en vez de crashear.
+function extraerMovimientosReferenciados(
+  preguntas: Array<{ pregunta: string; razon_complementariedad: string }>,
+  inventario: MovimientoPE[] | undefined,
+): MovimientoPE[] {
+  if (!inventario || inventario.length === 0) return []
+  const ordenAparicion: string[] = []
+  const vistos = new Set<string>()
+  for (const q of preguntas) {
+    const texto = `${q.pregunta} ${q.razon_complementariedad}`
+    for (const match of texto.matchAll(MOV_REF_RE)) {
+      const id = `M-${match[1]}`
+      if (!vistos.has(id)) {
+        vistos.add(id)
+        ordenAparicion.push(id)
+      }
+    }
+  }
+  // Filtrar inventario al subset referenciado, manteniendo orden de aparición.
+  // Si el modelo refiere un M-X que no existe en el inventario (caso edge),
+  // lo dropeamos silenciosamente — no se renderiza ficha pero la pregunta sí.
+  const byId = new Map(inventario.map(m => [m.id, m]))
+  return ordenAparicion
+    .map(id => byId.get(id))
+    .filter((m): m is MovimientoPE => m !== undefined)
 }
 
 function LoadingOverlay() {
@@ -73,11 +117,12 @@ function LoadingOverlay() {
   )
 }
 
-function ContenidoValidador({ planId, propuesta, costoUsd, latenciaMs, onCerrar, onAvanzar }: {
+function ContenidoValidador({ planId, propuesta, costoUsd, latenciaMs, movimientos, onCerrar, onAvanzar }: {
   planId: string
   propuesta: PropuestaValidador
   costoUsd?: number
   latenciaMs?: number
+  movimientos: MovimientoPE[]
   onCerrar: () => void
   onAvanzar: () => void
 }) {
@@ -91,6 +136,13 @@ function ContenidoValidador({ planId, propuesta, costoUsd, latenciaMs, onCerrar,
   const todasRespondidas = tienePreguntas
     ? propuesta.preguntas.every(q => respuestas[q.id]?.trim().length > 0)
     : true
+
+  // Movimientos referenciados en las preguntas — para que el usuario no tenga
+  // que recordar qué era M-4 vs M-5 vs M-21 al responder.
+  const movimientosReferenciados = useMemo(
+    () => tienePreguntas ? extraerMovimientosReferenciados(propuesta.preguntas, movimientos) : [],
+    [propuesta.preguntas, movimientos, tienePreguntas],
+  )
 
   async function handleAvanzar() {
     setSaving(true)
@@ -151,6 +203,32 @@ function ContenidoValidador({ planId, propuesta, costoUsd, latenciaMs, onCerrar,
               </p>
             </div>
           ) : (
+            <>
+              {movimientosReferenciados.length > 0 && (
+                <section className="rounded-lg border border-sidebar-border bg-sidebar/20 px-4 py-3 space-y-2">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                      Movimientos referenciados ({movimientosReferenciados.length})
+                    </p>
+                    <p className="text-[10px] italic text-muted-foreground/60">
+                      Recordatorio rápido — qué es cada M-X
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {movimientosReferenciados.map(m => (
+                      <FichaMovimiento
+                        key={m.id}
+                        movimiento={m}
+                        campos={['nombre', 'que_resuelve', 'dueno']}
+                        estado={{ tipo: 'normal' }}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+            </>
+          )}
+          {tienePreguntas && (
             propuesta.preguntas.map((q, i) => (
               <section key={q.id} className="space-y-2">
                 <div className="rounded-lg border border-sidebar-border bg-sidebar/30 px-4 py-3 space-y-2">
