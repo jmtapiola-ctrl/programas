@@ -8,13 +8,14 @@ import { InventarioCategoria } from '@/components/planes-estrategicos/Inventario
 import { PalancasValidadorModal } from '@/components/planes-estrategicos/PalancasValidadorModal'
 import { PanelInventarioInteractivo } from '@/components/planes-estrategicos/PanelInventarioInteractivo'
 import { BorradorVista } from '@/components/planes-estrategicos/BorradorVista'
+import { CuradoVista } from '@/components/planes-estrategicos/CuradoVista'
 import {
   ModalAgregarMovimiento,
   ModalEditarMovimiento,
   ConfirmacionQuitarMovimiento,
 } from '@/components/planes-estrategicos/GestionInventarioModales'
 import type { GestionInventario } from '@/components/planes-estrategicos/fichas/FichaMovimiento'
-import type { PlanEstrategico, TurnoPE, PanelUpdatePE, InventarioPE, MovimientoPE, PalancaQAPE, EstresQAPE, RespuestaEstructurada, BorradorIteracionPE, FaseSecuenciaPE } from '@/lib/types'
+import type { PlanEstrategico, TurnoPE, PanelUpdatePE, InventarioPE, MovimientoPE, PalancaQAPE, EstresQAPE, RespuestaEstructurada, BorradorIteracionPE, FaseSecuenciaPE, PlanCuradoPE } from '@/lib/types'
 
 const PANEL_UPDATE_RE = /<!--PANEL_UPDATE-->[\s\S]*?<!--\/PANEL_UPDATE-->/g
 
@@ -111,6 +112,11 @@ export default function EntrevistaPage() {
   const [generandoBorrador, setGenerandoBorrador] = useState(false)
   const [borradorError, setBorradorError] = useState<string | null>(null)
   const [secuenciaPropuestaB2, setSecuenciaPropuestaB2] = useState<FaseSecuenciaPE[] | null>(null)
+
+  // Sub-bloque 3.E — Plan curado (Chunk D).
+  const [curadoAbierto, setCuradoAbierto] = useState(false)
+  const [generandoCurado, setGenerandoCurado] = useState(false)
+  const [curadoError, setCuradoError] = useState<string | null>(null)
 
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -696,6 +702,65 @@ export default function EntrevistaPage() {
     }
   }
 
+  // ── Sub-bloque 3.E — Plan Curado (Chunk D) ────────────────────────────────
+  //
+  // Generar: POST /paso3/curado/generar (Opus, integra borrador + ajustes 3.D
+  //   + opcional ajuste_narrativo del user). Persiste plan.curado y refresca
+  //   estado local. Idempotente — cada call sobreescribe plan.curado.
+  // Pedir ajuste: re-llama generar con ajuste_narrativo en el body.
+  // Aprobar: envía mensaje al chat indicando aprobación. El modelo, viendo
+  //   plan.curado poblado + mensaje de aprobación, emite cierre_sugerido=true.
+  //   El chat/route ya tiene la lógica que transiciona sub_estado_paso a
+  //   'cierre_sugerido' (para Paso 3 ≠ 3.0/3.A esto dispara el audit-reviewer).
+  async function handleGenerarCurado(ajusteNarrativo?: string) {
+    if (generandoCurado) return
+    setGenerandoCurado(true)
+    setCuradoError(null)
+    try {
+      const res = await fetch(`/api/planes-estrategicos/${id}/paso3/curado/generar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ajuste_narrativo: ajusteNarrativo ?? null }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      if (data.plan_actualizado) {
+        setPlan(prev => prev ? { ...prev, plan: data.plan_actualizado } : prev)
+      }
+      setCuradoAbierto(true)
+    } catch (e) {
+      setCuradoError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setGenerandoCurado(false)
+    }
+  }
+
+  async function handleAprobarCurado() {
+    if (generandoCurado) return
+    setGenerandoCurado(true)
+    setCuradoError(null)
+    try {
+      // Cerramos el modal localmente. El mensaje al chat va a hacer que el
+      // modelo emita cierre_sugerido=true → updateSubEstadoPaso transiciona
+      // a 'cierre_sugerido' → audit-reviewer toma control.
+      setCuradoAbierto(false)
+      setTimeout(
+        () => sendMessage(
+          '[Sistema] Aprobé el plan curado. Por favor cerrá formalmente el Paso 3 emitiendo cierre_sugerido=true en tu PANEL_UPDATE. El sistema va a disparar la auditoría obligatoria.',
+          historial,
+          plan,
+        ),
+        300,
+      )
+    } catch (e) {
+      setCuradoError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setGenerandoCurado(false)
+    }
+  }
+
+  const curadoActual: PlanCuradoPE | null = plan?.plan?.curado ?? null
+
   // ── Sub-bloque 3.B — Validador cross-provider de Palancas ─────────────────
 
   // ── Sub-bloque 3.B/3.D — Confirmar respuesta_estructurada del Panel ───────
@@ -1000,6 +1065,42 @@ export default function EntrevistaPage() {
             </div>
           )}
 
+          {/* Banner del Sub-bloque 3.E — Plan curado (Chunk D).
+              Si no hay curado aún: botón "Generar plan curado" (Opus 60-90s).
+              Si ya hay: botón "Ver plan curado" para abrir el modal. */}
+          {subBloqueActual === '3.E' && (
+            <div className="flex-shrink-0 border-t border-sidebar-border bg-gradient-to-r from-primary/5 to-transparent px-4 py-3">
+              {curadoActual === null && (
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-[12px] font-semibold text-foreground">Sub-bloque 3.E — Plan curado</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Versión final integrando borrador aceptado + ajustes de 3.D. Tarda 60-90s. Después la leés entera y aprobás para disparar la auditoría obligatoria.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleGenerarCurado()}
+                    disabled={generandoCurado}
+                    className="rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {generandoCurado ? 'Generando plan curado… (60-90s)' : 'Generar plan curado'}
+                  </button>
+                  {curadoError && (
+                    <p className="text-[11px] text-red-400">Error: {curadoError}</p>
+                  )}
+                </div>
+              )}
+              {curadoActual !== null && !curadoAbierto && (
+                <button
+                  onClick={() => setCuradoAbierto(true)}
+                  className="rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 text-[13px] font-semibold text-foreground hover:bg-primary/20 transition-colors"
+                >
+                  Ver plan curado →
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Input */}
           <div className="flex-shrink-0 border-t border-sidebar-border p-4">
             {panelUnhealthy && (
@@ -1171,6 +1272,17 @@ export default function EntrevistaPage() {
           onAceptar={handleAceptarBorrador}
           saving={generandoBorrador}
           onCerrar={() => setBorradorAbierto(false)}
+        />
+      )}
+
+      {/* Modal del Plan curado (3.E) — vista read-only + footer con pedir-ajuste + aprobar */}
+      {curadoAbierto && curadoActual && (
+        <CuradoVista
+          curado={curadoActual}
+          onPedirAjuste={(texto) => handleGenerarCurado(texto)}
+          onAprobar={handleAprobarCurado}
+          saving={generandoCurado}
+          onCerrar={() => setCuradoAbierto(false)}
         />
       )}
 

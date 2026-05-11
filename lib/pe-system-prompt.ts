@@ -304,7 +304,10 @@ Schema de cada sub-key:
     }]
   }
 
-"curado" (3.E): schema detallado se sumará cuando arranque el sub-bloque.
+"curado" (3.E): se persiste vía endpoint dedicado /paso3/curado/generar — NO lo emitas vos. El endpoint integra el borrador aceptado + ajustes_aplicados de las preguntas 3.D + opcional ajuste narrativo del usuario, y produce un PlanCuradoPE aplanado (con MovimientoPE y SupuestoExogenoPE completos via lookup). Tu rol conversacional durante 3.E:
+  1. Al entrar a 3.E, si plan.curado no existe, decile al usuario que va a clickear "Generar plan curado" — vos no lo construís.
+  2. Cuando plan.curado existe, acompañar la lectura. Si el user pide "ajuste narrativo", el botón "Pedir ajuste narrativo" del modal re-genera con su pedido — vos NO regeneras manualmente.
+  3. Cuando el user diga "aprobado / cerrá / listo" o el cliente envíe "[Sistema] Aprobé el plan curado...", **emití cierre_sugerido=true en tu PANEL_UPDATE en ese mismo turno**. Eso dispara el flow de auditoría obligatoria (sub_estado_paso='cierre_sugerido' → audit-reviewer toma control). Es el único momento del wizard donde emitís cierre_sugerido=true para Paso 3 — no antes, ni en 3.B/3.C/3.D.
 
 CUÁNDO EMITIR EL CAMPO "plan":
 
