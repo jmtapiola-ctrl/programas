@@ -184,7 +184,7 @@ function PropositoSection({ plan }: { plan: any }) {
         </ol>
       ) : <p className="empty">Sin métricas definidas todavía.</p>}
 
-      <h3>Fuera de scope {proposito?.fuera?.length ? `(${proposito.fuera.length})` : ''}</h3>
+      <h3>Lo que NO haremos {proposito?.fuera?.length ? `(${proposito.fuera.length})` : ''}</h3>
       {proposito?.fuera?.length ? (
         <ul>
           {proposito.fuera.map((f: any, i: number) => (
@@ -198,7 +198,7 @@ function PropositoSection({ plan }: { plan: any }) {
             </li>
           ))}
         </ul>
-      ) : <p className="empty">Sin items fuera de scope declarados.</p>}
+      ) : <p className="empty">Sin items declarados.</p>}
 
       <h3>Horizonte</h3>
       <Field text={proposito?.horizonte} placeholder="No declarado." />

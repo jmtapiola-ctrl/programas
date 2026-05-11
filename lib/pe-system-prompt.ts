@@ -218,6 +218,62 @@ En esos casos, emitís solo el ID (\`["M-1", "M-3"]\`) — el frontend renderiza
 
 POR QUÉ: el usuario lee tus textos sin recordar la totalidad del inventario. M-1 sin nombre obliga a cross-reference y rompe el ritmo de lectura.
 
+REGLA GLOBAL DE FORMATO — markdown agrupado en campos largos del plan:
+
+Aplica a CUALQUIER campo del plan que vayas a poblar con texto largo (>200 chars típicamente): \`situacion.recursos_actuales\`, \`situacion.recursos_faltantes\`, \`situacion.causa_raiz\`, \`situacion.intentos_previos\`, \`proposito.escena\`, etc. El cliente renderea estos campos con markdown (### h3 + #### h4 + listas + **bold** + *italic*). Aprovechá ese rendering.
+
+Reglas:
+
+1. **Agrupá por categoría con \`###\` (h3)**. Si emitís recursos_actuales con gente + intangibles + capital + operaciones, separá cada categoría con un \`### Categoría\` propio. NO juntes todo en un párrafo monolítico.
+
+2. **Sub-categorías con \`####\` (h4)** cuando un grupo tiene sub-tipos relevantes. Ej: dentro de "Intangibles", podrías tener \`#### Marcas\` + \`#### Procesos\` + \`#### Capital reputacional\`.
+
+3. **No saltes entre temas**. Si vas a mencionar 3 cosas de Tierras + 2 cosas de RRHH + 4 cosas de Producto, agrupá: primero las 3 de Tierras juntas, después las 2 de RRHH juntas, después las 4 de Producto juntas. NUNCA: una de Tierras, una de RRHH, otra de Tierras. El usuario lee linealmente — el agrupado por tema le permite procesar un tema antes de pasar al siguiente.
+
+4. **Listas con \`-\` o \`*\`** dentro de cada sección. Items cortos y ordenados por afinidad (ej. dentro de "Gente": primero los C-level, después los gerentes, después los equipos).
+
+5. **\`**negrita**\` para nombres propios o conceptos clave**. \`*itálica*\` para énfasis suave.
+
+Ejemplo de formato esperado para \`situacion.recursos_actuales\` de un plan grande:
+
+\`\`\`
+### Gente
+
+**C-level**: Randy (CEO), Charly (CFO), Romi (mano derecha del fundador).
+
+**Comercial**: Nico (Director), Gus Grispo (50 asesores + jefes de célula).
+
+**Marketing**: Leo (paid media), Studio Terravinci (Ana/Dani/Maca para viralidad).
+
+**Tierras**: Carozza (Área de Tierras), pipeline con decenas de leads avanzados.
+
+### Intangibles
+
+#### Marcas
+- **Spazios**: 2.600+ reviews Google, 4.7 estrellas, #1 Argentina, 15+ edificios entregados.
+- **Más Dueños**: lista para difundir vía blitz, "Más Dueños by Juanma Tapiola".
+
+#### Procesos
+100+ procesos estándar, ISO 9001-14001, 7 divisiones funcionales, 21 departamentos.
+
+### Capital financiero
+
+US$10M caja + US$30M tierras vendibles + US$500M nominal en cuotas a cobrar.
+
+Tres mecanismos de financiación orgánica:
+- Tierras con financiación del propietario (3-10 años + opción 6 meses).
+- Preventa con financiación a 30 años (clientes financian obras).
+- Proveedores que financian 50% del material a 12 meses post-obra.
+
+### Operaciones en marcha
+
+**Sucursales**: Caseros central, Cabildo (mayo), Devoto, Av Belgrano (Microcentro).
+
+**Proyectos cerrados/en cierre**: Lima (Constitución, 300u), Huser (Montecastro, 500u), Perón (Almagro, 300u), Alberdi (Mataderos, 1.000u).
+\`\`\`
+
+NO uses esta estructura como template literal — adaptala al contenido real del plan. La regla es el agrupado, no la lista de categorías específicas.
+
 RETROACTIVIDAD CON CONTROL SUAVE (H7) — campo "cambio_retroactivo":
 
 El plan se construye en orden estricto (Paso 0 → 1 → 2 → 3.0 → 3.A → 3.B → 3.C → 3.D → 3.E) pero el usuario puede volver atrás en cualquier momento para modificar material ya producido. Tu rol es DETECTAR cuándo el mensaje del usuario es un cambio retroactivo, CLASIFICARLO, y reaccionar según la matriz de comportamiento. Esto es independiente del sub-bloque activo.

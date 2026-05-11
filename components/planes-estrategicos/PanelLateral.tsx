@@ -1,5 +1,6 @@
 'use client'
 
+import ReactMarkdown from 'react-markdown'
 import type { PanelUpdatePE, PlanEstrategico } from '@/lib/types'
 
 interface Props {
@@ -45,7 +46,7 @@ export function PanelLateral({ plan, panel, planSr }: Props) {
                 <Campo label="Escena ideal" valor={planSr.proposito.escena} />
                 <Campo label="Horizonte" valor={planSr.proposito.horizonte} />
                 {planSr.proposito.fuera?.length > 0 && (
-                  <Campo label="Fuera de scope" valor={planSr.proposito.fuera.map(f => `• ${f.item}`).join('\n')} />
+                  <Campo label="Lo que NO haremos" valor={planSr.proposito.fuera.map(f => `• ${f.item}`).join('\n')} />
                 )}
               </SeccionPanel>
             </>
@@ -101,7 +102,7 @@ function PanelConstruccion({
         )}
         {proposito?.fuera?.length > 0 && (
           <Campo
-            label="Fuera de scope"
+            label="Lo que NO haremos"
             valor={proposito.fuera.map((f: any) => {
               const head = `• ${f.item}`
               const razon = f.razon ? `\n  Por qué: ${f.razon}` : ''
@@ -287,7 +288,24 @@ function Campo({ label, valor, placeholder }: { label: string; valor?: string; p
     <div className="space-y-0.5">
       <p className="text-[12px] font-medium text-muted-foreground/70 uppercase tracking-wide">{label}</p>
       {texto ? (
-        <p className="text-[12px] text-foreground/90 whitespace-pre-wrap leading-relaxed">{texto}</p>
+        <div className="text-[12px] text-foreground/90 leading-relaxed">
+          <ReactMarkdown
+            components={{
+              // ### (heading-3) → categoría dentro del campo (ej "Gente", "Intangibles")
+              h3: ({ children }) => <p className="text-[13px] font-semibold text-foreground mt-2 first:mt-0 mb-0.5">{children}</p>,
+              // #### (heading-4) → subcategoría (ej "RRHH", "Marcas")
+              h4: ({ children }) => <p className="text-[12px] font-semibold text-foreground/90 mt-1.5 first:mt-0 italic">{children}</p>,
+              p: ({ children }) => <p className="mb-1.5 last:mb-0 whitespace-pre-wrap">{children}</p>,
+              ul: ({ children }) => <ul className="list-disc pl-4 mb-1 space-y-0.5 marker:text-muted-foreground/60">{children}</ul>,
+              ol: ({ children }) => <ol className="list-decimal pl-4 mb-1 space-y-0.5 marker:text-muted-foreground/60">{children}</ol>,
+              li: ({ children }) => <li className="leading-snug">{children}</li>,
+              strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+              em: ({ children }) => <em className="italic">{children}</em>,
+            }}
+          >
+            {texto}
+          </ReactMarkdown>
+        </div>
       ) : (
         <p className="text-[12px] text-muted-foreground/35 italic">{placeholder ?? '—'}</p>
       )}

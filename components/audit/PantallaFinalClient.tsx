@@ -272,7 +272,7 @@ function PropositoSection({ plan, modSet, mostrarTodo }: { plan: PlanEstrategico
 
       {muestra('proposito.fuera') && (
         <>
-          <h3>Fuera de scope {proposito?.fuera?.length ? `(${proposito.fuera.length})` : ''} {modSet.has('proposito.fuera') && <ModBadge />}</h3>
+          <h3>Lo que NO haremos {proposito?.fuera?.length ? `(${proposito.fuera.length})` : ''} {modSet.has('proposito.fuera') && <ModBadge />}</h3>
           {proposito?.fuera?.length ? (
             <ul>
               {proposito.fuera.map((f: any, i: number) => (
@@ -286,7 +286,7 @@ function PropositoSection({ plan, modSet, mostrarTodo }: { plan: PlanEstrategico
                 </li>
               ))}
             </ul>
-          ) : <p className="empty">Sin items fuera de scope.</p>}
+          ) : <p className="empty">Sin items declarados.</p>}
         </>
       )}
 
