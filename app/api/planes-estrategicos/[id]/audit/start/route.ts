@@ -232,8 +232,10 @@ export async function POST(
   const readOnly: boolean = body?.read_only === true
   const viaScript: boolean = body?.via_script === true
 
-  if (typeof paso !== 'number' || !Number.isInteger(paso) || paso < 1 || paso > 2) {
-    return new Response('paso debe ser 1 o 2 (otros pasos no implementados todavía)', { status: 400 })
+  // paso=1/2/3 soportados (el código de buildResumen tiene branches por paso).
+  // paso 4/5 todavía no se llegaron a implementar como sub-bloques cerrables.
+  if (typeof paso !== 'number' || !Number.isInteger(paso) || paso < 1 || paso > 3) {
+    return new Response(`paso debe ser 1, 2 o 3 (got ${paso})`, { status: 400 })
   }
 
   // ─── Guards de los overrides ────────────────────────────────────────────

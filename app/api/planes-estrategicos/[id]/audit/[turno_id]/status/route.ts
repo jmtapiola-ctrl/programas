@@ -34,12 +34,13 @@ export async function GET(
   if (!entrevista) return NextResponse.json({ error: 'Entrevista no encontrada' }, { status: 404 })
 
   // Buscar el turno reviewer específico por airtableId.
-  // Cargamos los reviewer turns de los pasos 1 y 2 y filtramos.
-  const [revPaso1, revPaso2] = await Promise.all([
+  // Cargamos los reviewer turns de los pasos 1, 2 y 3 y filtramos.
+  const [revPaso1, revPaso2, revPaso3] = await Promise.all([
     getReviewerTurnos(entrevista.id, 1),
     getReviewerTurnos(entrevista.id, 2),
+    getReviewerTurnos(entrevista.id, 3),
   ])
-  const allReviewerTurnos = [...revPaso1, ...revPaso2]
+  const allReviewerTurnos = [...revPaso1, ...revPaso2, ...revPaso3]
   const reviewer = allReviewerTurnos.find(r => r.airtableId === turnoId)
 
   if (!reviewer) {
@@ -79,31 +80,30 @@ export async function GET(
   if (subEstadoFinal === 'auditoria_en_proceso' && reportEsValido) {
     try {
       await updateSubEstadoPaso(entrevista.id, 'auditoria_en_proceso', 'auditoria_completa')
-      // Sumar también el counter si todavía no se incrementó. Lo verificamos
-      // por el counter actual vs el bloque auditado: si bloque=1 y counter=0,
-      // pero hay un report valido en este turno, claramente el counter quedó atrás.
-      const counterField = reviewer.report?.meta?.cross_block_changes_total === 0  // proxy: bloque 1 audit
-        ? 'auditorias_paso_1_count'
-        : 'auditorias_paso_2_count'
-      // Inferir paso del audit del propio turno (más robusto que el proxy):
-      // getReviewerTurnos ya filtró por paso, pero acá tenemos paso del query.
-      // Usamos el paso que devolvió el reviewer del lookup arriba.
-      const auditPaso = revPaso1.find(r => r.airtableId === turnoId) ? 1 : 2
-      const currentCount = (entrevista[auditPaso === 1 ? 'auditorias_paso_1_count' : 'auditorias_paso_2_count'] ?? 0) as number
+      // Inferir paso del audit del propio turno: getReviewerTurnos ya filtró
+      // por paso, así que basta ver en cuál lookup apareció.
+      const auditPaso: 1 | 2 | 3 = revPaso1.find(r => r.airtableId === turnoId)
+        ? 1
+        : revPaso2.find(r => r.airtableId === turnoId)
+          ? 2
+          : 3
+      const counterField =
+        auditPaso === 1 ? 'auditorias_paso_1_count' as const :
+        auditPaso === 2 ? 'auditorias_paso_2_count' as const :
+        'auditorias_paso_3_count' as const
+      const currentCount = (entrevista[counterField] ?? 0) as number
       // Si el counter es < cantidad de turnos reviewer no-failed/skipped del Paso, incrementar.
-      const reviewerTurnosDelPaso = auditPaso === 1 ? revPaso1 : revPaso2
+      const reviewerTurnosDelPaso = auditPaso === 1 ? revPaso1 : auditPaso === 2 ? revPaso2 : revPaso3
       const successCount = reviewerTurnosDelPaso.filter(r => {
         const j = r.report?.meta?.justificacion_confianza ?? ''
         return !/skipped|failed/i.test(j)
       }).length
       if (currentCount < successCount) {
-        await incrementAuditoriasPaso(entrevista.id, auditPaso as 1 | 2, currentCount).catch(() => undefined)
+        await incrementAuditoriasPaso(entrevista.id, auditPaso, currentCount).catch(() => undefined)
       }
       subEstadoFinal = 'auditoria_completa'
       autoCorregido = true
       console.log(`[audit/status] auto-corregido: entrevista=${entrevista.id} paso=${auditPaso} estado auditoria_en_proceso → auditoria_completa (turno reviewer ${turnoId} ya persistido)`)
-      // Tipo helper para silenciar el unused (counterField):
-      void counterField
     } catch (e) {
       // Si el guard rechazó (ej: race condition donde otro request ya transicionó),
       // simplemente reportamos el estado actual sin auto-corregir.

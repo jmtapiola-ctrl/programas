@@ -118,6 +118,16 @@ export default function EntrevistaPage() {
   const [generandoCurado, setGenerandoCurado] = useState(false)
   const [curadoError, setCuradoError] = useState<string | null>(null)
 
+  // Cierre formal de Paso (cualquier paso). Cuando el modelo emite
+  // cierre_sugerido=true en su PANEL_UPDATE, chat/route transiciona
+  // sub_estado_paso → 'cierre_sugerido' y emite SSE 'cierre_sugerido'. El
+  // frontend muestra entonces un botón "Cerrar Paso N y revisar" que llama
+  // a /cerrar-paso (transición cierre_sugerido → esperando_auditoria) y
+  // navega a /cierre/N donde corre el audit-reviewer existente (Pantallas 1-4).
+  const [cierreSugeridoPaso, setCierreSugeridoPaso] = useState<number | null>(null)
+  const [cerrandoPaso, setCerrandoPaso] = useState(false)
+  const [cierrePasoError, setCierrePasoError] = useState<string | null>(null)
+
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // Cargar plan y entrevista al montar
@@ -144,6 +154,13 @@ export default function EntrevistaPage() {
           const hist: TurnoPE[] = entrevista?.historial ?? []
           setHistorial(hist)
           setSubBloqueActual(entrevista?.sub_bloque_actual ?? '0')
+
+          // Hidratar cierreSugeridoPaso desde el estado persistido. Si Juan
+          // recarga la página después de que el modelo emitió cierre_sugerido
+          // pero antes de clickear "Cerrar Paso", el botón debe seguir visible.
+          if (entrevista?.sub_estado_paso === 'cierre_sugerido') {
+            setCierreSugeridoPaso(entrevista.paso_actual ?? null)
+          }
 
           // Si historial vacío → disparar apertura del Paso 0
           if (hist.length === 0) {
@@ -273,6 +290,17 @@ export default function EntrevistaPage() {
             // (próxima llamada cargaría historial sin estos turnos). Bloqueamos.
             setSaveFailed(true)
             setError(`No se pudo guardar el último turno (${evt.detail ?? 'error desconocido'}). Recargá la página y reintentá tu último mensaje antes de continuar.`)
+          } else if (evt.type === 'cierre_sugerido') {
+            // El modelo emitió cierre_sugerido=true en su PANEL_UPDATE
+            // (típico al final del Paso N, después de aprobación del user).
+            // chat/route ya hizo updateSubEstadoPaso('en_curso' → 'cierre_sugerido').
+            // Solo seteamos el state local para que se muestre el botón
+            // "Cerrar Paso N y revisar" en el UI del wizard.
+            const paso = typeof evt.paso === 'number' ? evt.paso : null
+            if (paso !== null) {
+              console.log(`[entrevista] cierre_sugerido recibido para Paso ${paso} — mostrando botón de cierre.`)
+              setCierreSugeridoPaso(paso)
+            }
           } else if (evt.type === 'panel_unhealthy') {
             // El panel lateral no se está actualizando — la conversación sigue,
             // pero los datos estructurados del plan pueden estar desactualizados.
@@ -761,6 +789,32 @@ export default function EntrevistaPage() {
 
   const curadoActual: PlanCuradoPE | null = plan?.plan?.curado ?? null
 
+  // ── Cierre formal de Paso N (cierre_sugerido → esperando_auditoria) ───────
+  //
+  // Disparado por el botón "Cerrar Paso N y revisar". Llama a /cerrar-paso
+  // que transiciona sub_estado_paso de 'cierre_sugerido' a 'esperando_auditoria'
+  // y devuelve la URL para navegar a la Pantalla 1 del audit-reviewer.
+  async function handleCerrarPaso() {
+    if (cerrandoPaso || !cierreSugeridoPaso) return
+    setCerrandoPaso(true)
+    setCierrePasoError(null)
+    try {
+      const res = await fetch(`/api/planes-estrategicos/${id}/cerrar-paso`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paso: cierreSugeridoPaso }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      // Navegar a Pantalla 1 del audit-reviewer.
+      const url = data.redirect ?? `/planes-estrategicos/${id}/cierre/${cierreSugeridoPaso}`
+      router.push(url)
+    } catch (e) {
+      setCierrePasoError(e instanceof Error ? e.message : String(e))
+      setCerrandoPaso(false)
+    }
+  }
+
   // ── Sub-bloque 3.B — Validador cross-provider de Palancas ─────────────────
 
   // ── Sub-bloque 3.B/3.D — Confirmar respuesta_estructurada del Panel ───────
@@ -1098,6 +1152,38 @@ export default function EntrevistaPage() {
                   Ver plan curado →
                 </button>
               )}
+            </div>
+          )}
+
+          {/* Banner CIERRE FORMAL — visible cuando el modelo emitió cierre_sugerido.
+              Disparado por: modelo emite cierre_sugerido=true en PANEL_UPDATE
+              (típico al final del Paso N tras aprobación del user). El backend
+              ya transicionó sub_estado_paso → 'cierre_sugerido'. Acá ofrecemos
+              el botón explícito que el user clickea para navegar al audit-reviewer.
+              Prominente porque es decisión load-bearing (a partir de acá no
+              se puede seguir conversando del Paso). */}
+          {cierreSugeridoPaso !== null && (
+            <div className="flex-shrink-0 border-t-2 border-primary/50 bg-gradient-to-r from-primary/20 to-primary/5 px-4 py-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1">
+                  <p className="text-[13px] font-semibold text-foreground">
+                    El modelo sugirió cerrar el Paso {cierreSugeridoPaso}.
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Al cerrar, dispara la auditoría obligatoria por el Revisor independiente. Vas a ver el Paso entero + recibir las observaciones del Revisor para procesar antes de avanzar a Paso {cierreSugeridoPaso + 1}.
+                  </p>
+                  {cierrePasoError && (
+                    <p className="mt-1 text-[11px] text-red-400">Error: {cierrePasoError}</p>
+                  )}
+                </div>
+                <button
+                  onClick={handleCerrarPaso}
+                  disabled={cerrandoPaso}
+                  className="flex-shrink-0 rounded-lg bg-primary px-4 py-2 text-[13px] font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-md"
+                >
+                  {cerrandoPaso ? 'Cerrando…' : `Cerrar Paso ${cierreSugeridoPaso} y revisar →`}
+                </button>
+              </div>
             </div>
           )}
 

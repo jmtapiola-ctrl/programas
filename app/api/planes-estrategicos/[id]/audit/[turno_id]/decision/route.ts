@@ -52,11 +52,15 @@ export async function PATCH(
   const entrevista = await getEntrevistaPE(planId)
   if (!entrevista) return NextResponse.json({ error: 'Entrevista no encontrada' }, { status: 404 })
 
-  const [revPaso1, revPaso2] = await Promise.all([
+  // Buscar el reviewer turno en cualquier paso soportado (1, 2 o 3). Antes solo
+  // chequeaba pasos 1 y 2 → reviewer turnos de paso=3 devolvían 404 y el cliente
+  // los mostraba como "error de sync".
+  const [revPaso1, revPaso2, revPaso3] = await Promise.all([
     getReviewerTurnos(entrevista.id, 1),
     getReviewerTurnos(entrevista.id, 2),
+    getReviewerTurnos(entrevista.id, 3),
   ])
-  const reviewer = [...revPaso1, ...revPaso2].find(r => r.airtableId === turnoId)
+  const reviewer = [...revPaso1, ...revPaso2, ...revPaso3].find(r => r.airtableId === turnoId)
   if (!reviewer) {
     return NextResponse.json({ error: 'Turno reviewer no encontrado' }, { status: 404 })
   }

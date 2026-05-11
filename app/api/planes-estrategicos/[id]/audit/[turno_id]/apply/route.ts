@@ -64,15 +64,20 @@ export async function POST(
     }, { status: 409 })
   }
 
-  // Buscar turno reviewer en pasos 1 y 2.
-  const [revPaso1, revPaso2] = await Promise.all([
+  // Buscar turno reviewer en pasos 1, 2 o 3.
+  const [revPaso1, revPaso2, revPaso3] = await Promise.all([
     getReviewerTurnos(entrevista.id, 1),
     getReviewerTurnos(entrevista.id, 2),
+    getReviewerTurnos(entrevista.id, 3),
   ])
-  const reviewer = [...revPaso1, ...revPaso2].find(r => r.airtableId === turnoId)
+  const reviewer = [...revPaso1, ...revPaso2, ...revPaso3].find(r => r.airtableId === turnoId)
   if (!reviewer) return NextResponse.json({ error: 'Turno reviewer no encontrado' }, { status: 404 })
 
-  const paso = revPaso1.some(r => r.airtableId === turnoId) ? 1 : 2
+  const paso = revPaso1.some(r => r.airtableId === turnoId)
+    ? 1
+    : revPaso2.some(r => r.airtableId === turnoId)
+      ? 2
+      : 3
 
   // Snapshot pre-apply: estado del plan ANTES de aplicar (para rollback).
   const snapshotPreApply = {

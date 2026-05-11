@@ -21,7 +21,12 @@ import OpenAI from 'openai'
 const MODEL = process.env.REVIEWER_MODEL ?? 'gpt-5.5'
 const EFFORT = (process.env.REVIEWER_REASONING_EFFORT ?? 'high') as
   | 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
-const TIMEOUT_MS = Number(process.env.REVIEWER_TIMEOUT_MS ?? 270000)
+// Default 480s (8 min). gpt-5.5 con effort=high + input rico (~20k+ tokens del
+// historial completo de un Paso) puede legítimamente tardar 4-7 min en
+// reasoning + generation. Antes era 270s (4.5 min) y caía contra timeout en
+// Paso 3 con 80+ turnos. Override vía REVIEWER_TIMEOUT_MS env var si querés
+// cap más bajo para CI/smoke o más alto para inputs particularmente densos.
+const TIMEOUT_MS = Number(process.env.REVIEWER_TIMEOUT_MS ?? 480000)
 const MAX_RETRIES = Math.max(1, Number(process.env.REVIEWER_MAX_RETRIES ?? 3))
 const MAX_COST_USD = Number(process.env.REVIEWER_MAX_COST_PER_AUDIT_USD ?? 8)
 
@@ -82,9 +87,15 @@ function estimateInputTokens(systemPrompt: string, userMessage: string): number 
 
 function isRetryableError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false
-  const e = err as { status?: number; code?: string; name?: string }
+  const e = err as { status?: number; code?: string; name?: string; message?: string }
   // Retry: timeouts, network, 429 (rate limit), 5xx server errors.
-  if (e.name === 'AbortError') return true
+  // CRÍTICO: AbortSignal.timeout() en Node lanza DOMException con name='TimeoutError',
+  // NO 'AbortError'. Sin chequear ambos, un timeout puro era misclassified como
+  // no-retryable y retornaba api_error en lugar de retry o reason='timeout'.
+  if (e.name === 'AbortError' || e.name === 'TimeoutError') return true
+  // El SDK de OpenAI envuelve abortos en APIConnectionError con message que
+  // incluye 'aborted'. Catcheamos por mensaje también como red de seguridad.
+  if (typeof e.message === 'string' && /aborted|timeout/i.test(e.message)) return true
   if (e.code === 'ETIMEDOUT' || e.code === 'ECONNRESET' || e.code === 'ECONNREFUSED') return true
   if (e.status === 429) return true
   if (typeof e.status === 'number' && e.status >= 500) return true

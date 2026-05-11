@@ -9,7 +9,7 @@
 
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { AuditSSEHook } from './hooks/useAuditSSE'
 
@@ -35,11 +35,24 @@ export function AuditoriaEnProcesoModal({ audit, paso, onSuccess, onSkipEmergenc
   useEffect(() => { setMounted(true) }, [])
 
   // Auto-transición a Pantalla 3 cuando la audit completa.
-  if (status === 'success') {
-    onSuccess()
-    return null
-  }
+  // CRÍTICO: usar useEffect en vez de llamar onSuccess() inline durante render.
+  // onSuccess es handleSuccessTransition del padre, que hace setState (setReportActual,
+  // setReviewerTurnoIdActual, setFlow). Llamarlo durante el render del modal
+  // dispara "Cannot update a component while rendering a different component".
+  //
+  // Guard idempotente: onSuccess no está envuelta en useCallback en el padre,
+  // así que la referencia cambia en cada render. Sin el ref guard, el useEffect
+  // podría re-disparar la transición. El padre va a cambiar flow → desmontar el
+  // modal, pero hasta que eso ocurra protegemos contra ejecución doble.
+  const transitioned = useRef(false)
+  useEffect(() => {
+    if (status === 'success' && !transitioned.current) {
+      transitioned.current = true
+      onSuccess()
+    }
+  }, [status, onSuccess])
 
+  if (status === 'success') return null
   if (!mounted) return null
 
   // Render con createPortal en document.body — escapa del DOM tree del page
