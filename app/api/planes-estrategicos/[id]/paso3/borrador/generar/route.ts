@@ -254,9 +254,21 @@ export async function POST(
     console.log(`[paso3/borrador/generar] post-proceso M-X: inyectados=${inyecciones} huerfanos_sin_inventario=${huerfanos}`)
   }
 
+  // Audit trail: persistir las disconformidades que dispararon esta nueva
+  // iteración en el campo disconformidades_usuario de la iteración previa
+  // (la que está siendo "rechazada"). Sin esto, queda imposible reconstruir
+  // a posteriori por qué la iteración N-1 fue descartada — el audit-reviewer
+  // pierde trazabilidad.
+  const iteracionesConAuditTrail = iteracionesPrevias.map((it, idx) => {
+    if (idx === numero - 2 && disconformidades.length > 0) {
+      return { ...it, disconformidades_usuario: disconformidades }
+    }
+    return it
+  })
+
   // Persistir en plan.borrador.iteraciones (append, no replace).
   const borradorActualizado = {
-    iteraciones: [...iteracionesPrevias, iteracion],
+    iteraciones: [...iteracionesConAuditTrail, iteracion],
     iteracion_aceptada: plan.plan?.borrador?.iteracion_aceptada,
   }
   const planActualizado: PlanoPE = {
