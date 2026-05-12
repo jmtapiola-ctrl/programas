@@ -39,6 +39,7 @@ import { callReviewer } from '@/lib/openai-client'
 import { buildReviewerSystemPrompt, buildReviewerUserMessage } from '@/lib/reviewer-prompt'
 import { validateReviewerReport, REVIEWER_REPORT_SCHEMA } from '@/lib/reviewer-validator'
 import type { PlanEstrategico, SnapshotPaso, SubEstadoPaso } from '@/lib/types'
+import { getCuradoActivo } from '@/lib/types'
 
 // ─── Helper: serializar el resumen del Paso a markdown ──────────────────────
 
@@ -145,10 +146,12 @@ ${resistenciasList}
   }
 
   if (paso === 3) {
-    if (!plan.plan?.curado) {
+    // Versionado: el curado vive en plan.curado.versiones[]; auditamos la
+    // version_activa (la que el usuario aprobó al cerrar Paso 3).
+    const c = getCuradoActivo(plan)
+    if (!c) {
       return '## Paso 3 — Plan\n\n_(plan curado no declarado todavía — el audit del Paso 3 se ejecuta solo después del cierre formal de 3.E)_'
     }
-    const c = plan.plan.curado
     const decisionesList = c.decisiones_priorizacion?.length
       ? c.decisiones_priorizacion.map((d, i) => `${i + 1}. **${d.decision}** — razón: ${d.razon}`).join('\n')
       : '_(ninguna)_'

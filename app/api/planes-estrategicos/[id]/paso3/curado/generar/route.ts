@@ -249,11 +249,25 @@ export async function POST(
     console.warn(`[paso3/curado/generar] Lookups con huérfanos — movimientos=${huerfanosMovimientos} supuestos=${huerfanosSupuestos}. El curado se generó con los matches que sí existieron; revisar si afectan al output.`)
   }
 
-  const planActualizado: PlanoPE = { ...plan.plan, curado }
+  // Versionado no-destructivo: si ya existe plan.curado, appendeamos la nueva
+  // versión al final del array y movemos version_activa al nuevo índice. Las
+  // versiones anteriores (incluyendo las "abandonadas" si el user había vuelto
+  // a una previa antes de pedir nuevo ajuste) quedan accesibles para navegar.
+  const curadoPrev = plan.plan?.curado
+  const versionesPrev = curadoPrev?.versiones ?? []
+  const nuevasVersiones = [...versionesPrev, curado]
+  const curadoVersionado = {
+    versiones: nuevasVersiones,
+    version_activa: nuevasVersiones.length - 1,
+  }
+
+  const planActualizado: PlanoPE = { ...plan.plan, curado: curadoVersionado }
   await updatePlanEstrategico(planId, { plan: planActualizado })
 
   console.log('[paso3/curado/generar] done', JSON.stringify({
     plan_id: planId,
+    version_nueva: curadoVersionado.version_activa,
+    total_versiones: nuevasVersiones.length,
     contexto_chars: curado.contexto.length,
     decisiones: curado.decisiones_priorizacion.length,
     fases: curado.secuencia_movimientos.length,
@@ -268,6 +282,8 @@ export async function POST(
   return NextResponse.json({
     ok: true,
     curado,
+    version_activa: curadoVersionado.version_activa,
+    total_versiones: nuevasVersiones.length,
     plan_actualizado: planActualizado,
     metricas: { costo_usd: costoUsd, latencia_ms: latenciaMs },
   })

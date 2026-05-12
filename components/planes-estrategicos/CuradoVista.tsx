@@ -27,6 +27,14 @@ interface Props {
   // emita cierre_sugerido y dispare audit.
   onAprobar?: () => void
   saving?: boolean
+  // Versionado del curado (Feature 2 — 3.E no-destructivo):
+  // - totalVersiones: cuántas versiones existen en plan.curado.versiones[].
+  // - versionActiva: índice 0-based de la versión actualmente seleccionada.
+  // - onCambiarVersion: callback para navegar entre versiones (PATCH al endpoint /version).
+  // Si totalVersiones <= 1, no se muestran controles de navegación.
+  totalVersiones?: number
+  versionActiva?: number
+  onCambiarVersion?: (nuevaVersion: number) => void
 }
 
 export function CuradoVista(props: Props) {
@@ -34,9 +42,13 @@ export function CuradoVista(props: Props) {
   return createPortal(<Contenido {...props} />, document.body)
 }
 
-function Contenido({ curado, onCerrar, onPedirAjuste, onAprobar, saving }: Props) {
+function Contenido({ curado, onCerrar, onPedirAjuste, onAprobar, saving, totalVersiones, versionActiva, onCambiarVersion }: Props) {
   const [modoAjuste, setModoAjuste] = useState(false)
   const [textoAjuste, setTextoAjuste] = useState('')
+
+  const tieneVersiones = (totalVersiones ?? 0) > 1
+  const puedeIrAnterior = tieneVersiones && (versionActiva ?? 0) > 0
+  const puedeIrSiguiente = tieneVersiones && (versionActiva ?? 0) < (totalVersiones ?? 1) - 1
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === 'Escape' && !saving) onCerrar() }
@@ -62,15 +74,29 @@ function Contenido({ curado, onCerrar, onPedirAjuste, onAprobar, saving }: Props
         onClick={e => e.stopPropagation()}
       >
         <header className="flex-shrink-0 border-b border-sidebar-border px-6 py-5 bg-gradient-to-r from-primary/10 to-transparent">
-          <p className="text-[12px] font-semibold uppercase tracking-wider text-primary/80">
-            Sub-bloque 3.E · Plan curado
-          </p>
-          <h2 className="mt-1.5 text-[20px] font-bold text-foreground">
-            Versión final del Paso 3
-          </h2>
-          <p className="mt-1.5 text-[12px] text-muted-foreground italic leading-relaxed">
-            Integra el borrador aceptado de 3.C + los ajustes registrados en 3.D. Leelo entero antes de aprobar — una vez cerrado se dispara la auditoría obligatoria por revisor independiente.
-          </p>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <p className="text-[12px] font-semibold uppercase tracking-wider text-primary/80">
+                Sub-bloque 3.E · Plan curado
+              </p>
+              <h2 className="mt-1.5 text-[20px] font-bold text-foreground">
+                Versión final del Paso 3
+              </h2>
+              <p className="mt-1.5 text-[12px] text-muted-foreground italic leading-relaxed">
+                Integra el borrador aceptado de 3.C + los ajustes registrados en 3.D. Leelo entero antes de aprobar — una vez cerrado se dispara la auditoría obligatoria por revisor independiente.
+              </p>
+            </div>
+            {tieneVersiones && (
+              <div className="flex-shrink-0 rounded-md border border-primary/30 bg-primary/5 px-3 py-1.5">
+                <p className="text-[12px] font-semibold text-foreground whitespace-nowrap">
+                  Versión {(versionActiva ?? 0) + 1} de {totalVersiones}
+                </p>
+                <p className="mt-0.5 text-[12px] text-muted-foreground italic">
+                  {(versionActiva ?? 0) === (totalVersiones ?? 1) - 1 ? 'más reciente' : 'versión previa'}
+                </p>
+              </div>
+            )}
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
@@ -160,9 +186,32 @@ function Contenido({ curado, onCerrar, onPedirAjuste, onAprobar, saving }: Props
         <footer className="flex-shrink-0 border-t border-sidebar-border px-6 py-3 bg-sidebar/30">
           {!modoAjuste ? (
             <div className="flex items-center justify-between gap-3">
-              <p className="text-[12px] text-muted-foreground">
-                Curado generado en {new Date(curado.cerrado_en).toLocaleString('es-AR')}
-              </p>
+              <div className="flex items-center gap-3">
+                <p className="text-[12px] text-muted-foreground">
+                  Generado {new Date(curado.cerrado_en).toLocaleString('es-AR')}
+                </p>
+                {/* Navegación entre versiones cuando hay más de 1 */}
+                {tieneVersiones && onCambiarVersion && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => onCambiarVersion((versionActiva ?? 0) - 1)}
+                      disabled={!puedeIrAnterior || saving}
+                      title="Volver a la versión anterior"
+                      className="rounded-md border border-sidebar-border px-2 py-1 text-[12px] font-medium hover:bg-accent/50 disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      ← Anterior
+                    </button>
+                    <button
+                      onClick={() => onCambiarVersion((versionActiva ?? 0) + 1)}
+                      disabled={!puedeIrSiguiente || saving}
+                      title="Ir a la versión siguiente"
+                      className="rounded-md border border-sidebar-border px-2 py-1 text-[12px] font-medium hover:bg-accent/50 disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      Siguiente →
+                    </button>
+                  </div>
+                )}
+              </div>
               <div className="flex gap-2">
                 <button
                   onClick={onCerrar}

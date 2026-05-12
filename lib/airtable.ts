@@ -617,6 +617,15 @@ function mapPlanEstrategico(r: any): PlanEstrategico {
     ? safeParseJson(f['Plan Paso 3 JSON'], undefined)
     : undefined
 
+  // Migración backward-compat del curado: shape antiguo era PlanCuradoPE
+  // directo (single object). Nuevo shape: PlanCuradoVersionado
+  // { versiones[], version_activa }. Si detectamos shape antiguo
+  // (tiene 'contexto' al nivel raíz y no tiene 'versiones'), lo envolvemos
+  // en memoria como una sola versión. La próxima escritura persiste shape nuevo.
+  if (plan?.curado && !plan.curado.versiones && typeof plan.curado.contexto === 'string') {
+    plan.curado = { versiones: [plan.curado], version_activa: 0 }
+  }
+
   return {
     id: r.id,
     nombre: f['Nombre'] ?? '',
