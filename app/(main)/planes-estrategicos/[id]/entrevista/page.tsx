@@ -3,20 +3,22 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ChatInterface } from '@/components/planes-estrategicos/ChatInterface'
-import { PanelLateral } from '@/components/planes-estrategicos/PanelLateral'
 import { InventarioCategoria } from '@/components/planes-estrategicos/InventarioCategoria'
 import { PalancasValidadorModal } from '@/components/planes-estrategicos/PalancasValidadorModal'
 import { PanelInventarioInteractivo } from '@/components/planes-estrategicos/PanelInventarioInteractivo'
 import { BorradorVista } from '@/components/planes-estrategicos/BorradorVista'
 import { CuradoVista } from '@/components/planes-estrategicos/CuradoVista'
 import { RetroactividadControlSuaveModal, type CambioRetroactivoPayload } from '@/components/planes-estrategicos/RetroactividadControlSuaveModal'
+import { SupuestosFormModal } from '@/components/planes-estrategicos/SupuestosFormModal'
+import { CriterioExitoFormModal } from '@/components/planes-estrategicos/CriterioExitoFormModal'
 import {
   ModalAgregarMovimiento,
   ModalEditarMovimiento,
   ConfirmacionQuitarMovimiento,
 } from '@/components/planes-estrategicos/GestionInventarioModales'
 import type { GestionInventario } from '@/components/planes-estrategicos/fichas/FichaMovimiento'
-import type { PlanEstrategico, TurnoPE, PanelUpdatePE, InventarioPE, MovimientoPE, PalancaQAPE, EstresQAPE, RespuestaEstructurada, BorradorIteracionPE, FaseSecuenciaPE, PlanCuradoPE } from '@/lib/types'
+import type { PlanEstrategico, TurnoPE, PanelUpdatePE, InventarioPE, MovimientoPE, PalancaQAPE, EstresQAPE, RespuestaEstructurada, BorradorIteracionPE, FaseSecuenciaPE, PlanCuradoPE, PlanCuradoVersionado } from '@/lib/types'
+import { getCuradoActivo } from '@/lib/types'
 
 const PANEL_UPDATE_RE = /<!--PANEL_UPDATE-->[\s\S]*?<!--\/PANEL_UPDATE-->/g
 
@@ -25,7 +27,6 @@ export default function EntrevistaPage() {
   const router = useRouter()
 
   const [plan, setPlan] = useState<PlanEstrategico | null>(null)
-  const [planSr, setPlanSr] = useState<PlanEstrategico | null>(null)
   const [historial, setHistorial] = useState<TurnoPE[]>([])
   const [panelData, setPanelData] = useState<PanelUpdatePE | null>(null)
   const [inputValue, setInputValue] = useState('')
@@ -40,7 +41,6 @@ export default function EntrevistaPage() {
   const [saveFailed, setSaveFailed] = useState(false)
   const [panelUnhealthy, setPanelUnhealthy] = useState<{ reason: string; detail: string } | null>(null)
   const [pendingMessage, setPendingMessage] = useState<string | null>(null)
-  const [pausing, setPausing] = useState(false)
   const [loading, setLoading] = useState(true)
   // Sub-bloque 3.A — Inventario
   const [subBloqueActual, setSubBloqueActual] = useState<string>('0')
@@ -61,13 +61,6 @@ export default function EntrevistaPage() {
   // Sub-bloque 3.B/3.D — Panel Interactivo de Fichas (Fase D Chunk A).
   // savingRespuestaEstructurada: indica si estamos haciendo PATCH al endpoint.
   const [savingRespuestaEstructurada, setSavingRespuestaEstructurada] = useState(false)
-  // Drawer del Panel Plan: cuando hay panel interactivo activo, el panel
-  // plan se colapsa a una barra vertical de 32px en el borde derecho. Click
-  // en la barra abre drawer overlay 380px sobre el panel fichas. Click fuera
-  // del drawer (o ESC) cierra. (Opción 1 de UX por Issue 2 — viewport target
-  // 1366-1440px, evita 4 paneles compitiendo por espacio).
-  const [drawerPlanAbierto, setDrawerPlanAbierto] = useState(false)
-
   // Mejora 2 — gestión de inventario durante 3.B/3.C/3.D (H7 retroactividad).
   // Tracking de cambios efectuados durante el sub-bloque actual para:
   //   (a) badges NUEVO/MODIFICADO en fichas
@@ -118,6 +111,20 @@ export default function EntrevistaPage() {
   const [curadoAbierto, setCuradoAbierto] = useState(false)
   const [generandoCurado, setGenerandoCurado] = useState(false)
   const [curadoError, setCuradoError] = useState<string | null>(null)
+  // Feature 2: cambiar version_activa del curado (navegación entre versiones).
+  const [cambiandoVersionCurado, setCambiandoVersionCurado] = useState(false)
+
+  // Sub-bloque 3.0.B — Supuestos exógenos.
+  // Cuando el modelo emite plan.preparativos.supuestos_exogenos con items
+  // que tienen campos vacíos (probabilidad/estrategia/impacto), aparece banner
+  // en el chat con botón "Completar supuestos". Click → abre modal con form.
+  const [supuestosAbierto, setSupuestosAbierto] = useState(false)
+
+  // Sub-bloque 3.0.D — Criterio de éxito.
+  // Aparece banner cuando hay métricas en propósito pero alguna no tiene
+  // minimo aceptable definido en criterio_exito. Click → abre modal con form
+  // (textareas por métrica + zona de fracaso global).
+  const [criterioAbierto, setCriterioAbierto] = useState(false)
 
   // Cierre formal de Paso (cualquier paso). Cuando el modelo emite
   // cierre_sugerido=true en su PANEL_UPDATE, chat/route transiciona
@@ -145,15 +152,6 @@ export default function EntrevistaPage() {
         const res = await fetch(`/api/planes-estrategicos/${id}`)
         const { plan } = await res.json()
         setPlan(plan)
-
-        // Cargar Plan Sr si es Jr
-        if (plan.tipo === 'Jr' && plan.plan_sr_id) {
-          const resSr = await fetch(`/api/planes-estrategicos/${plan.plan_sr_id}`)
-          if (resSr.ok) {
-            const { plan: sr } = await resSr.json()
-            setPlanSr(sr)
-          }
-        }
 
         // Cargar historial + estado de la entrevista
         const resE = await fetch(`/api/planes-estrategicos/${id}/entrevista`)
@@ -664,6 +662,45 @@ export default function EntrevistaPage() {
     return its.length > 0 ? its[its.length - 1] : null
   })()
 
+  // ── Sub-bloque 3.0.B — Supuestos pendientes ────────────────────────────────
+  // El banner aparece cuando el modelo ya emitió la lista de supuestos
+  // (plan.preparativos.supuestos_exogenos) pero al menos uno tiene algún campo
+  // de calificación vacío. Click → abre modal con form.
+  const supuestosPendientes = useMemo(() => {
+    if (subBloqueActual !== '3.0') return null
+    const sup = plan?.plan?.preparativos?.supuestos_exogenos
+    if (!sup || sup.length === 0) return null
+    const incompletos = sup.filter(s => !s.probabilidad || !s.impacto_signo || !s.impacto_magnitud || !s.estrategia)
+    if (incompletos.length === 0) return null
+    return { total: sup.length, incompletos: incompletos.length, supuestos: sup }
+  }, [subBloqueActual, plan?.plan?.preparativos?.supuestos_exogenos])
+
+  // Submit del modal de supuestos → envía como mensaje normal al /chat.
+  function handleEnviarSupuestos(textoMensaje: string) {
+    setSupuestosAbierto(false)
+    setTimeout(() => sendMessage(textoMensaje), 0)
+  }
+
+  // ── Sub-bloque 3.0.D — Criterio de éxito pendiente ───────────────────────
+  // Banner aparece cuando el modelo emite plan.preparativos.criterio_exito.por_metrica
+  // con al menos un item que tiene minimo vacío. El modal pre-llena pleno desde
+  // proposito.metricas si el modelo no lo cargó.
+  const criterioPendiente = useMemo(() => {
+    if (subBloqueActual !== '3.0') return null
+    const criterio = plan?.plan?.preparativos?.criterio_exito
+    const metricas = plan?.proposito?.metricas
+    if (!criterio?.por_metrica || criterio.por_metrica.length === 0) return null
+    if (!metricas || metricas.length === 0) return null
+    const incompletos = criterio.por_metrica.filter(c => !c.minimo?.trim()).length
+    if (incompletos === 0) return null
+    return { total: criterio.por_metrica.length, incompletos, metricas, criterio }
+  }, [subBloqueActual, plan?.proposito?.metricas, plan?.plan?.preparativos?.criterio_exito])
+
+  function handleEnviarCriterio(textoMensaje: string) {
+    setCriterioAbierto(false)
+    setTimeout(() => sendMessage(textoMensaje), 0)
+  }
+
   // ── Sub-bloque 3.C — Re-iteración + Aceptación (B.3) ──────────────────────
   //
   // Re-iterar: llamar a /paso3/borrador/generar con numero+1 + disconformidades.
@@ -808,7 +845,34 @@ export default function EntrevistaPage() {
     }
   }
 
-  const curadoActual: PlanCuradoPE | null = plan?.plan?.curado ?? null
+  // Versionado del curado (Feature 2): plan.curado es PlanCuradoVersionado
+  // ({ versiones[], version_activa }). Usamos getCuradoActivo() para acceder
+  // a la versión actualmente seleccionada. Si no hay curado, retorna null.
+  const curadoVersionado: PlanCuradoVersionado | null = plan?.plan?.curado ?? null
+  const curadoActual: PlanCuradoPE | null = plan ? getCuradoActivo(plan) : null
+
+  // Handler para cambiar version_activa del curado (PATCH al endpoint /version).
+  async function handleCambiarVersionCurado(nuevaVersion: number) {
+    if (cambiandoVersionCurado || !plan) return
+    const total = plan.plan?.curado?.versiones?.length ?? 0
+    if (nuevaVersion < 0 || nuevaVersion >= total) return
+    setCambiandoVersionCurado(true)
+    try {
+      const res = await fetch(`/api/planes-estrategicos/${id}/paso3/curado/version`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version: nuevaVersion }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Error cambiando versión del curado.')
+      // Refrescar plan local con el plan_actualizado de la respuesta.
+      setPlan(prev => prev ? { ...prev, plan: data.plan_actualizado } : prev)
+    } catch (e) {
+      setCuradoError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setCambiandoVersionCurado(false)
+    }
+  }
 
   // ── Retroactividad con control suave (Fase F — H7) ───────────────────────
   //
@@ -1049,20 +1113,6 @@ export default function EntrevistaPage() {
     }
   }
 
-  async function handlePausar() {
-    setPausing(true)
-    try {
-      await fetch(`/api/planes-estrategicos/${id}/entrevista`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: 'Pausada' }),
-      })
-      router.push('/planes-estrategicos')
-    } catch {
-      setPausing(false)
-    }
-  }
-
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -1089,19 +1139,22 @@ export default function EntrevistaPage() {
             Plan {plan.tipo}{plan.plan_sr_nombre ? ` · alineado a: ${plan.plan_sr_nombre}` : ''}
           </p>
         </div>
-        <button
-          onClick={handlePausar}
-          disabled={pausing || isStreaming}
-          className="rounded-lg border border-sidebar-border px-3 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors disabled:opacity-40"
+        <a
+          href={`/planes-estrategicos/${id}/vista`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm"
         >
-          {pausing ? 'Pausando...' : 'Pausar'}
-        </button>
+          Ver plan →
+        </a>
       </div>
 
       {/* Content */}
       <div className="flex flex-1 min-h-0 gap-0">
-        {/* Chat */}
-        <div className="flex flex-col flex-1 min-w-0 border-r border-sidebar-border">
+        {/* Chat — full width cuando no hay panel interactivo, con max-width
+            interno centrado para que en pantallas grandes el chat no se
+            vuelva un texto-de-ancho-monitor. */}
+        <div className="flex flex-col flex-1 min-w-0 mx-auto w-full max-w-[1100px]">
           <div className="flex-1 min-h-0 overflow-y-auto">
             <ChatInterface
               historial={historial}
@@ -1114,6 +1167,57 @@ export default function EntrevistaPage() {
               onPanelUpdate={setPanelData}
             />
           </div>
+
+          {/* Banner del Sub-bloque 3.0.D — Criterio de éxito.
+              Aparece cuando el modelo emitió criterio_exito.por_metrica con
+              items pero alguno no tiene minimo definido. Click → abre modal
+              con form (textareas por métrica + zona de fracaso). */}
+          {criterioPendiente && !criterioAbierto && (
+            <div className="flex-shrink-0 border-t border-sidebar-border bg-gradient-to-r from-primary/5 to-transparent px-4 py-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1">
+                  <p className="text-[13px] font-semibold text-foreground">
+                    Sub-bloque 3.0.D — Criterio de éxito
+                  </p>
+                  <p className="text-[12px] text-muted-foreground mt-0.5">
+                    Faltan definir {criterioPendiente.incompletos} de {criterioPendiente.total} mínimos aceptables (más zona de fracaso opcional). El form pre-carga los plenos del Paso 1.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setCriterioAbierto(true)}
+                  className="flex-shrink-0 rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
+                  Completar criterios →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Banner del Sub-bloque 3.0.B — Supuestos exógenos.
+              Aparece cuando estamos en 3.0 y el modelo ya emitió la lista de
+              supuestos pero hay al menos uno con campos de calificación vacíos.
+              Click → abre modal con form (segmented controls por supuesto).
+              On submit → manda mensaje normal al /chat con el formato que el modelo parsea. */}
+          {supuestosPendientes && !supuestosAbierto && (
+            <div className="flex-shrink-0 border-t border-sidebar-border bg-gradient-to-r from-primary/5 to-transparent px-4 py-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1">
+                  <p className="text-[13px] font-semibold text-foreground">
+                    Sub-bloque 3.0.B — Supuestos exógenos
+                  </p>
+                  <p className="text-[12px] text-muted-foreground mt-0.5">
+                    El modelo detectó {supuestosPendientes.total} supuestos. Faltan calificar {supuestosPendientes.incompletos} (probabilidad / impacto / estrategia). Completá en el form y enviá todas las respuestas juntas.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSupuestosAbierto(true)}
+                  className="flex-shrink-0 rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
+                  Completar supuestos →
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Banner del Sub-bloque 3.A — Inventario.
               Aparece cuando estamos en 3.A y todavía no se generó el inventario.
@@ -1309,7 +1413,7 @@ export default function EntrevistaPage() {
                       ? 'Podés ir escribiendo tu próxima respuesta… (se enviará cuando termine el guardado)'
                       : (placeholderModel ?? 'Explicá tu razonamiento — qué viste, por qué elegiste esto, qué descartaste.')
                 }
-                rows={9}
+                rows={7}
                 className="flex-1 resize-y rounded-lg border border-sidebar-border bg-sidebar px-3 py-2 text-[16px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 min-h-[60px] max-h-[600px]"
               />
               <button
@@ -1344,53 +1448,29 @@ export default function EntrevistaPage() {
           </div>
         </div>
 
-        {/* Panel lateral — modo dual:
-            - Si hay pregunta interactiva activa: PanelInventarioInteractivo
-              expandido (40vw) + barra colapsada 32px con drawer del Plan.
-            - Sino: panel lateral normal (380px) con resumen del plan. */}
+        {/* Panel derecho — solo aparece el PanelInventarioInteractivo cuando
+            hay pregunta activa con respuesta estructurada sobre el inventario
+            (3.B palancas). Sin panel informacional — el reporte (/vista) cumple
+            esa función. */}
         {(() => {
           const preguntaPanel = preguntaActualParaPanel()
-          const conPanelInteractivo = preguntaPanel && plan.plan?.inventario?.movimientos
-          if (conPanelInteractivo) {
+          if (preguntaPanel && plan.plan?.inventario?.movimientos) {
             return (
-              <>
-                {/* Panel fichas */}
-                <div className="w-[40vw] min-w-[480px] max-w-[640px] flex-shrink-0 overflow-hidden border-l border-sidebar-border">
-                  <PanelInventarioInteractivo
-                    pregunta={preguntaPanel!}
-                    movimientos={plan.plan!.inventario!.movimientos}
-                    onConfirmar={(resp) => handleConfirmarRespuestaEstructurada(preguntaPanel!.id, resp)}
-                    saving={savingRespuestaEstructurada}
-                    gestion={gestionInventarioActiva}
-                    onAgregarMovimiento={gestionInventarioActiva ? () => setModalAgregarFicha(true) : undefined}
-                  />
-                </div>
-                {/* Barra colapsada del Plan — click abre drawer */}
-                <BarraPlanColapsada
-                  plan={plan}
-                  onAbrir={() => setDrawerPlanAbierto(true)}
+              <div className="w-[40vw] min-w-[480px] max-w-[640px] flex-shrink-0 overflow-hidden border-l border-sidebar-border">
+                <PanelInventarioInteractivo
+                  pregunta={preguntaPanel}
+                  movimientos={plan.plan.inventario.movimientos}
+                  onConfirmar={(resp) => handleConfirmarRespuestaEstructurada(preguntaPanel.id, resp)}
+                  saving={savingRespuestaEstructurada}
+                  gestion={gestionInventarioActiva}
+                  onAgregarMovimiento={gestionInventarioActiva ? () => setModalAgregarFicha(true) : undefined}
                 />
-              </>
+              </div>
             )
           }
-          return (
-            <div className="w-[380px] flex-shrink-0 overflow-y-auto p-4">
-              <PanelLateral plan={plan} panel={panelData} planSr={planSr} />
-            </div>
-          )
+          return null
         })()}
       </div>
-
-      {/* Drawer overlay del Panel Plan — slide-in desde la derecha cuando
-          hay panel interactivo Y user clickeó la barra colapsada. */}
-      {drawerPlanAbierto && (
-        <DrawerPlan
-          plan={plan}
-          panel={panelData}
-          planSr={planSr}
-          onCerrar={() => setDrawerPlanAbierto(false)}
-        />
-      )}
 
       {/* Modal del Inventario (3.A) — overlay sobre todo */}
       {mostrarModalInventario && (inventarioOverride || plan.plan?.inventario) && (
@@ -1432,14 +1512,18 @@ export default function EntrevistaPage() {
         />
       )}
 
-      {/* Modal del Plan curado (3.E) — vista read-only + footer con pedir-ajuste + aprobar */}
+      {/* Modal del Plan curado (3.E) — vista read-only + footer con pedir-ajuste + aprobar.
+          Feature 2: navegación entre versiones cuando hay >1 versión persistida. */}
       {curadoAbierto && curadoActual && (
         <CuradoVista
           curado={curadoActual}
           onPedirAjuste={(texto) => handleGenerarCurado(texto)}
           onAprobar={handleAprobarCurado}
-          saving={generandoCurado}
+          saving={generandoCurado || cambiandoVersionCurado}
           onCerrar={() => setCuradoAbierto(false)}
+          totalVersiones={curadoVersionado?.versiones?.length}
+          versionActiva={curadoVersionado?.version_activa}
+          onCambiarVersion={handleCambiarVersionCurado}
         />
       )}
 
@@ -1455,6 +1539,27 @@ export default function EntrevistaPage() {
           onCancelar={handleCancelarRetroactividad}
           saving={confirmandoRetroactividad}
           error={retroactividadError}
+        />
+      )}
+
+      {/* Modal de Supuestos exógenos (3.0.B) — form con segmented controls. */}
+      {supuestosAbierto && supuestosPendientes && (
+        <SupuestosFormModal
+          supuestos={supuestosPendientes.supuestos}
+          onEnviar={handleEnviarSupuestos}
+          onCerrar={() => setSupuestosAbierto(false)}
+          saving={isStreaming || isPersisting}
+        />
+      )}
+
+      {/* Modal de Criterio de éxito (3.0.D) — form con textareas + zona de fracaso. */}
+      {criterioAbierto && criterioPendiente && (
+        <CriterioExitoFormModal
+          metricasProposito={criterioPendiente.metricas}
+          criterioActual={criterioPendiente.criterio}
+          onEnviar={handleEnviarCriterio}
+          onCerrar={() => setCriterioAbierto(false)}
+          saving={isStreaming || isPersisting}
         />
       )}
 
@@ -1531,90 +1636,3 @@ export default function EntrevistaPage() {
   )
 }
 
-// Barra vertical colapsada del Panel Plan, visible solo cuando hay panel
-// interactivo activo. Indicadores de progreso por sub-bloque del Paso 3.
-// Click → abre drawer overlay con el PanelLateral completo.
-function BarraPlanColapsada({ plan, onAbrir }: { plan: PlanEstrategico; onAbrir: () => void }) {
-  const planoP3 = plan.plan
-  const items: Array<{ key: string; label: string; completo: boolean }> = [
-    { key: '1', label: 'Propósito', completo: !!plan.proposito?.escena },
-    { key: '2', label: 'Situación', completo: !!plan.situacion?.desvio_principal },
-    { key: '3.0', label: '3.0 Preparativos', completo: !!planoP3?.preparativos },
-    { key: '3.A', label: '3.A Inventario', completo: !!planoP3?.inventario?.movimientos?.length },
-    { key: '3.B', label: '3.B Palancas', completo: (planoP3?.palancas?.preguntas_principal?.length ?? 0) >= 5 },
-    { key: '3.C', label: '3.C Borrador', completo: (planoP3?.borrador?.iteraciones?.length ?? 0) > 0 },
-    { key: '3.D', label: '3.D Estrés', completo: (planoP3?.estres?.preguntas?.length ?? 0) > 0 },
-    { key: '3.E', label: '3.E Plan curado', completo: !!planoP3?.curado },
-  ]
-
-  return (
-    <button
-      type="button"
-      onClick={onAbrir}
-      title="Abrir Panel del Plan"
-      className="w-8 flex-shrink-0 border-l border-sidebar-border bg-sidebar/50 hover:bg-sidebar transition-colors flex flex-col items-center py-3 gap-3 cursor-pointer"
-    >
-      <span className="text-[12px] font-bold uppercase tracking-widest text-muted-foreground/80" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
-        Plan ↗
-      </span>
-      <div className="flex flex-col gap-1 mt-2" aria-label="Progreso del plan">
-        {items.map(it => (
-          <div
-            key={it.key}
-            title={`${it.label} — ${it.completo ? 'completo' : 'pendiente'}`}
-            className={`h-1.5 w-1.5 rounded-full ${it.completo ? 'bg-green-500' : 'bg-muted-foreground/30'}`}
-          />
-        ))}
-      </div>
-    </button>
-  )
-}
-
-// Drawer overlay con el PanelLateral completo. Slide-in desde la derecha,
-// backdrop click-outside para cerrar, ESC también cierra. Width 380px en
-// notebooks chicos para no comerse el panel fichas que está abajo.
-function DrawerPlan({ plan, panel, planSr, onCerrar }: {
-  plan: PlanEstrategico
-  panel: PanelUpdatePE | null
-  planSr: PlanEstrategico | null
-  onCerrar: () => void
-}) {
-  // Listener ESC para cerrar
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onCerrar()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onCerrar])
-
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]"
-      onClick={onCerrar}
-      aria-modal="true"
-      role="dialog"
-    >
-      <div
-        className="absolute right-0 top-0 h-full w-[380px] bg-background border-l border-sidebar-border shadow-2xl flex flex-col"
-        onClick={e => e.stopPropagation()}
-      >
-        <header className="flex-shrink-0 flex items-center justify-between border-b border-sidebar-border px-4 py-3">
-          <p className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground/80">
-            Panel del Plan
-          </p>
-          <button
-            onClick={onCerrar}
-            aria-label="Cerrar"
-            className="rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 p-1 text-[16px] leading-none"
-          >
-            ✕
-          </button>
-        </header>
-        <div className="flex-1 overflow-y-auto p-4">
-          <PanelLateral plan={plan} panel={panel} planSr={planSr} />
-        </div>
-      </div>
-    </div>
-  )
-}

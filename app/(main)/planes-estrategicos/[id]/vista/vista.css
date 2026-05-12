@@ -15,13 +15,111 @@
 .pe-vista-container {
   max-width: 760px;
   margin: 0 auto;
-  padding: 4rem 2rem 6rem;
+  padding: 2.5rem 2rem 3rem;
+}
+
+/* ─── Índice lateral (TOC) ─────────────────────────────────────────────── */
+/* Sticky-fixed a la izquierda del container. Hidden en print y en viewports
+   angostos donde no entra al lado del contenido. */
+.pe-vista-toc {
+  position: fixed;
+  top: 80px;
+  left: max(20px, calc((100vw - 760px) / 2 - 260px));
+  width: 240px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: #2a2a2a;
+  padding: 1.25rem 1rem;
+  background: #fafaf7;
+  border: 1px solid #d4d4cf;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.pe-vista-toc .toc-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #1a1a1a;
+  margin: 0 0 0.85rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e2e2dc;
+}
+
+.pe-vista-toc ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  counter-reset: section;
+}
+
+.pe-vista-toc ol > li {
+  counter-increment: section;
+  margin-bottom: 0.65rem;
+}
+
+.pe-vista-toc ol > li > a::before {
+  content: counter(section) ". ";
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-right: 0.15rem;
+}
+
+.pe-vista-toc a {
+  color: #1a1a1a;
+  text-decoration: none;
+  font-weight: 600;
+  display: inline-block;
+  padding: 2px 0;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.pe-vista-toc a:hover {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.pe-vista-toc ul {
+  list-style: none;
+  padding-left: 0.85rem;
+  margin: 0.3rem 0 0;
+  border-left: 1px solid #d4d4cf;
+}
+
+.pe-vista-toc ul li {
+  margin-bottom: 0.3rem;
+}
+
+.pe-vista-toc ul a {
+  font-weight: 500;
+  color: #3a3a3a;
+  font-size: 12.5px;
+}
+
+.pe-vista-toc ul a:hover {
+  color: #2563eb;
+}
+
+/* Offset para anchor jumps — el target queda con espacio arriba en lugar de
+   pegado al borde superior del viewport. */
+.pe-vista [id] {
+  scroll-margin-top: 2rem;
+}
+
+/* Viewport angosto: TOC no entra al costado, se oculta. */
+@media (max-width: 1280px) {
+  .pe-vista-toc {
+    display: none;
+  }
 }
 
 .pe-vista-header {
   border-bottom: 1px solid #d4d4cf;
-  padding-bottom: 1.5rem;
-  margin-bottom: 3rem;
+  padding-bottom: 1.25rem;
+  margin-bottom: 2rem;
 }
 
 .pe-vista-header .top-bar {
@@ -62,7 +160,7 @@
 }
 
 .pe-vista section {
-  margin-bottom: 3rem;
+  margin-bottom: 2rem;
   page-break-inside: avoid;
 }
 
@@ -71,19 +169,19 @@
   font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.005em;
-  margin: 0 0 1.5rem;
+  margin: 0 0 1.25rem;
   padding-bottom: 0.5rem;
   border-bottom: 1px solid #e2e2dc;
 }
 
+/* Field label — clear sub-section heading dentro de cada Sección (h2). */
 .pe-vista h3 {
   font-family: var(--font-sans), system-ui, sans-serif;
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #4a4a4a;
-  margin: 2rem 0 0.75rem;
+  letter-spacing: -0.005em;
+  color: #1a1a1a;
+  margin: 1.5rem 0 0.5rem;
 }
 
 .pe-vista h3:first-of-type {
@@ -92,14 +190,14 @@
 
 .pe-vista p, .pe-vista li {
   font-size: 16.5px;
-  line-height: 1.7;  /* generoso para textos largos como causa raíz */
+  line-height: 1.55;
   color: #1a1a1a;
   white-space: pre-wrap;
   word-wrap: break-word;
 }
 
 .pe-vista p {
-  margin: 0 0 1rem;
+  margin: 0 0 0.6rem;
 }
 
 .pe-vista p:last-child {
@@ -107,13 +205,21 @@
 }
 
 .pe-vista ol, .pe-vista ul {
-  margin: 0 0 1rem;
-  padding-left: 1.5rem;
+  margin: 0 0 0.65rem;
+  padding-left: 1.25rem;
+}
+
+.pe-vista ol {
+  list-style: decimal;
+}
+
+.pe-vista ul {
+  list-style: disc;
 }
 
 .pe-vista ol li, .pe-vista ul li {
-  margin-bottom: 1rem;
-  padding-left: 0.25rem;
+  margin-bottom: 0.6rem;
+  padding-left: 0.15rem;
 }
 
 .pe-vista ol li:last-child, .pe-vista ul li:last-child {
@@ -167,6 +273,135 @@
   color: #8a8a8a;
 }
 
+/* ─── Markdown dentro de un Field ─────────────────────────────────────────── */
+/* Subsecciones (### Categoría) — CAPS prominentes que actúan como padre claro
+   de los items debajo, manteniéndose subordinadas al h3 sans 18px del field. */
+.pe-vista .vista-subseccion {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #1a1a1a;
+  margin: 1.2rem 0 0.5rem;
+  padding-bottom: 0.2rem;
+  border-bottom: 1px solid #e2e2dc;
+}
+
+.pe-vista .field-markdown > .vista-subseccion:first-child {
+  margin-top: 0.25rem;
+}
+
+/* Sub-subsecciones (#### Sub-categoría) — todavía más sutil, italic serif. */
+.pe-vista .vista-subsubseccion {
+  font-family: var(--font-serif), Georgia, 'Times New Roman', serif;
+  font-size: 14px;
+  font-weight: 600;
+  font-style: italic;
+  color: #4a4a4a;
+  margin: 0.5rem 0 0.15rem;
+}
+
+/* Listas top-level dentro de un Field markdown — bullets/números con indentación
+   mínima (1.1rem alcanza para mostrar el marker sin que el body se aleje del título). */
+.pe-vista .field-markdown ul,
+.pe-vista .field-markdown ol {
+  margin: 0.15rem 0 0.4rem;
+  padding-left: 1.1rem;
+}
+
+.pe-vista .field-markdown ul {
+  list-style: disc;
+}
+
+.pe-vista .field-markdown ol {
+  list-style: decimal;
+}
+
+.pe-vista .field-markdown ul li,
+.pe-vista .field-markdown ol li {
+  margin-bottom: 0.2rem;
+  padding-left: 0.15rem;
+  white-space: normal;  /* override del pre-wrap global para que markdown no preserve newlines */
+}
+
+/* Listas "loose" de markdown (con blank lines entre items) envuelven el contenido
+   en <p>. Sin este override, cada <p> hereda margin-bottom del global → gaps. */
+.pe-vista .field-markdown li > p {
+  margin: 0;
+}
+
+/* Sub-listas anidadas (hijos de un <li> padre): bullets visibles, indentación,
+   tipografía un punto más chica para señalar jerarquía. */
+.pe-vista .field-markdown li > ul,
+.pe-vista .field-markdown li > ol {
+  margin: 0.3rem 0 0.4rem;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+
+.pe-vista .field-markdown li > ul li,
+.pe-vista .field-markdown li > ol li {
+  font-size: 15px;
+  line-height: 1.5;
+  list-style: disc;
+  padding-left: 0.15rem;
+  margin-bottom: 0.25rem;
+}
+
+.pe-vista .field-markdown li > ul li::marker,
+.pe-vista .field-markdown li > ol li::marker {
+  color: #5c5c5c;
+}
+
+/* Sub-sub-listas (nivel 3+): circle marker para diferenciar del nivel 2 */
+.pe-vista .field-markdown li li > ul,
+.pe-vista .field-markdown li li > ol {
+  list-style: circle;
+}
+.pe-vista .field-markdown li li > ul li,
+.pe-vista .field-markdown li li > ol li {
+  list-style: circle;
+  font-size: 14px;
+}
+
+.pe-vista .field-markdown p {
+  margin: 0 0 0.45rem;
+  white-space: normal;
+}
+
+.pe-vista .field-markdown p:last-child {
+  margin-bottom: 0;
+}
+
+.pe-vista .field-markdown strong {
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.pe-vista .field-markdown em {
+  font-style: italic;
+}
+
+/* ─── Consecuencias de no actuar — bloques con etiqueta de horizonte ─────── */
+.pe-vista .consecuencia-block {
+  margin-bottom: 1rem;
+}
+
+.pe-vista .consecuencia-block:last-child {
+  margin-bottom: 0;
+}
+
+.pe-vista .consecuencia-horizonte {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #5c5c5c;
+  margin: 0 0 0.35rem;
+}
+
 /* ─── Print styles ────────────────────────────────────────────────────────── */
 
 @page {
@@ -175,6 +410,9 @@
 }
 
 @media print {
+  .pe-vista-toc {
+    display: none;  /* ocultar el índice lateral al imprimir */
+  }
   .pe-vista-root {
     background: #ffffff;
     color: #000000;

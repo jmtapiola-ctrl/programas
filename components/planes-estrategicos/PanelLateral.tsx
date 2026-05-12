@@ -15,7 +15,7 @@ function VerPlanCompletoLink({ planId }: { planId: string }) {
       href={`/planes-estrategicos/${planId}/vista`}
       target="_blank"
       rel="noopener noreferrer"
-      className="block text-[12px] text-muted-foreground hover:text-foreground transition-colors text-right pb-2"
+      className="text-[12px] text-muted-foreground hover:text-foreground transition-colors"
     >
       Ver plan completo ↗
     </a>
@@ -55,8 +55,7 @@ export function PanelLateral({ plan, panel, planSr }: Props) {
 
         {/* Columna der: Plan Jr en construcción */}
         <div className="flex-1 overflow-y-auto space-y-4">
-          <VerPlanCompletoLink planId={plan.id} />
-          <PanelConstruccion proposito={proposito} situacion={situacion} datosFaltantes={datosFaltantes} alineacion={proposito?.alineacion_sr} planPaso3={planPaso3} />
+          <PanelConstruccion proposito={proposito} situacion={situacion} datosFaltantes={datosFaltantes} alineacion={proposito?.alineacion_sr} planPaso3={planPaso3} planId={plan.id} />
         </div>
       </div>
     )
@@ -64,8 +63,7 @@ export function PanelLateral({ plan, panel, planSr }: Props) {
 
   return (
     <div className="overflow-y-auto space-y-4">
-      <VerPlanCompletoLink planId={plan.id} />
-      <PanelConstruccion proposito={proposito} situacion={situacion} datosFaltantes={datosFaltantes} planPaso3={planPaso3} />
+      <PanelConstruccion proposito={proposito} situacion={situacion} datosFaltantes={datosFaltantes} planPaso3={planPaso3} planId={plan.id} />
     </div>
   )
 }
@@ -76,12 +74,14 @@ function PanelConstruccion({
   datosFaltantes,
   alineacion,
   planPaso3,
+  planId,
 }: {
   proposito: any
   situacion: any
   datosFaltantes: string[]
   alineacion?: string
   planPaso3?: any
+  planId: string
 }) {
   return (
     <>
@@ -92,7 +92,7 @@ function PanelConstruccion({
         </div>
       )}
 
-      <SeccionPanel titulo="Propósito">
+      <SeccionPanel titulo="Propósito" enlace={<VerPlanCompletoLink planId={planId} />}>
         <Campo label="Escena ideal" valor={proposito?.escena} placeholder="Se construye en el Paso 1" />
         {proposito?.metricas?.length > 0 && (
           <Campo
@@ -271,12 +271,15 @@ function PalancasPanel({ palancas }: { palancas: any }) {
   )
 }
 
-function SeccionPanel({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+function SeccionPanel({ titulo, children, enlace }: { titulo: string; children: React.ReactNode; enlace?: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-sidebar-border bg-sidebar/50 p-4 space-y-3">
-      <p className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-        {titulo}
-      </p>
+    <div className="rounded-xl bg-sidebar/50 p-4 space-y-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-[18px] font-bold text-foreground tracking-tight">
+          {titulo}
+        </p>
+        {enlace && <div className="flex-shrink-0">{enlace}</div>}
+      </div>
       {children}
     </div>
   )
@@ -286,7 +289,7 @@ function Campo({ label, valor, placeholder }: { label: string; valor?: string; p
   const texto = valor?.trim()
   return (
     <div className="space-y-0.5">
-      <p className="text-[12px] font-medium text-muted-foreground/70 uppercase tracking-wide">{label}</p>
+      <p className="text-[12px] font-medium text-foreground uppercase tracking-wide">{label}</p>
       {texto ? (
         <div className="text-[12px] text-foreground/90 leading-relaxed">
           <ReactMarkdown

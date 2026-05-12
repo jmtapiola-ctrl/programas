@@ -178,13 +178,29 @@ export async function POST(req: NextRequest) {
               `[PE chat] Retry de PANEL_UPDATE también falló (original=${parseResult.reason}):`,
               retryResult.errors,
             )
-            // Solo no_block dispara alerta inmediata (ver instrucción de usuario).
-            // Otros casos esperan al contador de turnos seguidos abajo.
+            // Para no_block: en lugar de alerta UI, sintetizamos un PANEL_UPDATE
+            // mínimo server-side. El merge protector preserva todos los sub-trees
+            // persistidos → cero data loss del estado ya guardado. La única
+            // pérdida son mutaciones que el modelo verbalizó en prosa y no
+            // emitió en bloque (mismo resultado que con el warning, pero sin
+            // bloquear al usuario). Telemetría loguea el evento para detectar
+            // si pasa frecuente.
             if (parseResult.reason === 'no_block') {
-              panelUnhealthy = {
-                reason: 'no_block_persistente',
-                detail: 'El modelo no emitió el bloque PANEL_UPDATE ni en el reintento focalizado. Algo grave está pasando con el modelo.',
-              }
+              panelUpdate = {
+                paso_actual: entrevista.paso_actual ?? 0,
+                sub_bloque_actual: entrevista.sub_bloque_actual ?? '0',
+                cierre_sugerido: false,
+                cambio_retroactivo: { detectado: false },
+              } as PanelUpdatePE
+              console.warn(
+                `[PE chat] PANEL_UPDATE sintetizado server-side (no_block_synthesized) — ` +
+                `paso=${entrevista.paso_actual} sub=${entrevista.sub_bloque_actual}. ` +
+                `Mutaciones verbalizadas en prosa pueden haberse perdido.`,
+              )
+            } else {
+              // malformed_json / invalid_shape — no synthesizamos porque el
+              // modelo TUVO intención de emitir block (lo emitió, mal) y
+              // sintetizar enmascararía bugs reales del modelo.
             }
           }
         }
@@ -585,13 +601,16 @@ async function retryPanelUpdate(
 
 INSTRUCCIÓN ESTRICTA: en tu próxima respuesta, NO escribas NADA fuera del bloque. Empezá tu respuesta con "<!--PANEL_UPDATE-->" en la primera línea, después el JSON, después "<!--/PANEL_UPDATE-->" como última línea. Sin texto antes, sin texto después, sin saludos, sin explicaciones. Solo el bloque.
 
-El JSON debe incluir SÍ O SÍ: paso_actual (number) + sub_bloque_actual (string). Para el resto, seguí la regla "no re-emitir sub-trees congelados" que ya conocés del system prompt:
+El JSON debe incluir SÍ O SÍ: paso_actual (number) + sub_bloque_actual (string). Para el resto, seguí la regla "no re-emitir sub-trees congelados" CON SU EXCEPCIÓN crítica:
 
-  - Durante 3.0/3.A/3.B/3.C/3.D/3.E: OMITÍ las keys "proposito" y "situacion" (están congelados desde Paso 1/2 — el backend las preserva).
+  - Durante 3.0/3.A/3.B/3.C/3.D/3.E: por defecto OMITÍ las keys "proposito" y "situacion" (están congelados desde Paso 1/2 — el backend las preserva).
+  - **EXCEPCIÓN — cambio retroactivo a Paso 1/2:** si tu respuesta anterior verbalizó una corrección a "proposito" o "situacion" (frases como "Aplico la corrección...", "Corrijo...", "Cambio la métrica...", "Tomadas las dos correcciones..."), DEBÉS emitir el sub-tree afectado COMPLETO con la mutación aplicada. Si lo omitís, el merge protector preserva el valor viejo y la corrección se pierde. Releé tu respuesta anterior y chequeá explícitamente: ¿mencionaste cambios a proposito/situacion? Si SÍ → emití ese sub-tree completo. Si NO → omitilo.
   - "datos_faltantes": omitible si no los modificás este turno.
-  - "plan": SOLO la sub-key del sub-bloque activo. Las sub-keys de bloques cerrados anteriores se omiten.
+  - "plan": SOLO la sub-key del sub-bloque activo (modificada por el sub-bloque actual o por un cambio retroactivo verbalizado). Las sub-keys de bloques cerrados anteriores se omiten salvo que las hayas mutado en la prosa.
 
-Para los sub-trees que SÍ emitís: el contenido es el ESTADO COMPLETO ACUMULADO del sub-bloque activo (si se acordaron N ítems, los N tienen que estar — no patches parciales). Si el sub-tree no tiene contenido todavía: omitir la key completa (NO emitir "" ni []).`,
+Para los sub-trees que SÍ emitís: el contenido es el ESTADO COMPLETO ACUMULADO (si se acordaron N ítems, los N tienen que estar — no patches parciales, no solo el item modificado). Si el sub-tree no tiene contenido todavía: omitir la key completa (NO emitir "" ni []).
+
+Si verbalizaste un cambio retroactivo, además del sub-tree mutado: incluí también el campo "cambio_retroactivo" con detectado=true + el resto de los campos según el contrato H7.`,
     },
   ]
 

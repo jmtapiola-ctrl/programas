@@ -98,10 +98,12 @@ function validateSupuestoExogenoItem(item: any, idx: number, prefix: string): st
   }
   if (typeof item.descripcion !== 'string') errs.push(`${prefix}[${idx}].descripcion debe ser string`)
   if (!['macro', 'mercado', 'regulatorio', 'social'].includes(item.tipo)) errs.push(`${prefix}[${idx}].tipo debe ser 'macro'|'mercado'|'regulatorio'|'social', got '${item.tipo}'`)
-  if (!['alta', 'media', 'baja'].includes(item.probabilidad)) errs.push(`${prefix}[${idx}].probabilidad debe ser 'alta'|'media'|'baja', got '${item.probabilidad}'`)
-  if (!['favorable', 'desfavorable'].includes(item.impacto_signo)) errs.push(`${prefix}[${idx}].impacto_signo debe ser 'favorable'|'desfavorable', got '${item.impacto_signo}'`)
-  if (!['alta', 'media', 'baja'].includes(item.impacto_magnitud)) errs.push(`${prefix}[${idx}].impacto_magnitud debe ser 'alta'|'media'|'baja', got '${item.impacto_magnitud}'`)
-  if (!['hedge', 'bet', 'aceptar'].includes(item.estrategia)) errs.push(`${prefix}[${idx}].estrategia debe ser 'hedge'|'bet'|'aceptar', got '${item.estrategia}'`)
+  // Las 4 dimensiones de calificación aceptan "" como "pendiente de calificar"
+  // (3.0.B: el modelo emite la lista vacía y la UI dispara el SupuestosFormModal).
+  if (!['alta', 'media', 'baja', ''].includes(item.probabilidad)) errs.push(`${prefix}[${idx}].probabilidad debe ser 'alta'|'media'|'baja' o '' (pendiente), got '${item.probabilidad}'`)
+  if (!['favorable', 'desfavorable', ''].includes(item.impacto_signo)) errs.push(`${prefix}[${idx}].impacto_signo debe ser 'favorable'|'desfavorable' o '' (pendiente), got '${item.impacto_signo}'`)
+  if (!['alta', 'media', 'baja', ''].includes(item.impacto_magnitud)) errs.push(`${prefix}[${idx}].impacto_magnitud debe ser 'alta'|'media'|'baja' o '' (pendiente), got '${item.impacto_magnitud}'`)
+  if (!['hedge', 'bet', 'aceptar', ''].includes(item.estrategia)) errs.push(`${prefix}[${idx}].estrategia debe ser 'hedge'|'bet'|'aceptar' o '' (pendiente), got '${item.estrategia}'`)
   if (typeof item.razon !== 'string') errs.push(`${prefix}[${idx}].razon debe ser string`)
   return errs
 }

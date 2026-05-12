@@ -401,10 +401,13 @@ export type EstrategiaSupuesto = 'hedge' | 'bet' | 'aceptar'
 export interface SupuestoExogenoPE {
   descripcion: string
   tipo: SupuestoTipo
-  probabilidad: Probabilidad
-  impacto_signo: 'favorable' | 'desfavorable'
-  impacto_magnitud: 'alta' | 'media' | 'baja'
-  estrategia: EstrategiaSupuesto
+  // Las 4 dimensiones de calificación admiten "" como "pendiente de calificar"
+  // (3.0.B: el modelo emite la lista de supuestos con calificaciones vacías y
+  // el SupuestosFormModal del frontend pide al usuario que las complete).
+  probabilidad: Probabilidad | ''
+  impacto_signo: 'favorable' | 'desfavorable' | ''
+  impacto_magnitud: 'alta' | 'media' | 'baja' | ''
+  estrategia: EstrategiaSupuesto | ''
   razon: string
 }
 
@@ -578,13 +581,39 @@ export interface PlanCuradoPE {
   cerrado_en: string  // ISO
 }
 
+// Versionado del curado (Feature: 3.E no-destructivo). Cada llamada a
+// /paso3/curado/generar appende una versión nueva a versiones[]; el usuario
+// puede navegar entre versiones sin perder ninguna. La version_activa es la
+// que se renderiza, la que se audita al cerrar Paso 3, y la que sirve de
+// base para la próxima regeneración si el usuario pide ajuste desde ella.
+//
+// Migración backward-compat: si plan.curado está persistido con shape antiguo
+// (PlanCuradoPE directo, sin versiones[]), mapPlanEstrategico lo envuelve
+// automáticamente como { versiones: [old], version_activa: 0 } al leer.
+export interface PlanCuradoVersionado {
+  versiones: PlanCuradoPE[]
+  version_activa: number  // 0-indexed
+}
+
+// Helper para acceder al curado activo desde cualquier callsite — handlea
+// el shape versionado (V2) y null si no hay curado todavía.
+export function getCuradoActivo(planEstrategico: { plan?: PlanoPE }): PlanCuradoPE | null {
+  const c = planEstrategico.plan?.curado
+  if (!c || !c.versiones || c.versiones.length === 0) return null
+  const idx = Math.max(0, Math.min(c.version_activa, c.versiones.length - 1))
+  return c.versiones[idx] ?? null
+}
+
 export interface PlanoPE {
   preparativos?: PreparativosPE
   inventario?: InventarioPE
   palancas?: PalancasPE
   borrador?: BorradorPE
   estres?: EstresPE
-  curado?: PlanCuradoPE
+  // Versionado no-destructivo del plan curado. Cada "regenerar" hace append;
+  // version_activa apunta a la versión que el user ve y la que se audita al
+  // cerrar Paso 3. Acceder vía getCuradoActivo() para mantener compat.
+  curado?: PlanCuradoVersionado
   // Audit trail de cambios retroactivos confirmados por el user sobre material
   // validado (Fase F — H7 control suave). Append-only. Cada entry queda
   // permanentemente como trazabilidad. Los rechazados (Cancelar) NO se persisten.
