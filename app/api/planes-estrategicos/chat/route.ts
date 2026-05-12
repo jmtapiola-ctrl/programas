@@ -87,9 +87,27 @@ export async function POST(req: NextRequest) {
       }
     }
     if (t.rol === 'snapshot') {
+      // Distinguir cierre formal del Paso vs cierre intermedio de sub-bloque
+      // mirando el campo cierre_tipo del JSON del snapshot. Backward compat:
+      // snapshots viejos sin cierre_tipo se tratan como 'formal_paso'.
+      let cierreTipo: string | undefined
+      try {
+        const parsed = JSON.parse(t.contenido ?? '')
+        cierreTipo = parsed?.cierre_tipo
+      } catch {
+        // contenido no parsea — asumir formal_paso (legacy)
+      }
+      let header: string
+      if (cierreTipo === 'intermedio_sub_bloque_3.0') {
+        header = `[CIERRE INTERMEDIO DEL SUB-BLOQUE 3.0 — el usuario terminó Preparativos y avanza a 3.A. El Paso 3 NO está cerrado, solo el sub-bloque 3.0. Inventario / Palancas / Borrador / Estrés / Curado todavía deben construirse.]`
+      } else if (cierreTipo === 'intermedio_sub_bloque_3.A') {
+        header = `[CIERRE INTERMEDIO DEL SUB-BLOQUE 3.A — el usuario terminó Inventario y avanza a 3.B. El Paso 3 NO está cerrado, solo los sub-bloques 3.0 y 3.A. Palancas / Borrador / Estrés / Curado todavía deben construirse.]`
+      } else {
+        header = `[CIERRE FORMAL DEL PASO ${t.paso} — RESUMEN CONGELADO]`
+      }
       return {
         role: 'user',
-        content: `[CIERRE FORMAL DEL PASO ${t.paso} — RESUMEN CONGELADO]\n\n${t.contenido}`,
+        content: `${header}\n\n${t.contenido}`,
       }
     }
     return { role: 'user', content: t.contenido }
@@ -361,11 +379,19 @@ export async function POST(req: NextRequest) {
 
           if (esCierreInterno && subEstadoActual === 'en_curso') {
             // Cierre intermedio: snapshot sin transición.
+            // Marcamos con cierre_tipo='intermedio_sub_bloque_X' para que el
+            // wrapper de history del LLM lo etiquete como cierre intermedio
+            // (NO como cierre formal del Paso). Sin esa marca, el modelo lee
+            // "[CIERRE FORMAL DEL PASO 3]" en turnos posteriores y alucina
+            // que el Paso 3 entero está terminado cuando solo 3.0/3.A lo están.
             try {
               // Re-leer el plan después del save para tener el estado post-merge
               // que efectivamente quedó persistido (no el panelUpdate.plan crudo).
               const planFresh = await getPlanEstrategico(planId)
               const indiceSnapshot = entrevista.historial.length + 2 // +2 = user turn + model turn ya persistidos
+              const cierreTipo = subBloque === '3.0'
+                ? 'intermedio_sub_bloque_3.0' as const
+                : 'intermedio_sub_bloque_3.A' as const
               await appendSnapshotTurno(entrevista.id, indiceSnapshot, {
                 paso: 3,
                 proposito: planFresh.proposito,
@@ -373,9 +399,10 @@ export async function POST(req: NextRequest) {
                 datos_faltantes: planFresh.datos_faltantes ?? [],
                 plan: planFresh.plan,
                 cerrado_en: new Date().toISOString(),
+                cierre_tipo: cierreTipo,
               })
               send({ type: 'sub_bloque_cerrado', paso: 3, sub_bloque: subBloque })
-              console.log(`[PE chat] sub_bloque_cerrado=${subBloque} (entrevista ${entrevista.id})`)
+              console.log(`[PE chat] sub_bloque_cerrado=${subBloque} cierre_tipo=${cierreTipo} (entrevista ${entrevista.id})`)
             } catch (e) {
               console.warn(`[PE chat] No se pudo crear snapshot intermedio de ${subBloque}:`, e instanceof Error ? e.message : String(e))
             }

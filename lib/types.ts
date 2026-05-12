@@ -711,6 +711,16 @@ export interface SnapshotPaso {
   datos_faltantes: string[]
   plan?: PlanoPE
   cerrado_en: string  // ISO datetime
+  // Tipo de cierre que generó este snapshot:
+  // - 'formal_paso': cierre formal del Paso entero post audit-reviewer.
+  //   Implica que TODOS los sub-bloques del Paso están completos.
+  // - 'intermedio_sub_bloque_3.0' | 'intermedio_sub_bloque_3.A': cierre
+  //   intermedio cuando el modelo emite cierre_sugerido=true dentro del
+  //   Paso 3 al terminar 3.0 o 3.A. NO implica Paso 3 terminado — solo
+  //   ese sub-bloque. Sirve como marca "no re-litigar ese sub-bloque"
+  //   sin que el modelo confunda con cierre formal del Paso.
+  // Backward compat: snapshots viejos sin este campo se tratan como 'formal_paso'.
+  cierre_tipo?: 'formal_paso' | 'intermedio_sub_bloque_3.0' | 'intermedio_sub_bloque_3.A'
 }
 
 export interface EntrevistaPE {

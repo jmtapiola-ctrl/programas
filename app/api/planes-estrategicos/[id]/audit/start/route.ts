@@ -366,12 +366,16 @@ async function handleSkip(
   })
 
   // 2. Crear snapshot inmutable del Paso.
+  // cierre_tipo='formal_paso' aunque sea skipped (es cierre formal del Paso
+  // entero, solo que sin audit-reviewer). El wrapper del LLM lo etiqueta como
+  // cierre completo del Paso para que el modelo no vuelva a abrirlo.
   const snapshot: SnapshotPaso = {
     paso,
     proposito: plan.proposito,
     situacion: plan.situacion,
     datos_faltantes: plan.datos_faltantes ?? [],
     cerrado_en: new Date().toISOString(),
+    cierre_tipo: 'formal_paso',
   }
   await appendSnapshotTurno(entrevista.id, indiceInicial + 1, snapshot)
 

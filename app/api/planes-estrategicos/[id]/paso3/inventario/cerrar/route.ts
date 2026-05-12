@@ -62,7 +62,10 @@ export async function POST(
     }, { status: 409 })
   }
 
-  // Snapshot intermedio del Paso 3 con plan.inventario completo
+  // Snapshot intermedio del Paso 3 con plan.inventario completo.
+  // cierre_tipo='intermedio_sub_bloque_3.A' marca este snapshot como cierre
+  // de sub-bloque (NO del Paso entero) para que el wrapper del LLM en turnos
+  // futuros lo etiquete correctamente y el modelo no alucine "Paso 3 cerrado".
   const snapshot: SnapshotPaso = {
     paso: 3,
     proposito: plan.proposito,
@@ -70,6 +73,7 @@ export async function POST(
     datos_faltantes: plan.datos_faltantes ?? [],
     plan: plan.plan,
     cerrado_en: new Date().toISOString(),
+    cierre_tipo: 'intermedio_sub_bloque_3.A',
   }
   const indiceSnapshot = entrevista.historial.length
   await appendSnapshotTurno(entrevista.id, indiceSnapshot, snapshot)

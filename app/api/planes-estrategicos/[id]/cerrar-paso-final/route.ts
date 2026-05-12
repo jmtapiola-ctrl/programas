@@ -56,12 +56,17 @@ export async function POST(
   }
 
   // Construir snapshot inmutable con el resumen actual.
+  // cierre_tipo='formal_paso' indica cierre del Paso entero post audit-reviewer,
+  // a diferencia de los snapshots intermedios (sub_bloque_3.0, 3.A) creados
+  // por el chat route. El wrapper del LLM usa esta marca para etiquetar el
+  // snapshot al modelo en turnos futuros.
   const snapshot: SnapshotPaso = {
     paso,
     proposito: plan.proposito,
     situacion: plan.situacion,
     datos_faltantes: plan.datos_faltantes ?? [],
     cerrado_en: new Date().toISOString(),
+    cierre_tipo: 'formal_paso',
   }
 
   // Persistir snapshot como turno con rol=snapshot.
