@@ -306,6 +306,25 @@ ahí sí pedile que pruebe. No es tarea operativa — es criterio que solo él t
 
 ## Backlog activo — features pausados
 
+### Chat contextual sobre el reporte del plan — IMPACTO ALTO
+
+Estado: pausado, prioridad alta para post-Paso 4.
+
+Concepto: textarea/chat debajo del reporte "Ver plan completo" que permite al
+usuario tipear cambios sobre el plan en lenguaje natural ("cambiá X de Propósito",
+"ajustá Y en Situación"). Sistema procesa con la misma lógica de Fase F
+(clasifica retroactividad + dispara modal de control suave si aplica + aplica con
+trazabilidad).
+
+Beneficio: separa el flow conversacional del wizard (que debe enfocarse en el
+sub-bloque actual) del flow de correcciones retroactivas (que puede ocurrir en
+cualquier momento sobre cualquier parte del plan).
+
+Evolución natural de Fase F. Costo estimado 2-4h efectivas.
+
+Pre-requisitos: Fase F bien validada con uso real. Confirmación de que la
+persistencia en Airtable funciona correctamente bajo todos los escenarios.
+
 ### Split de CLAUDE.md en docs/ — pendiente post-Paso 3+4
 
 **Decidido 2026-05-03:** CLAUDE.md creció a ~280 líneas. Split aprobado pero postergado hasta terminar Paso 3 + Paso 4 (esos van a generar aprendizajes nuevos que conviene incorporar de una sola vez).
