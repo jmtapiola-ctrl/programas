@@ -12,7 +12,8 @@ export async function GET() {
   if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const userId = (session.user as any).id as string
   const rol = (session.user as any).role as string
-  const planes = await getPlanesEstrategicos(userId, rol)
+  const userEmail = (session.user as any).email as string
+  const planes = await getPlanesEstrategicos(userId, rol, userEmail)
   return NextResponse.json({ planes })
 }
 
@@ -22,17 +23,20 @@ export async function POST(req: NextRequest) {
   const userId = (session.user as any).id as string
 
   const body = await req.json()
-  const { tipo, plan_sr_id, plan_sr_nombre } = body
+  const { tipo, nombre, plan_sr_id, plan_sr_nombre } = body
 
   if (!tipo || !['Sr', 'Jr'].includes(tipo)) {
     return NextResponse.json({ error: 'Tipo inválido' }, { status: 400 })
+  }
+  if (typeof nombre !== 'string' || !nombre.trim()) {
+    return NextResponse.json({ error: 'Nombre del plan requerido' }, { status: 400 })
   }
   if (tipo === 'Jr' && !plan_sr_id) {
     return NextResponse.json({ error: 'Plan Sr requerido para plan Jr' }, { status: 400 })
   }
 
   const plan = await createPlanEstrategico({
-    nombre: 'Plan en redacción',
+    nombre: nombre.trim(),
     tipo,
     plan_sr_id,
     plan_sr_nombre,

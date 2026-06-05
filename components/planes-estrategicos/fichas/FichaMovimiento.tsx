@@ -26,7 +26,8 @@ export type EstadoFicha =
   | { tipo: 'atenuado' }                       // otras fichas cuando una está seleccionada (seleccion_unica)
   | { tipo: 'resaltado'; color?: 'verde' | 'azul' | 'amarillo' }  // ficha seleccionada
   | { tipo: 'marcado-numero'; numero: number } // ranked: 1, 2, 3...
-  | { tipo: 'flag' }                           // marcado_simple
+  | { tipo: 'flag' }                           // marcado_simple genérico
+  | { tipo: 'riesgo' }                         // P-5: riesgo alto de ejecución (borde rojo + chip RIESGO)
   | { tipo: 'asociando' }                      // pares: ficha A esperando B
   | { tipo: 'conectado'; rol: 'desde' | 'hacia' } // pares: ya parte de un par
 
@@ -47,9 +48,14 @@ interface Props {
   cambioReciente?: 'agregado' | 'editado'
   onEditar?: () => void
   onQuitar?: () => void
+  // Info del schedule CPM para mostrar arranque/cierre computados. Es opcional —
+  // solo se pasa desde contextos que computaron computeSchedule() (ej: P-5
+  // RiesgoEjecucionModal). Si presente, se renderea una línea adicional con
+  // la ventana real del cronograma. Independiente de los `campos`.
+  cpmInfo?: { arrancaYM: string; terminaYM: string; durMeses: number }
 }
 
-export function FichaMovimiento({ movimiento, campos, estado, onClick, htmlId, cambioReciente, onEditar, onQuitar }: Props) {
+export function FichaMovimiento({ movimiento, campos, estado, onClick, htmlId, cambioReciente, onEditar, onQuitar, cpmInfo }: Props) {
   const claseEstado = renderClaseEstado(estado)
   const clickeable = onClick !== undefined
   const conGestion = onEditar !== undefined || onQuitar !== undefined
@@ -111,17 +117,40 @@ export function FichaMovimiento({ movimiento, campos, estado, onClick, htmlId, c
       {/* Badge de estado en esquina superior derecha (si aplica) */}
       <BadgeEstado estado={estado} />
 
-      {/* ID + categoría + banda — siempre visibles, formato compacto */}
-      <div className="flex items-center gap-1.5 mb-1">
+      {/* ID + categoría + chips (esfuerzo / impacto / estado) — siempre visibles,
+          formato compacto. Para esfuerzo y impacto la semántica del color es
+          INVERSA: esfuerzo alto = rojo (malo); impacto alto = verde (bueno). */}
+      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
         <span className="font-mono text-[12px] text-muted-foreground/70">{movimiento.id}</span>
         {campos.includes('banda_ancha') && (
-          <span className={`rounded-full px-1.5 py-0 text-[12px] font-semibold uppercase ${
-            movimiento.costo_banda_ancha === 'alta' ? 'bg-red-950/50 text-red-300 border border-red-800/50' :
-            movimiento.costo_banda_ancha === 'media' ? 'bg-yellow-950/50 text-yellow-300 border border-yellow-800/50' :
-            'bg-green-950/50 text-green-300 border border-green-800/50'
-          }`}>
-            {movimiento.costo_banda_ancha}
+          <span
+            title={`Esfuerzo: ${movimiento.costo_banda_ancha}`}
+            className={`rounded-full px-1.5 py-0 text-[12px] font-semibold uppercase ${
+              movimiento.costo_banda_ancha === 'alta' ? 'bg-red-950/50 text-red-300 border border-red-800/50' :
+              movimiento.costo_banda_ancha === 'media' ? 'bg-yellow-950/50 text-yellow-300 border border-yellow-800/50' :
+              'bg-green-950/50 text-green-300 border border-green-800/50'
+            }`}
+          >
+            E: {movimiento.costo_banda_ancha}
           </span>
+        )}
+        {campos.includes('impacto') && (
+          movimiento.impacto ? (
+            <span
+              title={`Impacto: ${movimiento.impacto}`}
+              className={`rounded-full px-1.5 py-0 text-[12px] font-semibold uppercase ${
+                movimiento.impacto === 'alta' ? 'bg-green-950/50 text-green-300 border border-green-800/50' :
+                movimiento.impacto === 'media' ? 'bg-yellow-950/50 text-yellow-300 border border-yellow-800/50' :
+                'bg-slate-900/50 text-slate-300 border border-slate-700/50'
+              }`}
+            >
+              I: {movimiento.impacto}
+            </span>
+          ) : (
+            <span className="rounded-full px-1.5 py-0 text-[12px] italic text-muted-foreground/60 border border-dashed border-sidebar-border">
+              I: —
+            </span>
+          )
         )}
         {campos.includes('estado_usuario') && movimiento.estado_usuario !== 'pendiente' && (
           <span className="rounded-full bg-foreground/10 px-1.5 py-0 text-[12px] uppercase text-foreground/60">
@@ -133,19 +162,28 @@ export function FichaMovimiento({ movimiento, campos, estado, onClick, htmlId, c
       {/* Nombre — siempre visible */}
       <h4 className="text-[13px] font-semibold text-foreground leading-snug">{movimiento.nombre}</h4>
 
-      {/* Campos opcionales según campos_a_mostrar */}
-      {(campos.includes('que_resuelve') || campos.includes('ataca_desvio') || campos.includes('dueno') || campos.includes('costo') || campos.includes('ventana') || campos.includes('cantidad_precondiciones') || campos.includes('cantidad_desbloqueos') || campos.includes('criterio_exito')) && (
+      {/* Campos opcionales según campos_a_mostrar + cpmInfo (independiente) */}
+      {(campos.includes('que_resuelve') || campos.includes('ataca_desvio') || campos.includes('dueno') || campos.includes('costo') || campos.includes('ventana') || campos.includes('cantidad_precondiciones') || campos.includes('cantidad_desbloqueos') || campos.includes('criterio_exito') || campos.includes('duracion_meses') || cpmInfo) && (
         <div className="mt-1.5 space-y-0.5 text-[12px]">
           {campos.includes('que_resuelve') && (
             <Linea label="Resuelve" valor={movimiento.que_resuelve} />
           )}
-          {campos.includes('ataca_desvio') && (
+          {campos.includes('ataca_desvio') && movimiento.ataca_desvio && (
             <Linea label="Desvío" valor={movimiento.ataca_desvio} />
           )}
           {campos.includes('dueno') && (
             <Linea label="Dueño" valor={movimiento.dueno} />
           )}
-          {campos.includes('ventana') && (
+          {campos.includes('criterio_exito') && (
+            <Linea label="Éxito" valor={movimiento.criterio_exito} />
+          )}
+          {campos.includes('duracion_meses') && typeof movimiento.duracion_meses_ejecucion === 'number' && (
+            <Linea label="Dura" valor={`${movimiento.duracion_meses_ejecucion} ${movimiento.duracion_meses_ejecucion === 1 ? 'mes' : 'meses'}`} />
+          )}
+          {cpmInfo && (
+            <Linea label="📅 CPM" valor={`${cpmInfo.arrancaYM} → ${cpmInfo.terminaYM} (${cpmInfo.durMeses}m)`} />
+          )}
+          {campos.includes('ventana') && movimiento.ventana_temporal && (
             <Linea label="Ventana" valor={`${movimiento.ventana_temporal.arranca}→${movimiento.ventana_temporal.termina}`} />
           )}
           {campos.includes('costo') && (
@@ -156,9 +194,6 @@ export function FichaMovimiento({ movimiento, campos, estado, onClick, htmlId, c
           )}
           {campos.includes('cantidad_desbloqueos') && (
             <Linea label="Desbloquea" valor={`${movimiento.desbloquea.length}`} />
-          )}
-          {campos.includes('criterio_exito') && (
-            <Linea label="Éxito" valor={movimiento.criterio_exito} />
           )}
         </div>
       )}
@@ -182,6 +217,8 @@ function renderClaseEstado(estado: EstadoFicha): string {
       return 'border-2 border-blue-500 bg-blue-950/40'
     case 'flag':
       return 'border-2 border-yellow-600 bg-yellow-950/30'
+    case 'riesgo':
+      return 'border-2 border-red-600 bg-red-950/30 ring-1 ring-red-500/40'
     case 'asociando':
       return 'border-2 border-amber-500 bg-amber-950/40 ring-2 ring-amber-500/40 animate-pulse'
     case 'conectado':
@@ -206,6 +243,13 @@ function BadgeEstado({ estado }: { estado: EstadoFicha }) {
       </div>
     )
   }
+  if (estado.tipo === 'riesgo') {
+    return (
+      <div className="absolute -top-2 -right-2 h-5 px-2 rounded-full bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider flex items-center justify-center shadow-lg border border-red-300/40">
+        ⚠ Riesgo
+      </div>
+    )
+  }
   if (estado.tipo === 'conectado') {
     return (
       <div className="absolute -top-2 -right-2 h-5 px-2 rounded-full bg-purple-500 text-white text-[12px] font-semibold flex items-center justify-center shadow-lg">
@@ -219,7 +263,7 @@ function BadgeEstado({ estado }: { estado: EstadoFicha }) {
 function Linea({ label, valor }: { label: string; valor: string }) {
   return (
     <p className="leading-snug">
-      <span className="text-[12px] uppercase tracking-wider text-muted-foreground/70 mr-1">{label}:</span>
+      <span className="text-[12px] uppercase tracking-wider text-foreground/70 mr-1">{label}:</span>
       <span className="text-foreground/90">{valor}</span>
     </p>
   )

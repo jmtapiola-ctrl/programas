@@ -444,3 +444,283 @@
     widows: 3;
   }
 }
+
+/* ─── Glosario del plan ─────────────────────────────────────────────────── */
+.pe-vista-glosario {
+  margin-top: 0;
+  margin-bottom: 2.5rem;
+  padding: 1.5rem 1.75rem;
+  background: #f4f1e8;
+  border-left: 4px solid #8a7c5a;
+  border-radius: 4px;
+}
+.pe-vista-glosario h2 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+.pe-vista-glosario-intro {
+  font-size: 13px;
+  color: #4a4a45;
+  font-style: italic;
+  margin-bottom: 1.25rem;
+  line-height: 1.6;
+}
+.pe-vista-glosario-grupo {
+  margin-bottom: 1.5rem;
+}
+.pe-vista-glosario-grupo:last-child {
+  margin-bottom: 0;
+}
+.pe-vista-glosario-grupo-titulo {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6a5f3f;
+  margin: 0 0 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #ddd6c2;
+}
+.pe-vista-glosario-dl {
+  margin: 0;
+}
+.pe-vista-glosario-entry {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 0.75rem 1rem;
+  margin-bottom: 0.6rem;
+  align-items: baseline;
+}
+.pe-vista-glosario-entry dt {
+  font-weight: 600;
+  font-size: 13px;
+  color: #2a2a2a;
+  line-height: 1.45;
+}
+.pe-vista-glosario-entry dd {
+  margin: 0;
+  font-size: 13px;
+  color: #3a3a3a;
+  line-height: 1.55;
+}
+.pe-vista-glosario-ej {
+  display: block;
+  margin-top: 0.2rem;
+  font-style: italic;
+  color: #6a5f3f;
+  font-size: 12px;
+}
+@media (max-width: 720px) {
+  .pe-vista-glosario-entry {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+}
+
+/* ─── Plan curado: fases + movs ─────────────────────────────────────────── */
+.pe-vista-fases {
+  margin: 1rem 0 1.5rem;
+}
+.pe-vista-fase {
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.25rem;
+  background: #ffffff;
+  border: 1px solid #e2e2dc;
+  border-radius: 6px;
+}
+.pe-vista-fase-titulo {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 0.4rem;
+  line-height: 1.4;
+}
+.pe-vista-fase-numero {
+  display: inline-block;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6a5f3f;
+  background: #f4f1e8;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-right: 0.6rem;
+  vertical-align: middle;
+}
+.pe-vista-fase-count {
+  font-weight: 400;
+  font-style: italic;
+  color: #6a6a6a;
+  font-size: 12px;
+  margin-left: 0.4rem;
+}
+.pe-vista-fase-razon {
+  font-size: 13px;
+  color: #4a4a45;
+  margin: 0 0 0.85rem;
+  line-height: 1.55;
+}
+.pe-vista-fase-movs {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.pe-vista-mov {
+  padding: 0.6rem 0.85rem;
+  margin-bottom: 0.5rem;
+  background: #fafaf7;
+  border: 1px solid #ebebe2;
+  border-radius: 4px;
+}
+.pe-vista-mov:last-child {
+  margin-bottom: 0;
+}
+.pe-vista-mov-header {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.pe-vista-mov-id {
+  display: inline-block;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6a6a6a;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+}
+.pe-vista-mov-nombre {
+  font-weight: 600;
+  color: #1a1a1a;
+}
+.pe-vista-mov-resuelve {
+  font-size: 12px;
+  color: #4a4a45;
+  margin: 0.3rem 0 0.3rem;
+  line-height: 1.5;
+}
+.pe-vista-mov-dueno {
+  font-size: 12px;
+  color: #5a5a5a;
+  margin: 0;
+  font-style: italic;
+}
+.pe-vista-mov-vacante {
+  display: inline-block;
+  margin-left: 0.4rem;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8a5a00;
+  background: #fbe6c8;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+/* Vacancias agrupadas */
+.pe-vista-vacancias {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 1.5rem;
+}
+.pe-vista-vacancias > li {
+  padding: 0.7rem 0.95rem;
+  margin-bottom: 0.6rem;
+  background: #fdf6e8;
+  border: 1px solid #e8d9b3;
+  border-radius: 5px;
+}
+.pe-vista-vacancia-titulo {
+  font-size: 13px;
+  font-weight: 600;
+  color: #5a4200;
+  margin: 0 0 0.2rem;
+}
+.pe-vista-vacancia-meta {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 11px;
+  color: #6a5f3f;
+  margin: 0 0 0.5rem;
+}
+.pe-vista-vacancia-movs {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.pe-vista-vacancia-movs li {
+  font-size: 12px;
+  color: #4a4a45;
+  margin-bottom: 0.2rem;
+  line-height: 1.5;
+}
+.pe-vista-mov-fase {
+  font-size: 11px;
+  color: #7a7a70;
+  font-style: italic;
+}
+
+/* Criterio de éxito final */
+.pe-vista-criterio {
+  margin: 0.5rem 0 1.5rem;
+}
+.pe-vista-criterio-row {
+  padding: 0.7rem 1rem;
+  margin-bottom: 0.5rem;
+  background: #ffffff;
+  border: 1px solid #e2e2dc;
+  border-left: 4px solid #8a7c5a;
+  border-radius: 4px;
+}
+.pe-vista-criterio-row p {
+  font-size: 13px;
+  color: #2a2a2a;
+  margin: 0.3rem 0 0;
+  line-height: 1.55;
+}
+
+/* ─── Mapa de dependencias (DAG embebido) ───────────────────────────────── */
+.pe-vista-dag-section {
+  /* el DAG necesita más ancho que el container documento (760px). Permitimos
+     extenderse hasta el viewport, manteniendo el margin del lado del TOC. */
+  margin-left: calc(-1 * max(0px, (100vw - 760px) / 2 - 280px));
+  margin-right: calc(-1 * max(0px, (100vw - 760px) / 2 - 20px));
+  max-width: none;
+}
+.pe-vista-dag-section h2 {
+  /* el h2 sí mantiene el margen del documento */
+  margin-left: max(0px, calc((100vw - 760px) / 2 - 280px));
+  margin-right: max(0px, calc((100vw - 760px) / 2 - 20px));
+}
+.pe-vista-dag-intro {
+  font-size: 13px;
+  color: #4a4a45;
+  font-style: italic;
+  margin: 0 max(0px, calc((100vw - 760px) / 2 - 280px)) 0.6rem max(0px, calc((100vw - 760px) / 2 - 280px));
+  line-height: 1.55;
+}
+.pe-vista-dag-hint {
+  font-size: 12px;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: #5a5a55;
+  background: #f4f1e8;
+  border: 1px solid #ddd6c2;
+  border-radius: 4px;
+  padding: 0.55rem 0.85rem;
+  margin: 0 max(0px, calc((100vw - 760px) / 2 - 280px)) 1rem max(0px, calc((100vw - 760px) / 2 - 280px));
+  line-height: 1.55;
+}
+.pe-vista-dag-hint strong {
+  color: #2a2a2a;
+  font-weight: 600;
+}
+@media print {
+  /* El DAG no imprime bien — se oculta del PDF y se sugiere consultarlo en pantalla. */
+  .pe-vista-dag-section {
+    display: none;
+  }
+}

@@ -1,4 +1,11 @@
-export type Rol = 'Ejecutivo' | 'Operador' | 'Program Manager'
+// Roles del sistema. Los 3 primeros son legacy (Programas + PBs); los 3 últimos
+// se agregaron para el sistema Sr→Jr (planes estratégicos en cascada de 1 nivel):
+//   - Plan Sr: dueño del plan estratégico raíz, crea/despliega Jr.
+//   - Plan Jr: dueño formal de un plan Jr derivado. Solo ve su propio plan.
+//   - Admin: autoridad operativa para crear/desplegar Jr en lugar del Sr.
+// Compatibilidad: usuarios con roles legacy siguen funcionando — el filtrado
+// por rol en getPlanesEstrategicos los trata como 'Operador' o 'Ejecutivo'.
+export type Rol = 'Ejecutivo' | 'Operador' | 'Program Manager' | 'Plan Sr' | 'Plan Jr' | 'Admin'
 
 export interface Usuario {
   id: string
@@ -6,6 +13,14 @@ export interface Usuario {
   email: string
   rol: Rol
   activo: boolean
+  // Hash bcrypt del password. Si está vacío/undefined → login legacy (entra
+  // sin password — para no romper usuarios existentes). Si está poblado, se
+  // valida con bcrypt.compare en lib/auth.ts.
+  password_hash?: string
+  // Flag: si true, el user tiene un password temporal generado al crear el
+  // Usuario (típico para users Jr recién invitados). Al loguear, el sistema
+  // fuerza ir a /admin/cambiar-password antes de cualquier otra cosa.
+  password_temporal?: boolean
 }
 
 export type EstadoPrograma = 'Borrador' | 'Activo' | 'Completado' | 'Archivado'
@@ -252,7 +267,79 @@ export function esObjetivoContable(tipo: string): boolean {
 // ─── Planes Estratégicos ──────────────────────────────────────────────────────
 
 export type TipoPlanEstrategico = 'Sr' | 'Jr'
-export type EstadoPlanEstrategico = 'Borrador' | 'En entrevista' | 'Completado' | 'Archivado'
+// Estados del Plan Estratégico. 'Pendiente despliegue' y 'Listo para compartir'
+// son específicos de Planes Jr en el flow Sr→Jr (un Jr recién creado pasa por
+// Pendiente despliegue → Listo para compartir → En entrevista → Completado).
+export type EstadoPlanEstrategico =
+  | 'Borrador'
+  | 'En entrevista'
+  | 'Pendiente despliegue'
+  | 'Listo para compartir'
+  | 'Completado'
+  | 'Archivado'
+
+// Línea Jr persistida en el Plan Sr. Una línea es un agrupamiento temático de
+// movimientos del inventario del Sr que se asignan a un dueño Jr específico.
+// Cada línea, al ser desplegada, genera un Plan Jr con su propio inventario
+// heredado + contexto curado independiente. Ver plan starry-foraging-sifakis.md.
+export interface LineaJrPersistida {
+  id: string                    // uuid local (no Airtable record ID)
+  nombre: string                // ej: "Demanda", "Oferta", "Personas"
+  descripcion: string           // markdown corto explicando el alcance
+  movimientos_ids: string[]     // IDs de movs del inventario del Sr (M-1, M-3, ...)
+  dueno_jr_email: string        // email del dueño formal (linkea a Usuario)
+  dueno_jr_nombre: string       // nombre desnormalizado para UI
+  plan_jr_id?: string           // record ID del Plan Jr cuando se despliega
+  estado: 'borrador' | 'pendiente_contexto' | 'listo_para_compartir' | 'en_curso' | 'cerrado'
+}
+// ─── Contexto Curado del Jr (Wizard de Despliegue) ──────────────────────────
+// El contexto que ve el dueño Jr al entrar, dividido en 5 conceptos editables
+// y aprobables por separado. Generado por Opus, editado por Sr/Admin antes de
+// compartir. Cada concepto se persiste en su propio campo de Airtable (ver
+// CONTEXTO_CURADO_CAMPOS) y se concatena con contextoCuradoToMarkdown() para
+// los consumidores que esperan un solo markdown (chat del Jr).
+export interface ContextoCuradoJr {
+  contexto: string         // Bienvenida + por qué importa (mira atrás/afuera: situación del Sr)
+  proposito: string        // Propósito de la línea (mira adelante: a dónde llega)
+  criterios_exito: string  // Qué significa que la línea esté lograda
+  metricas: string         // Métricas del Propósito del Sr que mueve la línea (markdown)
+  supuestos: string        // Supuestos exógenos del Sr relevantes a la línea
+}
+
+// Catálogo único de los campos del contexto curado: key TS ↔ campo Airtable ↔
+// label de UI ↔ título de sección en el markdown derivado. Fuente de verdad
+// para el mapper, el endpoint, el wizard de despliegue y el render de /inicio.
+export const CONTEXTO_CURADO_CAMPOS = [
+  { key: 'contexto',        field: 'Jr Contexto',           label: 'Contexto / Bienvenida',     seccion: null },
+  { key: 'proposito',       field: 'Jr Proposito Linea',    label: 'Propósito de la línea',     seccion: 'Propósito de la línea' },
+  { key: 'criterios_exito', field: 'Jr Criterios Exito',    label: 'Criterios de éxito',        seccion: 'Criterios de éxito' },
+  { key: 'metricas',        field: 'Jr Metricas Proposito', label: 'Métricas del Propósito',    seccion: 'Métricas del Propósito que mueve tu línea' },
+  { key: 'supuestos',       field: 'Jr Supuestos Criticos', label: 'Supuestos críticos',        seccion: 'Supuestos críticos que tenés que conocer' },
+] as const
+
+export type ContextoCuradoCampoKey = ContextoCuradoJr extends Record<infer K, string> ? K : never
+
+// Concatena los 5 campos del contexto curado en un solo markdown, en el orden
+// canónico. El campo 'contexto' ya trae su propio header (# Bienvenida...), los
+// demás se prefijan con su título de sección. Usado por el chat del Jr y
+// cualquier consumidor que necesite el contexto como un solo blob.
+export function contextoCuradoToMarkdown(cc?: ContextoCuradoJr | null): string {
+  if (!cc) return ''
+  const partes: string[] = []
+  for (const campo of CONTEXTO_CURADO_CAMPOS) {
+    const valor = (cc[campo.key] ?? '').trim()
+    if (!valor) continue
+    partes.push(campo.seccion ? `## ${campo.seccion}\n\n${valor}` : valor)
+  }
+  return partes.join('\n\n')
+}
+
+// True si el contexto curado tiene contenido sustantivo en al menos un campo.
+export function contextoCuradoTieneContenido(cc?: ContextoCuradoJr | null): boolean {
+  if (!cc) return false
+  return CONTEXTO_CURADO_CAMPOS.some(c => (cc[c.key] ?? '').trim().length > 0)
+}
+
 export type AlineacionSr = 'Verde' | 'Amarillo' | 'Rojo'
 
 export interface MetricaPE { metrica: string; valor_objetivo: string; valor_actual: string }
@@ -272,7 +359,11 @@ export interface PropositorPE {
   fuera: FueraDeScopePE[]
   horizonte: string
   estabilidad: string
+  // Solo Plan Jr. El Jr no define propósito (lo hereda del despliegue); en su
+  // Paso 1 liviano declara qué tan alineado se siente con el propósito/criterios
+  // heredados (Verde/Amarillo/Rojo) + un comentario que justifica esa lectura.
   alineacion_sr?: AlineacionSr
+  alineacion_sr_comentario?: string
 }
 
 export interface SituacionPE {
@@ -382,6 +473,33 @@ export interface PlanEstrategico {
   situacion?: SituacionPE
   datos_faltantes: string[]
   plan?: PlanoPE
+  // ─── Campos del sistema Sr→Jr ───────────────────────────────────────────
+  // Solo Plan Sr lo usa. Array de líneas Jr derivadas (vacío hasta que se
+  // crea el primer Jr vía el wizard de creación). Una vez creadas, refleja
+  // el estado actual de cada línea (movimientos_ids, dueño asignado,
+  // plan_jr_id si fue desplegada, estado).
+  lineas_jr?: LineaJrPersistida[]
+  // Solo Plan Jr lo usa. IDs de los movimientos del inventario del Sr que
+  // este Jr heredó. Es la fuente de verdad de "qué movs me tocan".
+  movs_heredados_ids?: string[]
+  // Solo Plan Jr lo usa. Snapshot de los objetos MovimientoPE enteros al
+  // momento del despliegue. Se hidrata al renderear inventario del Jr. Si
+  // el Sr cambia, este snapshot NO se actualiza automáticamente (decisión
+  // del user: sin sincronización Sr→Jr en V1; re-snapshot manual es backlog).
+  movs_heredados_snapshot?: MovimientoPE[]
+  // Solo Plan Jr lo usa. Contexto curado que ve el dueño Jr al entrar a su
+  // plan, dividido en campos editables/aprobables por separado (Propósito,
+  // Criterios de éxito, Métricas, Supuestos, Contexto/Bienvenida). Generado
+  // por Opus en el wizard de despliegue + editado por Sr/Admin antes de
+  // compartir. Es el ÚNICO material del Sr que el dueño Jr ve (no ve plan Sr
+  // crudo). El chat del Jr deriva su system prompt de estos campos vía
+  // contextoCuradoToMarkdown(). Reemplaza al antiguo contexto_curado_md (un
+  // solo blob de markdown) — split decidido 2026-06-01 para revisión y
+  // aprobación granular por concepto.
+  contexto_curado?: ContextoCuradoJr
+  // Solo Plan Jr lo usa. Email del dueño formal (espejo del campo Email
+  // del Usuario asociado, para búsqueda rápida sin hacer join).
+  dueno_jr_email?: string
 }
 
 // ─── Plan (Paso 3) ────────────────────────────────────────────────────────────
@@ -431,9 +549,40 @@ export interface PreparativosPE {
     por_metrica: CriterioExitoMetricaPE[]
     zona_fracaso: string  // textual
   }
+  // Flag para gatear el auto-open del modal de renombrar brechas en 3.A:
+  // se setea a true la primera vez que el modal se auto-abre. Una vez true,
+  // las brechas NO se pueden renombrar más desde la UI del inventario.
+  brechas_revisadas?: boolean
 }
 
-export type DependenciaTipo = 'dura' | 'blanda' | 'ninguna'
+// Tipos de dependencia entre movs:
+//   - 'sugerida': solo orden ideal, sin constraint de scheduling.
+//   - 'ff' (Finish-to-Finish): A debe terminar para que B pueda CERRAR.
+//     B puede arrancar en paralelo. Ej: "Diseñar local" FF con "Relevar zona".
+//   - 'fs' (Finish-to-Start): A debe terminar para que B pueda ARRANCAR.
+//     Ej: "Contratar gerente" FS con "Empezar a entrenarlo".
+//   - 'ninguna': sin precondiciones (solo en `tipo_dependencia` global del mov).
+// Legacy: planes viejos tienen 'dura' y 'blanda'. Reads usan
+// `normalizeDependenciaTipo` para mapear: dura→ff (matches user intent),
+// blanda→sugerida (mismo significado, rename).
+export type DependenciaTipo = 'sugerida' | 'ff' | 'fs' | 'continuo' | 'ninguna'
+
+// Mapea valores legacy ('dura'/'blanda') al schema actual. Idempotente: si
+// recibe un valor ya nuevo, lo retorna sin cambio. Para defaults defensive,
+// cualquier string desconocido cae a 'sugerida'.
+export function normalizeDependenciaTipo(t: string | undefined | null): DependenciaTipo {
+  if (t === 'dura') return 'ff'
+  if (t === 'blanda') return 'sugerida'
+  if (t === 'sugerida' || t === 'ff' || t === 'fs' || t === 'continuo' || t === 'ninguna') return t
+  return 'sugerida'
+}
+
+// Variante que excluye 'ninguna' — útil para `precondiciones_tipo` values
+// (donde 'ninguna' no aplica, es solo para mov.tipo_dependencia global).
+export function normalizeDepTipoEdge(t: string | undefined | null): 'sugerida' | 'ff' | 'fs' | 'continuo' {
+  const n = normalizeDependenciaTipo(t)
+  return n === 'ninguna' ? 'sugerida' : n
+}
 export type CostoBandaAncha = 'baja' | 'media' | 'alta'
 export type EstadoMovimiento = 'aceptado' | 'editado' | 'quitado' | 'pendiente'
 
@@ -441,17 +590,136 @@ export interface MovimientoPE {
   id: string                // M-1, M-2, ...
   categoria: string         // auto-detectada por el modelo (no fija)
   nombre: string
+  // Descripción extensa de qué hace concretamente el movimiento — pre-cargada
+  // por el modelo en /paso3/inventario/generar y editable por el usuario.
+  // Opcional en el type para backward-compat con movimientos generados antes
+  // del feature; defaults a "" cuando falta.
+  descripcion?: string
   que_resuelve: string
-  ataca_desvio: string      // ref a desvío Bloque 0-2 o capacidad del Propósito
+  // Narrativa libre opcional. La fuente de verdad de "qué ataca" es
+  // `brechas_atacadas` (multi-select declarativo). Este campo queda para
+  // backward-compat: los movs migrados conservan el texto del modelo, pero
+  // está oculto de los edit forms.
+  ataca_desvio?: string
+  // Brechas del Propósito que ataca este movimiento. Array de nombres EXACTOS
+  // de métricas (matching contra proposito.metricas[i].metrica). REQUERIDO ≥1
+  // para movs nuevos. Opcional en el type para backward-compat con movs viejos
+  // pre-feature — la migración (diagnostico/scripts/79) los popula a posteriori.
+  brechas_atacadas?: string[]
+  // Esfuerzo GLOBAL del movimiento (incluye banda ancha ejecutiva + financiero
+  // + organizativo + cualquier costo que considere quien arma el movimiento).
+  // El nombre del campo se mantiene como `costo_banda_ancha` por backward-compat
+  // con datos persistidos, pero la semántica desde 2026-05 es "esfuerzo global".
   costo_banda_ancha: CostoBandaAncha
+  // Impacto esperado del movimiento (alta/media/baja). Opcional para
+  // backward-compat con movimientos pre-feature; defaults a 'media' en UI.
+  impacto?: 'alta' | 'media' | 'baja'
   costo_monetario: { rango_min_usd: number; rango_max_usd: number; nota?: string }
-  ventana_temporal: { arranca: string; termina: string }  // YYYY-MM
+  // Duración estimada del mov en meses (sin contar lead time de vacancia). Es
+  // el input REAL para scheduling — el cronograma (arranca/termina abajo) se
+  // computa determinísticamente en P-4 vía CPM con: duracion + deps DURA +
+  // vacancia + fecha base. En 3.A el user no tiene contexto suficiente para
+  // saber CUÁNDO arranca/termina el mov; solo sabe CUÁNTO dura. Range típico
+  // 1-12 meses.
+  duracion_meses_ejecucion?: number
+  // Override manual del arranca calculado por CPM. Permite al user POSTERGAR
+  // (no adelantar) el inicio de un mov respecto del piso CPM natural (hoy +
+  // vacancia + max(precondición FS termina)). YYYY-MM. Si el override es
+  // anterior al piso natural, se descarta silenciosamente en CPM (no rompe).
+  // Se setea desde el drag horizontal en el canvas P-4. null = "limpiado"
+  // (volvió a posición natural) post-edit; semánticamente equivalente a
+  // undefined, pero el patch HTTP lo necesita para sobreescribir un valor previo.
+  arranca_override?: string | null
+  // Razonamiento textual del por qué el user postergó. Requerido cuando hay
+  // override (se le pide en el popover post-drag). El sistema usa este texto
+  // como respuesta de razonamiento en P-4 — solo se pregunta por los movs
+  // movidos manualmente, no por los 30+ posicionados deterministicamente.
+  arranca_override_razonamiento?: string | null
+  // Marcado "riesgo alto de ejecución" + razon textual (poblado en P-5 de 3.B).
+  // La PRESENCIA del campo (string no vacío) indica que el mov está marcado;
+  // null o undefined = no marcado. El user marca movs en P-5 RiesgoEjecucionModal
+  // y da una razon por mov (mínimo 30 chars enforced en UI). El modelo lee este
+  // campo del inventario al procesar la confirmación de P-5 — no se duplica en
+  // respuesta_estructurada.marcados (los IDs se derivan de este campo).
+  riesgo_ejecucion_razonamiento?: string | null
+  // LEGACY: solía ser input directo del user en 3.A. Ahora se considera campo
+  // DERIVADO — el cronograma real se computa via CPM en P-4. Se mantiene en
+  // el schema para no romper planes viejos y para snapshot en curado. Movs
+  // nuevos NO requieren poblarlo; CPM lo calcula on-the-fly.
+  ventana_temporal?: { arranca: string; termina: string }  // YYYY-MM
   precondiciones: string[]  // ids de otros movimientos
   desbloquea: string[]      // ids de otros movimientos
   tipo_dependencia: DependenciaTipo
+  // Tipo por edge: map precond_id → 'dura' | 'blanda'. Si una precondición
+  // no aparece en este map, se cae al `tipo_dependencia` global del mov
+  // (backward-compat). Permite que el user marque cada conexión por separado
+  // en la vista 3.A.6 (Cadenas) sin tener que sincronizar la semántica
+  // per-mov para los consumers viejos.
+  precondiciones_tipo?: { [precond_id: string]: 'sugerida' | 'ff' | 'fs' | 'continuo' }
+  // Razonamiento por edge: map precond_id → texto explicando por qué la
+  // dependencia existe (típicamente 1-2 frases). Se popula cuando Opus
+  // propone deps en 3.A.6 + cuando el user edita manualmente desde el
+  // popover de tipo. Opcional, backward-compat con planes viejos.
+  precondiciones_razonamiento?: { [precond_id: string]: string }
+  // Lag por edge en meses: cuánto tarda B después del trigger de A (semantica
+  // depende del tipo). Aplica a FS/FF/continuo; ignorado para 'sugerida'.
+  //   - FS+lag: B.arranca >= A.termina + lag.
+  //   - FF+lag: B.termina >= A.termina + lag.
+  //   - continuo+lag: B.arranca >= A.arranca + lag AND B.termina >= A.termina + lag.
+  // Default 0 si ausente (= comportamiento clásico sin offset). Solo lag >= 0.
+  precondiciones_lag_meses?: { [precond_id: string]: number }
   dueno: string             // string libre en V1 (sin Organigrama)
+  // Flag opcional: el "dueño" no es una persona concreta sino un puesto que
+  // todavía hay que cubrir (vacancia). Cuando es true, `dueno` contiene el
+  // rol/cargo (ej: "Director Comercial") y `dueno_semanas_cobertura` indica
+  // cuánto se estima que toma cubrirlo. Inputs para la secuenciación en P-4:
+  // la AI considera el lead time al sugerir fase; el sort visual muestra
+  // dueños vacantes debajo de los no-vacantes en la misma fase porque los
+  // no-vacantes pueden arrancar YA. Migración legacy: planes pre-feature
+  // tenían el patrón `dueno: "[vacancia: ...]"`; ese formato se conserva pero
+  // el feature nuevo prefiere los campos estructurados.
+  dueno_es_vacante?: boolean
+  // Semanas estimadas para cubrir la vacancia. Solo significativo si
+  // dueno_es_vacante=true. Default razonable 8 (≈ 2 meses) para roles
+  // estándar; directorios pueden requerir 12+; juniors 4. La AI puede sugerir
+  // un valor en `generar` y el user lo edita en el form modal.
+  dueno_semanas_cobertura?: number
   criterio_exito: string
   estado_usuario: EstadoMovimiento
+  // Asignación visual a fase temporal. DORMANTE: la vista temporal de fases
+  // fue retirada de 3.A.6 (ahora muestra DAG atemporal). El campo se conserva
+  // para reactivarlo cuando se implemente una vista temporal en el futuro —
+  // si algún plan ya tiene el campo seteado, no se borra.
+  fase_visual?: 'sin_secuenciar' | 'fase_1' | 'fase_2' | 'fase_3'
+  // Flag "deps validadas": el usuario marca el checkbox del nodo en 3.A.6
+  // cuando termina de revisar las dependencias entrantes/salientes y queda
+  // tranquilo. Es un bookkeeping personal — no afecta downstream (3.B+). Se
+  // wipea al re-aceptar una propuesta de la AI (la estructura cambia). NO se
+  // auto-invalida al editar deps manualmente (decisión deliberada — el user
+  // re-togglea si quiere).
+  deps_validadas?: boolean
+}
+
+// DAG del plan — sub-bloque 3.A.6. Un solo DAG por plan: contiene todos los
+// movs activos del inventario con su posición en el canvas. Las dependencias
+// (precondiciones/desbloquea) se persisten directamente en cada mov; el DAG
+// solo guarda QUÉ movs son visibles y DÓNDE están posicionados.
+export interface DAGMovPE {
+  mov_id: string
+  x: number          // canvas x position
+  y: number          // canvas y position
+  // Width opcional del nodo en pixeles. Default = NODE_W (240). Si > NODE_W, el
+  // nodo es spanning (cruza múltiples fases en P-4). Solo se usa en runtime —
+  // NO se persiste al DAG.
+  width?: number
+  // Info de span (arranca/termina/durMeses) para tooltip de spanning movs.
+  // Solo runtime, no persistido.
+  spanInfo?: { fases: string[]; numFases: number; durMeses: number }
+}
+
+export interface DAGPlanPE {
+  movs: DAGMovPE[]
+  generado_en: string  // ISO — última vez que se sobreescribió el DAG completo
 }
 
 export interface ResumenCategoriaPE {
@@ -468,6 +736,14 @@ export interface InventarioPE {
   generado_en: string  // ISO
   costo_usd?: number
   latencia_ms?: number
+  // DAG del plan (sub-bloque 3.A.6). Opcional: existe a partir de que el user
+  // acepta la propuesta de Opus o agrega manualmente el primer mov al canvas.
+  dag?: DAGPlanPE
+  // Firma del set de dueños activos al momento del último review del modal
+  // UnificarDuenos en P-4. Si la firma actual del inventario coincide con esta,
+  // skipeamos el modal y abrimos el canvas directo. Se invalida implícitamente
+  // cuando algún dueño cambia o se agrega un mov nuevo con dueño distinto.
+  duenos_revisados_signature?: string
 }
 
 // ─── Modos de interacción del Panel Interactivo de Fichas (Fase D Chunk A) ──
@@ -484,15 +760,24 @@ export type ModoInteraccion =
 
 export type CampoFichaMovimiento =
   | 'nombre' | 'que_resuelve' | 'ataca_desvio' | 'dueno' | 'banda_ancha'
-  | 'costo' | 'ventana' | 'cantidad_precondiciones' | 'cantidad_desbloqueos'
-  | 'criterio_exito' | 'estado_usuario'
+  | 'impacto' | 'costo' | 'ventana' | 'cantidad_precondiciones'
+  | 'cantidad_desbloqueos' | 'criterio_exito' | 'estado_usuario'
+  | 'duracion_meses'
 
 // Discriminated union: cada modo tiene su shape específico de respuesta.
 export type RespuestaEstructurada =
   | { modo: 'seleccion_unica'; movimiento_id: string }
   | { modo: 'seleccion_multiple_ranked'; ranking: Array<{ movimiento_id: string; posicion: number }> }
   | { modo: 'agrupacion_pares'; pares: Array<{ desde: string; hacia: string }> }
-  | { modo: 'secuenciacion'; fases: Array<{ fase: string; movimientos: string[] }> }
+  | { modo: 'secuenciacion';
+      fases: Array<{ fase: string; movimientos: string[] }>
+      // Sugerencia de la AI por mov (cuando aplica al sub-caso P-4 con
+      // canvas de fases). Persistente para no re-disparar la llamada. Opcional
+      // y backward-compat con respuestas previas. `sugerencias_ai[movId]` es
+      // el key de la fase sugerida (ej: 'Q2' | 'Q3' | 'Q4').
+      sugerencias_ai?: { [movId: string]: string }
+      razonamientos_ai?: { [movId: string]: string }
+    }
   | { modo: 'marcado_simple'; marcados: string[] }
 
 export interface PalancaQAPE {
@@ -618,6 +903,25 @@ export interface PlanoPE {
   // validado (Fase F — H7 control suave). Append-only. Cada entry queda
   // permanentemente como trazabilidad. Los rechazados (Cancelar) NO se persisten.
   warnings_retroactivos?: WarningRetroactivo[]
+  // Solo Plan Jr (Fase 6 — cap). Snapshot del chequeo de agregados que corre al
+  // cerrar el Paso 3: compara el plan curado del Jr contra el baseline del Sr
+  // (movs_heredados_snapshot) + los criterios/métricas heredados. Trazabilidad
+  // de las divergencias detectadas y resueltas. Ver lib/cap-jr.ts.
+  cap_auditoria_jr?: CapAuditoriaJrSnapshot
+}
+
+// Snapshot del chequeo de "cap" del Jr al cerrar el Paso 3 (Fase 6). Compara
+// los agregados del plan curado del Jr contra el baseline del Sr y registra
+// cuántas divergencias se detectaron. Las divergencias en sí se canalizan como
+// ReviewerQuestion en el flujo de auditoría (se resuelven con el dueño Jr).
+export interface CapAuditoriaJrSnapshot {
+  generado_en: string                 // ISO datetime
+  costo_total_jr_usd: number          // suma de costo_monetario.rango_max del curado Jr
+  costo_baseline_sr_usd: number       // suma de costo_monetario.rango_max del snapshot Sr
+  duracion_total_jr_meses: number     // suma de duracion_meses_ejecucion del curado Jr
+  duracion_baseline_sr_meses: number  // ídem del snapshot Sr
+  criterios_evaluados: number         // nº de criterios/métricas heredados chequeados
+  divergencias_detectadas: number     // nº de ReviewerQuestion de divergencia emitidas
 }
 
 // Rol del turno. Extendido en Fase 1 del feat/audit-reviewer:

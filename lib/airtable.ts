@@ -16,7 +16,10 @@ import type {
   ReviewerReport,
   DecisionUsuario,
   SnapshotPaso,
+  ContextoCuradoJr,
 } from './types'
+import { CONTEXTO_CURADO_CAMPOS, contextoCuradoTieneContenido } from './types'
+import { denormalizarCurado, hidratarCurado } from './curado-persistence'
 
 const BASE_URL = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}`
 const API_KEY = process.env.AIRTABLE_API_KEY
@@ -56,21 +59,21 @@ async function fetchOne(table: string, id: string): Promise<any> {
   return res.json()
 }
 
-async function createRecord(table: string, fields: Record<string, any>): Promise<any> {
+async function createRecord(table: string, fields: Record<string, any>, opts?: { typecast?: boolean }): Promise<any> {
   const res = await fetch(`${BASE_URL}/${table}`, {
     method: 'POST',
     headers: headers(),
-    body: JSON.stringify({ fields }),
+    body: JSON.stringify({ fields, ...(opts?.typecast ? { typecast: true } : {}) }),
   })
   if (!res.ok) throw new Error(`Airtable error: ${res.status} ${await res.text()}`)
   return res.json()
 }
 
-async function updateRecord(table: string, id: string, fields: Record<string, any>): Promise<any> {
+async function updateRecord(table: string, id: string, fields: Record<string, any>, opts?: { typecast?: boolean }): Promise<any> {
   const res = await fetch(`${BASE_URL}/${table}/${id}`, {
     method: 'PATCH',
     headers: headers(),
-    body: JSON.stringify({ fields }),
+    body: JSON.stringify({ fields, ...(opts?.typecast ? { typecast: true } : {}) }),
   })
   if (!res.ok) throw new Error(`Airtable error: ${res.status} ${await res.text()}`)
   return res.json()
@@ -93,6 +96,11 @@ function mapUsuario(r: any): Usuario {
     email: r.fields['Email'] ?? '',
     rol: r.fields['Rol']?.name ?? r.fields['Rol'] ?? 'Operador',
     activo: r.fields['Activo'] ?? false,
+    // Sistema Sr→Jr — hash bcrypt + flag password temporal. Si los campos no
+    // existen en Airtable (users legacy), se quedan undefined → login legacy
+    // que entra sin password (mantenido por compatibilidad).
+    password_hash: r.fields['Password Hash'] ?? undefined,
+    password_temporal: r.fields['Password Temporal'] ?? undefined,
   }
 }
 
@@ -206,7 +214,13 @@ export async function createUsuario(data: Partial<Usuario>): Promise<Usuario> {
   if (data.email) fields['Email'] = data.email
   if (data.rol) fields['Rol'] = data.rol
   if (data.activo !== undefined) fields['Activo'] = data.activo
-  const r = await createRecord(TABLA_USUARIOS, fields)
+  if (data.password_hash !== undefined) fields['Password Hash'] = data.password_hash
+  if (data.password_temporal !== undefined) fields['Password Temporal'] = data.password_temporal
+  // typecast:true → la choice 'Plan Jr' del campo Rol se auto-crea en el primer
+  // write. El PAT del proyecto puede crear fields pero NO editar choices de un
+  // singleSelect vía meta API (devuelve 422), así que typecast es el mecanismo.
+  // Mismo patrón que el campo Rol de Turnos PE (reviewer/snapshot). Idempotente.
+  const r = await createRecord(TABLA_USUARIOS, fields, { typecast: true })
   return mapUsuario(r)
 }
 
@@ -216,7 +230,10 @@ export async function updateUsuario(id: string, data: Partial<Usuario>): Promise
   if (data.email !== undefined) fields['Email'] = data.email
   if (data.rol !== undefined) fields['Rol'] = data.rol
   if (data.activo !== undefined) fields['Activo'] = data.activo
-  const r = await updateRecord(TABLA_USUARIOS, id, fields)
+  if (data.password_hash !== undefined) fields['Password Hash'] = data.password_hash
+  if (data.password_temporal !== undefined) fields['Password Temporal'] = data.password_temporal
+  // typecast:true por la misma razón que createUsuario (Rol 'Plan Jr' auto-create).
+  const r = await updateRecord(TABLA_USUARIOS, id, fields, { typecast: true })
   return mapUsuario(r)
 }
 
@@ -586,6 +603,22 @@ const TURNOS_FIELD_REVIEWER_VIA_SCRIPT = 'fldFdFR4HLhWHaCCE'
 // Auditorias Paso 1 Count  fldddCG4gfTLanfNa
 // Auditorias Paso 2 Count  fldl7SdmBvCJlnX8S
 
+// Lee los 5 campos del contexto curado del Jr desde r.fields. Devuelve
+// undefined si los 5 están vacíos (plan legacy o Jr sin desplegar todavía).
+function mapContextoCurado(f: any): ContextoCuradoJr | undefined {
+  const cc = {
+    contexto: '',
+    proposito: '',
+    criterios_exito: '',
+    metricas: '',
+    supuestos: '',
+  } as ContextoCuradoJr
+  for (const campo of CONTEXTO_CURADO_CAMPOS) {
+    cc[campo.key] = f[campo.field] ?? ''
+  }
+  return contextoCuradoTieneContenido(cc) ? cc : undefined
+}
+
 function mapPlanEstrategico(r: any): PlanEstrategico {
   const f = r.fields ?? {}
   const proposito = f['Proposito Escena'] ? {
@@ -617,6 +650,27 @@ function mapPlanEstrategico(r: any): PlanEstrategico {
     ? safeParseJson(f['Plan Paso 3 JSON'], undefined)
     : undefined
 
+  // CAMPOS SPLITEADOS (2026-05): porque el JSON combinado del plan llegaba
+  // a >100k chars (límite de Airtable Long Text), 3 sub-keys se persisten en
+  // fields separados: borrador (3.C), inventario (3.A), curado (3.E). Cada
+  // uno se mergea al `plan` si está presente.
+  //   - Back-compat: planes viejos tienen todo en "Plan Paso 3 JSON". Si el
+  //     field separado está vacío, dejamos lo que venga del plan original.
+  //   - Forward: writes nuevas eliminan esas keys del plan original al
+  //     persistir (ver updatePlanEstrategico).
+  if (plan && f['Plan Borrador JSON']) {
+    const borradorSeparado = safeParseJson(f['Plan Borrador JSON'], undefined)
+    if (borradorSeparado) plan.borrador = borradorSeparado
+  }
+  if (plan && f['Plan Inventario JSON']) {
+    const inventarioSeparado = safeParseJson(f['Plan Inventario JSON'], undefined)
+    if (inventarioSeparado) plan.inventario = inventarioSeparado
+  }
+  if (plan && f['Plan Curado JSON']) {
+    const curadoSeparado = safeParseJson(f['Plan Curado JSON'], undefined)
+    if (curadoSeparado) plan.curado = curadoSeparado
+  }
+
   // Migración backward-compat del curado: shape antiguo era PlanCuradoPE
   // directo (single object). Nuevo shape: PlanCuradoVersionado
   // { versiones[], version_activa }. Si detectamos shape antiguo
@@ -624,6 +678,15 @@ function mapPlanEstrategico(r: any): PlanEstrategico {
   // en memoria como una sola versión. La próxima escritura persiste shape nuevo.
   if (plan?.curado && !plan.curado.versiones && typeof plan.curado.contexto === 'string') {
     plan.curado = { versiones: [plan.curado], version_activa: 0 }
+  }
+
+  // Hidratación del curado normalizado: cada versión persiste con
+  // movimientos_ids[] y supuestos_criticos_descripciones[]. Acá los expandimos
+  // a MovimientoPE / SupuestoExogenoPE completos usando el inventario y
+  // preparativos del mismo plan. Backward-compat: si la versión ya tiene
+  // movimientos[] (shape viejo) la pasa como está. Ver lib/curado-persistence.ts.
+  if (plan?.curado) {
+    plan.curado = hidratarCurado(plan.curado, plan.inventario, plan.preparativos)
   }
 
   return {
@@ -641,6 +704,16 @@ function mapPlanEstrategico(r: any): PlanEstrategico {
     situacion,
     datos_faltantes: safeParseJson(f['Datos Faltantes'], []),
     plan,
+    // ─── Campos del sistema Sr→Jr ───────────────────────────────────────
+    // Si el campo no existe en Airtable (planes legacy pre-Sr→Jr), queda
+    // undefined — el feature simplemente no se activa para ese plan.
+    lineas_jr: safeParseJson(f['Lineas Jr JSON'], undefined),
+    movs_heredados_ids: safeParseJson(f['Movs Heredados IDs'], undefined),
+    movs_heredados_snapshot: safeParseJson(f['Movs Heredados Snapshot'], undefined),
+    // Contexto curado split en 5 campos (reemplaza al legacy 'Contexto Curado
+    // MD'). Si los 5 están vacíos/ausentes, contexto_curado queda undefined.
+    contexto_curado: mapContextoCurado(f),
+    dueno_jr_email: f['Dueno Jr Email'] ?? undefined,
   }
 }
 
@@ -755,11 +828,75 @@ export async function appendTurnosPE(
   return { ids: data.records.map((r: any) => r.id) }
 }
 
-export async function getPlanesEstrategicos(userId: string, rol: string): Promise<PlanEstrategico[]> {
+// Cascade delete del plan estratégico: borra todos los turnos de la entrevista
+// asociada, después la entrevista, después el plan. Idempotente — si algún
+// registro asociado ya no existe, sigue con el resto.
+//
+// IMPORTANTE: opera irreversible sobre Airtable. La validación de autorización
+// (código de seguridad) la hace el endpoint que llama esta función.
+export async function deletePlanEstrategico(planId: string): Promise<void> {
+  // 1. Encontrar entrevistas asociadas (no usamos getEntrevistaPE porque ese
+  // filtra por 'En curso' y hidrata historial — no necesitamos eso para delete).
+  const entrevistas = await fetchAll(TABLA_ENTREVISTAS_PE, '')
+  const entrevistasAsociadas = entrevistas.filter(r => {
+    const planIds: string[] = r.fields['Plan'] ?? []
+    return planIds.includes(planId)
+  })
+
+  // 2. Por cada entrevista, borrar sus turnos.
+  for (const entRecord of entrevistasAsociadas) {
+    const entrevistaId = entRecord.id
+    const turnos = await getTurnosPE(entrevistaId)
+    for (const t of turnos) {
+      const airtableId = (t as any)._airtableId as string | undefined
+      if (airtableId) {
+        await deleteRecord(TABLA_TURNOS_PE, airtableId).catch(() => undefined)
+      }
+    }
+    // 3. Borrar la entrevista.
+    await deleteRecord(TABLA_ENTREVISTAS_PE, entrevistaId).catch(() => undefined)
+  }
+
+  // 4. Finalmente borrar el plan.
+  await deleteRecord(TABLA_PLANES_PE, planId)
+}
+
+// Filtrado de planes por rol del usuario que loguea. Compatibilidad con roles
+// legacy (Ejecutivo / Program Manager / Operador) + roles nuevos del sistema
+// Sr→Jr (Plan Sr / Plan Jr / Admin):
+//   - Ejecutivo, Program Manager, Admin: ven TODOS los planes.
+//   - Plan Sr: ve los planes donde es responsable (los Sr suyos) + los Jr
+//     derivados de esos Sr (heredan visibilidad).
+//   - Plan Jr: ve SOLO los planes donde su email coincide con dueno_jr_email.
+//     Esto le da acceso a su Jr propio. La UI de listado se encarga de
+//     mostrar headers de Jr hermanos como read-only (sin entrar al contenido).
+//   - Operador (legacy): ve los planes donde es responsable.
+export async function getPlanesEstrategicos(userId: string, rol: string, userEmail?: string): Promise<PlanEstrategico[]> {
   const params = 'sort[0][field]=Nombre&sort[0][direction]=asc'
   const records = await fetchAll(TABLA_PLANES_PE, params)
   const planes = records.map(mapPlanEstrategico)
-  if (rol === 'Ejecutivo' || rol === 'Program Manager') return planes
+  if (rol === 'Ejecutivo' || rol === 'Program Manager' || rol === 'Admin') return planes
+  if (rol === 'Plan Sr') {
+    // Sus Sr propios + Jr derivados de esos Sr.
+    const misSrIds = new Set(planes.filter(p => p.tipo === 'Sr' && p.responsable_id === userId).map(p => p.id))
+    return planes.filter(p =>
+      (p.tipo === 'Sr' && p.responsable_id === userId) ||
+      (p.tipo === 'Jr' && p.plan_sr_id !== undefined && misSrIds.has(p.plan_sr_id))
+    )
+  }
+  if (rol === 'Plan Jr' && userEmail) {
+    // Sus Jr propios (match por email) + Sr al que pertenecen (header read-only)
+    // + Jr hermanos del mismo Sr (headers read-only). La UI distingue cuáles
+    // puede abrir y cuáles solo ve como referencia.
+    const misJr = planes.filter(p => p.tipo === 'Jr' && p.dueno_jr_email === userEmail)
+    const srIdsRelacionados = new Set(misJr.map(p => p.plan_sr_id).filter((x): x is string => !!x))
+    return planes.filter(p =>
+      (p.tipo === 'Jr' && p.dueno_jr_email === userEmail) ||
+      (p.tipo === 'Sr' && srIdsRelacionados.has(p.id)) ||
+      (p.tipo === 'Jr' && p.plan_sr_id !== undefined && srIdsRelacionados.has(p.plan_sr_id))
+    )
+  }
+  // Operador legacy o rol no reconocido: solo lo que es suyo.
   return planes.filter(p => p.responsable_id === userId)
 }
 
@@ -774,19 +911,55 @@ export async function createPlanEstrategico(data: {
   plan_sr_id?: string
   plan_sr_nombre?: string
   responsable_id: string
+  // Estado inicial. Default 'En entrevista' (compat con flow normal). El
+  // sistema Sr→Jr crea Plans Jr en 'Pendiente despliegue' al inicio.
+  estado?: string
 }): Promise<PlanEstrategico> {
   const fields: Record<string, any> = {
     'Nombre': data.nombre,
     'Tipo': data.tipo,
-    'Estado': 'En entrevista',
+    'Estado': data.estado ?? 'En entrevista',
     'Version': 1,
     'Responsable': [data.responsable_id],
   }
   if (data.plan_sr_id) fields['Plan Sr ID'] = data.plan_sr_id
   if (data.plan_sr_nombre) fields['Plan Sr Nombre'] = data.plan_sr_nombre
-  const r = await createRecord(TABLA_PLANES_PE, fields)
+  // typecast:true → las choices del flow Sr→Jr del campo Estado ('Pendiente
+  // despliegue', 'Listo para compartir') se auto-crean en el primer write. El
+  // PAT del proyecto no puede editar choices vía meta API (422). Seguro acá:
+  // 'Responsable' se escribe como array de record IDs (typecast no las
+  // reinterpreta), y no hay otros campos de link en este create.
+  const r = await createRecord(TABLA_PLANES_PE, fields, { typecast: true })
   return mapPlanEstrategico(r)
 }
+
+// Airtable Long Text field tiene un límite de ~100,000 chars. El JSON del plan
+// crece con cada iteración (inventario, palancas, borrador, etc) y puede
+// alcanzar ese límite. stripEmptyValues elimina null/undefined/'' + maps {} +
+// arrays [] vacíos recursivamente para reducir el tamaño antes de persistir.
+function stripEmptyValues(value: any): any {
+  if (value === null || value === undefined) return undefined
+  if (Array.isArray(value)) {
+    const cleaned = value.map(stripEmptyValues).filter(v => v !== undefined)
+    return cleaned
+  }
+  if (typeof value === 'object') {
+    const out: Record<string, any> = {}
+    for (const [k, v] of Object.entries(value)) {
+      const cleaned = stripEmptyValues(v)
+      if (cleaned === undefined) continue
+      // Strip empty strings, empty objects, empty arrays.
+      if (cleaned === '') continue
+      if (typeof cleaned === 'object' && !Array.isArray(cleaned) && Object.keys(cleaned).length === 0) continue
+      if (Array.isArray(cleaned) && cleaned.length === 0) continue
+      out[k] = cleaned
+    }
+    return out
+  }
+  return value
+}
+
+const AIRTABLE_LONG_TEXT_LIMIT = 100000
 
 export async function updatePlanEstrategico(id: string, data: Partial<{
   nombre: string
@@ -798,6 +971,12 @@ export async function updatePlanEstrategico(id: string, data: Partial<{
   datos_faltantes: string[]
   alineacion_sr: string
   plan: PlanoPE
+  // Sistema Sr→Jr: campos persistibles del Plan Estratégico.
+  lineas_jr: any[]                        // tipo: LineaJrPersistida[] — serializado a JSON.
+  movs_heredados_ids: string[]            // solo Plan Jr — IDs de movs del Sr.
+  movs_heredados_snapshot: any[]          // solo Plan Jr — array de MovimientoPE entero.
+  contexto_curado: ContextoCuradoJr       // solo Plan Jr — los 5 campos del contexto.
+  dueno_jr_email: string                  // solo Plan Jr — email del dueño formal.
 }>): Promise<void> {
   const fields: Record<string, any> = {}
   if (data.nombre !== undefined) fields['Nombre'] = data.nombre
@@ -806,7 +985,80 @@ export async function updatePlanEstrategico(id: string, data: Partial<{
   if (data.horizonte !== undefined) fields['Horizonte'] = data.horizonte
   if (data.alineacion_sr !== undefined) fields['Alineacion Sr'] = data.alineacion_sr
   if (data.datos_faltantes !== undefined) fields['Datos Faltantes'] = JSON.stringify(data.datos_faltantes)
-  if (data.plan !== undefined) fields['Plan Paso 3 JSON'] = JSON.stringify(data.plan)
+  // Sistema Sr→Jr — campos serializados a JSON cuando aplican. La validación
+  // de tamaño contra AIRTABLE_LONG_TEXT_LIMIT es relevante sobre todo para
+  // movs_heredados_snapshot (puede crecer con muchos movs). El resto son
+  // payloads chicos.
+  if (data.lineas_jr !== undefined) fields['Lineas Jr JSON'] = JSON.stringify(data.lineas_jr)
+  if (data.movs_heredados_ids !== undefined) fields['Movs Heredados IDs'] = JSON.stringify(data.movs_heredados_ids)
+  if (data.movs_heredados_snapshot !== undefined) {
+    const snapshotJson = JSON.stringify(data.movs_heredados_snapshot)
+    if (snapshotJson.length > AIRTABLE_LONG_TEXT_LIMIT) {
+      throw new Error(
+        `Movs Heredados Snapshot JSON excede el límite de Airtable Long Text field (${snapshotJson.length} > ${AIRTABLE_LONG_TEXT_LIMIT} chars). ` +
+        `Considerá normalizar el snapshot (ej: solo IDs + un campo aparte por mov).`,
+      )
+    }
+    fields['Movs Heredados Snapshot'] = snapshotJson
+  }
+  if (data.contexto_curado !== undefined) {
+    // Split en 5 campos de Airtable (uno por concepto). Ver CONTEXTO_CURADO_CAMPOS.
+    for (const campo of CONTEXTO_CURADO_CAMPOS) {
+      fields[campo.field] = data.contexto_curado[campo.key] ?? ''
+    }
+  }
+  if (data.dueno_jr_email !== undefined) fields['Dueno Jr Email'] = data.dueno_jr_email
+  if (data.plan !== undefined) {
+    // Strategy: split los 3 sub-keys más pesados a Airtable fields separados:
+    //   - plan.borrador   → "Plan Borrador JSON"   (3.C — iteraciones de Opus)
+    //   - plan.inventario → "Plan Inventario JSON" (3.A — movs + razonamientos)
+    //   - plan.curado     → "Plan Curado JSON"     (3.E — versionado final)
+    // El resto del plan (proposito en plan, palancas, estres, preparativos)
+    // queda en "Plan Paso 3 JSON". Razón: cada sub-key crece monotónico y
+    // combinados saturan el límite de 100k chars del Long Text field.
+    //
+    // Cleanup defensive: stripEmptyValues reduce null/empty antes de
+    // serializar (10-30% típicamente). Si después del strip + split alguno
+    // todavía excede el límite, throw con error útil.
+    const { borrador, inventario, curado, ...planRest } = data.plan as any
+    const cleanedPlanRest = stripEmptyValues(planRest)
+    const planJson = JSON.stringify(cleanedPlanRest)
+    if (planJson.length > AIRTABLE_LONG_TEXT_LIMIT) {
+      throw new Error(
+        `Plan JSON (sin borrador/inventario/curado) excede el límite de Airtable Long Text field (${planJson.length} > ${AIRTABLE_LONG_TEXT_LIMIT} chars). ` +
+        `Las 3 sub-keys grandes ya están en fields aparte. El exceso viene de palancas (preguntas_principal + preguntas_validador + respuestas + observaciones) o estres (preguntas + respuestas + observaciones + ajustes). ` +
+        `Próximo split candidato: palancas o estres en field aparte.`,
+      )
+    }
+    fields['Plan Paso 3 JSON'] = planJson
+
+    // Helper para serializar + validar tamaño de cada sub-key splitado.
+    function persistirSubKey(label: string, fieldName: string, value: any) {
+      if (value === undefined) return 0
+      const cleaned = stripEmptyValues(value)
+      const json = cleaned !== undefined ? JSON.stringify(cleaned) : ''
+      if (json.length > AIRTABLE_LONG_TEXT_LIMIT) {
+        throw new Error(
+          `${label} JSON excede el límite de Airtable Long Text field (${json.length} > ${AIRTABLE_LONG_TEXT_LIMIT} chars). ` +
+          `Habría que recortar/normalizar contenido o splitear este sub-key en sub-fields.`,
+        )
+      }
+      fields[fieldName] = json
+      return json.length
+    }
+
+    const borradorSize = persistirSubKey('Borrador', 'Plan Borrador JSON', borrador)
+    const inventarioSize = persistirSubKey('Inventario', 'Plan Inventario JSON', inventario)
+    // Curado: denormalizar antes de persistir. Cada versión guarda solo IDs
+    // (movimientos_ids[]) y descripciones (supuestos_criticos_descripciones[])
+    // en lugar de los objetos completos — esos viven en plan.inventario y
+    // plan.preparativos. La hidratación al leer reconstruye el shape rico.
+    // Reduce ~75k chars por versión a ~5-10k. Ver lib/curado-persistence.ts.
+    const curadoParaPersistir = denormalizarCurado(curado, inventario)
+    const curadoSize = persistirSubKey('Curado', 'Plan Curado JSON', curadoParaPersistir)
+
+    console.log(`[updatePlanEstrategico] split: plan=${planJson.length} · inventario=${inventarioSize} · borrador=${borradorSize} · curado=${curadoSize} chars`)
+  }
   if (data.proposito) {
     const p = data.proposito
     fields['Proposito Escena'] = p.escena
@@ -829,7 +1081,10 @@ export async function updatePlanEstrategico(id: string, data: Partial<{
     fields['Situacion Intentos Previos'] = s.intentos_previos
     fields['Situacion Resistencias'] = JSON.stringify(s.resistencias)
   }
-  await updateRecord(TABLA_PLANES_PE, id, fields)
+  // typecast:true por la misma razón que createPlanEstrategico (estado
+  // 'Listo para compartir' del despliegue Jr auto-create). Seguro: este update
+  // solo escribe campos text/select/JSON, ningún multipleRecordLinks.
+  await updateRecord(TABLA_PLANES_PE, id, fields, { typecast: true })
 }
 
 export async function getEntrevistaPE(planId: string): Promise<EntrevistaPE | null> {

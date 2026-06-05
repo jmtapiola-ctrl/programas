@@ -91,10 +91,10 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
         {/* Header con contador + barra de progreso */}
         <div className="px-6 py-4 border-b border-gray-700 space-y-2 flex-shrink-0">
           <div className="flex items-baseline justify-between gap-4">
-            <h2 className="text-lg font-semibold text-white">
+            <h2 className="text-[15px] font-semibold text-white">
               Auditoría del Paso {paso}
             </h2>
-            <p className="text-sm text-gray-300">
+            <p className="text-[13px] text-gray-300">
               <span className="text-white font-semibold">{procesadoCount}</span> de {dec.totalCount} hallazgos procesados
             </p>
           </div>
@@ -199,10 +199,10 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
               verIgnorados={verIgnoradosCB}
               onToggleIgnorados={() => setVerIgnoradosCB(v => !v)}
             >
-              <div className="bg-amber-900/30 border border-amber-700 rounded px-3 py-2 mb-3 text-[12px] text-amber-100">
-                <strong className="font-semibold">Detectamos {crossBlock.length} cambio{crossBlock.length === 1 ? '' : 's'} al Bloque anterior.</strong> Por ahora se registran pero
-                NO se aplican automáticamente al plan curado del Paso anterior. Va a haber que
-                resolver manualmente. Feature de aplicación automática en backlog.
+              <div className="bg-emerald-900/30 border border-emerald-700 rounded px-3 py-2 mb-3 text-[12px] text-emerald-100">
+                <strong className="font-semibold">Detectamos {crossBlock.length} cambio{crossBlock.length === 1 ? '' : 's'} a Bloque{crossBlock.length === 1 ? '' : 's'} anterior{crossBlock.length === 1 ? '' : 'es'}.</strong> Los que apruebes se aplican
+                automáticamente al plan al procesar y quedan registrados en el audit trail
+                (<code className="text-emerald-200">plan.warnings_retroactivos</code>). Editá el cambio propuesto si querés ajustarlo antes de aprobar.
               </div>
               {cbSplit.visibles.map(c => (
                 <HallazgoCrossBlockCard
@@ -248,9 +248,33 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
           ) : (
             <>
               {!habilitarFooter && dec.pendingCount > 0 && (
-                <p className="text-[12px] text-gray-500 text-center">
-                  Quedan {dec.pendingCount} hallazgo{dec.pendingCount === 1 ? '' : 's'} sin procesar.
-                </p>
+                <div className="flex items-center justify-center gap-3">
+                  <p className="text-[12px] text-gray-500">
+                    Quedan {dec.pendingCount} hallazgo{dec.pendingCount === 1 ? '' : 's'} sin procesar.
+                  </p>
+                  {/* Botón que scrollea al primer hallazgo pending — útil
+                      cuando hay 1 hallazgo perdido en una sección colapsada o
+                      lejos en el scroll y el user no lo encuentra. */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const firstPending = Object.values(dec.decisiones).find(d => d.estado === 'pending')
+                      if (!firstPending) return
+                      const el = document.getElementById(`hallazgo-${firstPending.hallazgo_id}`)
+                      if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                        // Flash de atención: pulse del ring por 1.5s.
+                        el.classList.add('ring-4', 'ring-yellow-400')
+                        setTimeout(() => {
+                          el.classList.remove('ring-4', 'ring-yellow-400')
+                        }, 1500)
+                      }
+                    }}
+                    className="text-[12px] text-yellow-300 hover:text-yellow-200 underline transition-colors"
+                  >
+                    Ir al pendiente →
+                  </button>
+                </div>
               )}
               <button
                 onClick={() => {

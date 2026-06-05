@@ -21,6 +21,7 @@
 // max 3 intentos con backoff). Opus reasoning interno puede tardar y romper
 // el socket — un reintento normalmente funciona con cache caliente.
 
+import { PE_MODEL } from '@/lib/llm-config'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import Anthropic from '@anthropic-ai/sdk'
@@ -43,7 +44,33 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const OPUS_INPUT_PER_M = 15
 const OPUS_OUTPUT_PER_M = 75
 
+// Opus con max_tokens=24000 + reasoning interno puede tardar 60-180s. El
+// default de Vercel (10s Hobby / 60s Pro) cierra la conexión antes y el
+// cliente recibe response vacío → JSON.parse fails. 300s cubre el peor caso.
+export const maxDuration = 300
+
 export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    return await handlePOST(req, { params })
+  } catch (err) {
+    // Global catch: cualquier excepción no atrapada (parsing del Opus output,
+    // inyectarNombresMovimientos, updatePlanEstrategico, etc) cae acá. Sin
+    // esto el route retorna 500 sin body y el cliente ve "JSON.parse: unexpected
+    // end of data". Logueamos el stack completo del lado server.
+    const errAny = err as any
+    console.error('[paso3/borrador/generar] UNCAUGHT EXCEPTION:', errAny?.message)
+    console.error('[paso3/borrador/generar] stack:', errAny?.stack)
+    return NextResponse.json({
+      error: `Error interno del servidor: ${errAny?.message ?? String(err)}`,
+      hint: 'Mirá los logs del server (npm run dev / Vercel) para el stack trace completo.',
+    }, { status: 500 })
+  }
+}
+
+async function handlePOST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -79,12 +106,22 @@ export async function POST(
   // Permitimos disparar desde 3.B también si las palancas están completas — el
   // user puede arrancar 3.C sin haber transicionado formalmente sub_bloque.
   // Sí exigimos las palancas + sus respuestas.
+  //
+  // Modos inline (P-4 secuenciacion, P-5 marcado_simple): el flow captura el
+  // razonamiento POR MOV en el inventario, no en chat. Si respuesta_estructurada
+  // está confirmada, consideramos la pregunta respondida aunque q.respuesta
+  // texto esté vacío.
   const principal = plan.plan?.palancas?.preguntas_principal ?? []
-  if (principal.length < 5 || principal.some(q => !q.respuesta?.trim())) {
+  function preguntaSinResp(q: any): boolean {
+    const modoInline = q.modo_interaccion === 'secuenciacion' || q.modo_interaccion === 'marcado_simple'
+    if (modoInline && q.respuesta_estructurada) return false
+    return !q.respuesta?.trim()
+  }
+  if (principal.length < 5 || principal.some(preguntaSinResp)) {
     return NextResponse.json({
       error: 'No se puede generar borrador sin las 5 preguntas_principal con respuesta.',
       principal_count: principal.length,
-      sin_respuesta: principal.filter(q => !q.respuesta?.trim()).map(q => q.id),
+      sin_respuesta: principal.filter(preguntaSinResp).map((q: any) => q.id),
     }, { status: 409 })
   }
 
@@ -139,7 +176,7 @@ export async function POST(
     try {
       const attemptStart = Date.now()
       const stream = anthropic.messages.stream({
-        model: 'claude-opus-4-7',
+        model: PE_MODEL,
         // 24000 = headroom para un borrador rico (6 secciones, 3-7 decisiones,
         // 3-5 fases con razones, 2-5 alternativas) + Opus reasoning interno.
         // CLAUDE.md aprendizaje: en outputs estructurados ricos, max_tokens

@@ -15,6 +15,8 @@
 //     + cualquier sugerencia explícita del user en el chat de 3.E.
 
 import type { PlanEstrategico, BorradorIteracionPE, EstresQAPE } from './types'
+import { formatLinchpinsSection } from './linchpins'
+import { buildJrContextoHeredadoMd } from './jr-paso3-context'
 
 export function buildCuradoSystemPrompt(): string {
   return `Sos un consultor estratégico senior. Tu tarea: CURAR el plan final integrando todo el trabajo del Paso 3.
@@ -69,7 +71,9 @@ REGLAS DURAS:
 
 7. **IDs SIEMPRE con nombre entre paréntesis en texto narrativo** (regla global del wizard). Aplicá a TODAS las apariciones en contexto, decisiones, razones, supuestos refinados, criterio_exito, alternativas_descartadas. Excepción: el array \`movimientos_ids\` mantiene solo IDs.
 
-8. **Curado limpio, no shopping list.** El contexto debe LEERSE — no es resumen seco. Las decisiones de priorización deben explicar el "qué y por qué" sin jergas internas. Una persona que no participó del proceso debería entender la lógica del plan leyéndolo de corrido.
+8. **Verificá movimientos palanca.** El user message incluye una sección "Movimientos palanca detectados" con los movs que desbloquean ≥3 otros del inventario. Si el borrador ya los ubicó en Fase 1, mantenelos ahí y refiná \`razon_secuencia\` si hace falta. Si el borrador los puso tarde SIN justificación dura (precondición externa, vacancia bloqueante, restricción temporal), MOVELOS a Fase 1 al curar y citá la razón explícita en \`razon_secuencia\`. Si la sección viene vacía, ignorá esta regla.
+
+9. **Curado limpio, no shopping list.** El contexto debe LEERSE — no es resumen seco. Las decisiones de priorización deben explicar el "qué y por qué" sin jergas internas. Una persona que no participó del proceso debería entender la lógica del plan leyéndolo de corrido.
 
 EVITAR:
 
@@ -99,12 +103,17 @@ export function buildCuradoUserMessage(
     ajuste: q.ajuste_aplicado!,
   }))
 
-  let msg = `# Inputs para curar el plan
-
-## Propósito (inmutable)
+  // Plan Jr: propósito heredado (inmutable, dado por el Sr). Ver buildJrContextoHeredadoMd.
+  const propMd = plan.tipo === 'Jr'
+    ? buildJrContextoHeredadoMd(plan)
+    : `## Propósito (inmutable)
 Escena ideal: ${plan.proposito?.escena ?? '(no declarada)'}
 Métricas: ${JSON.stringify(plan.proposito?.metricas ?? [], null, 2)}
-Horizonte: ${plan.proposito?.horizonte ?? '(no declarado)'}
+Horizonte: ${plan.proposito?.horizonte ?? '(no declarado)'}`
+
+  let msg = `# Inputs para curar el plan
+
+${propMd}
 
 ## Situación (inmutable)
 Desvío principal: ${plan.situacion?.desvio_principal ?? '(no declarado)'}
@@ -112,6 +121,8 @@ Causa raíz: ${plan.situacion?.causa_raiz ?? '(no declarada)'}
 
 ## Inventario activo (${movsActivos.length} movimientos — para que matchees IDs)
 ${movsActivos.map(m => `  ${m.id}: "${m.nombre}" · dueño=${m.dueno} · ${m.categoria}`).join('\n')}
+
+${formatLinchpinsSection(movsActivos)}
 
 ## Supuestos exógenos (de preparativos — para que matchees descripciones)
 ${supuestos.map((s, i) => `  [${i}] "${s.descripcion}"`).join('\n')}

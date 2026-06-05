@@ -18,8 +18,9 @@ import {
   getTurnosPE,
   appendSnapshotTurno,
   updateEntrevistaPE,
+  updatePlanEstrategico,
 } from '@/lib/airtable'
-import type { SnapshotPaso } from '@/lib/types'
+import type { SnapshotPaso, LineaJrPersistida } from '@/lib/types'
 
 export async function POST(
   req: NextRequest,
@@ -99,6 +100,28 @@ export async function POST(
   }
   await updateEntrevistaPE(entrevista.id, updatesPaso)
   await updateEntrevistaPE(entrevista.id, { sub_estado_paso: 'en_curso' })
+
+  // Plan Jr (Fase 6): el Paso 3 es el último del scope. Al cerrarlo, el Jr queda
+  // 'Completado' y se refleja en la línea del Sr. (El Sr no entra a este branch:
+  // su Paso 3 cierra pero el plan sigue su flujo normal de pasos.)
+  if (plan.tipo === 'Jr' && paso === 3) {
+    try {
+      await updatePlanEstrategico(planId, { estado: 'Completado' })
+      if (plan.plan_sr_id) {
+        const planSr = await getPlanEstrategico(plan.plan_sr_id)
+        const lineas = planSr?.lineas_jr ?? []
+        const idx = lineas.findIndex(l => l.plan_jr_id === planId)
+        if (idx !== -1) {
+          const lineasActualizadas: LineaJrPersistida[] = lineas.map((l, i) =>
+            i === idx ? { ...l, estado: 'cerrado' } : l,
+          )
+          await updatePlanEstrategico(plan.plan_sr_id, { lineas_jr: lineasActualizadas })
+        }
+      }
+    } catch (e) {
+      console.warn('[cerrar-paso-final] no se pudo marcar el Jr como Completado:', (e as any)?.message)
+    }
+  }
 
   console.log('[cerrar-paso-final]', JSON.stringify({
     event: 'paso_cerrado_definitivamente',

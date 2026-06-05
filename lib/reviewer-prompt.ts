@@ -19,7 +19,37 @@ export interface AuditoriaPrevia {
   retry_count: number
 }
 
-export function buildReviewerSystemPrompt(bloque: number, opts?: { historicoEducativo?: boolean }): string {
+export function buildReviewerSystemPrompt(bloque: number, opts?: { historicoEducativo?: boolean; capJr?: boolean }): string {
+  // Cap del Jr (Fase 6): cuando se audita el Paso 3 de un Plan Jr, el reviewer
+  // suma una dimensión: verificar que el plan curado ENTREGA cada criterio de
+  // éxito / métrica HEREDADO del Sr. Los shortfalls salen como ReviewerQuestion
+  // CRITICA (se resuelven con el dueño Jr, no se auto-aplican).
+  const bloqueCapJr = opts?.capJr
+    ? `
+
+═══════════════════════════════════════════════════════════════════
+BLOQUE D — CAP CONTRA EL PLAN SR (SOLO PLAN JR, PASO 3)
+═══════════════════════════════════════════════════════════════════
+
+Este es un Plan Jr. Su propósito, criterios de éxito y métricas NO se definieron
+acá: los heredó del Plan Sr (te los paso en el user message bajo "CONTEXTO
+HEREDADO DEL SR"). El plan curado del Jr existe para ENTREGAR esos criterios.
+
+Tu tarea adicional: por CADA criterio de éxito y métrica heredada, verificá si el
+plan curado del Jr lo entrega. Emití una pregunta (categoria "CRITICA") en
+"questions" por cada criterio que:
+- NO esté siendo atacado por ningún movimiento del plan curado, o
+- esté atacado a un NIVEL MENOR al que pide el criterio (ej. el criterio dice
+  "comprar 100" y la suma de los movimientos del Jr llega a 50 — shortfall).
+
+Para esas preguntas de cap:
+- "pregunta": explicitá el criterio heredado y el shortfall concreto, y pedí al
+  dueño Jr cómo lo cubre o por qué es aceptable quedarse corto.
+- "relacion_con_plan": nombrá el criterio/métrica heredado afectado.
+NO inventes criterios que no estén en el contexto heredado. Si todos los criterios
+están bien cubiertos, no agregues preguntas de cap.`
+    : ''
+
   const contextoBloque = bloque === 1
     ? `Estás auditando el Bloque 0+1 (Encuadre + Propósito). El Paso 2 (Situación) y los pasos siguientes (3, 4, 5) NO están en este material — se hacen después. Por lo tanto:
 - NO marques como omisión cosas como "falta el desvío principal" — eso es del Paso 2.
@@ -124,6 +154,7 @@ BLOQUE C — CROSS-BLOCK CHANGES
 ${bloque === 1
   ? 'Como este es el primer bloque (Bloque 0+1), no hay bloques anteriores que puedan recibir cambios retroactivos. El array "cross_block_changes" debe estar vacío: [].'
   : 'Detectá información declarada en este bloque que retroalimenta a bloques anteriores cerrados. Para cada cambio retroactivo: bloque_afectado, sección, severidad (Alta/Media/Baja), qué dice actualmente vs qué se declaró que lo modifica, turno de referencia y cambio propuesto.'}
+${bloqueCapJr}
 
 ═══════════════════════════════════════════════════════════════════
 META
@@ -149,6 +180,7 @@ export function buildReviewerUserMessage(params: {
   turnos: TurnoPE[]                    // turnos del Bloque (ya filtrados por el caller — ver lib/airtable.ts)
   resumenEstructurado: string          // markdown o JSON serializado del resumen del Bloque
   auditoriasPrevias?: AuditoriaPrevia[] // M5: contexto de re-auditorías
+  capContextoMd?: string               // Plan Jr Paso 3: contexto heredado del Sr + agregados (cap)
 }): string {
   // Numeración cronológica desde 1 (M6) — solo turnos user|model (los reviewer/snapshot
   // no son parte del material de entrevista que se audita).
@@ -190,5 +222,11 @@ RESUMEN ESTRUCTURADO GENERADO POR EL AI ENTREVISTADOR
 ═════════════════════════════════════════════════════════════
 
 ${params.resumenEstructurado}
-${bloquePrevias}`
+${params.capContextoMd ? `
+═════════════════════════════════════════════════════════════
+CONTEXTO HEREDADO DEL SR (para el CAP — Bloque D)
+═════════════════════════════════════════════════════════════
+
+${params.capContextoMd}
+` : ''}${bloquePrevias}`
 }

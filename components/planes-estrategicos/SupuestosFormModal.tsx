@@ -10,6 +10,7 @@
 // /chat) — el modelo parsea y emite PANEL_UPDATE con supuestos_exogenos
 // completos.
 
+import { BTN_CTA } from '@/components/ui/button-styles'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type {
@@ -248,7 +249,7 @@ function Contenido({ supuestos, onEnviar, onCerrar, saving }: Props) {
             <button
               onClick={handleEnviar}
               disabled={!puedeEnviar || saving}
-              className="rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className={BTN_CTA}
             >
               {saving ? 'Enviando…' : 'Enviar respuestas →'}
             </button>

@@ -26,6 +26,7 @@ import {
   getEntrevistaPE,
   appendSnapshotTurno,
   updateEntrevistaPE,
+  updatePlanEstrategico,
 } from '@/lib/airtable'
 import type { SnapshotPaso } from '@/lib/types'
 
@@ -62,6 +63,31 @@ export async function POST(
     }, { status: 409 })
   }
 
+  // Recomputar resumenes_categoria desde el estado final de los movimientos.
+  // El usuario puede haber navegado entre categorías con "Siguiente"/"Volver"
+  // sin gatillar "Cerrar categoría y avanzar" (que es lo que normalmente
+  // actualiza el resumen). Acá lo derivamos del estado ground-truth para
+  // garantizar coherencia, sin importar cómo se navegó.
+  const categoriasUnicas = Array.from(new Set(inv.movimientos.map(m => m.categoria)))
+  const resumenesRecomputados = categoriasUnicas.map(categoria => {
+    const movs = inv.movimientos.filter(m => m.categoria === categoria)
+    return {
+      categoria,
+      total: movs.length,
+      aceptados: movs.filter(m => m.estado_usuario === 'aceptado').length,
+      editados: movs.filter(m => m.estado_usuario === 'editado').length,
+      quitados: movs.filter(m => m.estado_usuario === 'quitado').length,
+    }
+  })
+  const planConResumenes = {
+    ...plan.plan,
+    inventario: {
+      ...inv,
+      resumenes_categoria: resumenesRecomputados,
+    },
+  }
+  await updatePlanEstrategico(planId, { plan: planConResumenes })
+
   // Snapshot intermedio del Paso 3 con plan.inventario completo.
   // cierre_tipo='intermedio_sub_bloque_3.A' marca este snapshot como cierre
   // de sub-bloque (NO del Paso entero) para que el wrapper del LLM en turnos
@@ -71,7 +97,7 @@ export async function POST(
     proposito: plan.proposito,
     situacion: plan.situacion,
     datos_faltantes: plan.datos_faltantes ?? [],
-    plan: plan.plan,
+    plan: planConResumenes,
     cerrado_en: new Date().toISOString(),
     cierre_tipo: 'intermedio_sub_bloque_3.A',
   }

@@ -16,6 +16,7 @@
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { MovimientoPE } from '@/lib/types'
+import { BrechasMultiSelect, MovimientosMultiSelect } from '@/components/planes-estrategicos/InventarioCategoria'
 
 // ── Modal: Agregar movimiento durante 3.B/3.C/3.D ────────────────────────────
 
@@ -24,12 +25,16 @@ interface AgregarProps {
   categorias: string[]
   // Categoría sugerida (la del último movimiento que el modelo destacó, o "").
   categoriaSugerida?: string
+  // Métricas del propósito para el multi-select de brechas (Brechas atacadas).
+  metricasProposito: { metrica: string }[]
+  // Todos los movs del inventario para multi-select de dependencias.
+  allMovimientos: MovimientoPE[]
   saving: boolean
   onGuardar: (m: Omit<MovimientoPE, 'id' | 'estado_usuario'>) => void
   onCancelar: () => void
 }
 
-export function ModalAgregarMovimiento({ categorias, categoriaSugerida, saving, onGuardar, onCancelar }: AgregarProps) {
+export function ModalAgregarMovimiento({ categorias, categoriaSugerida, metricasProposito, allMovimientos, saving, onGuardar, onCancelar }: AgregarProps) {
   const hoy = new Date()
   const enTresMeses = new Date(hoy.getFullYear(), hoy.getMonth() + 3, 1)
   const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -38,39 +43,51 @@ export function ModalAgregarMovimiento({ categorias, categoriaSugerida, saving, 
   const [categoriaCustom, setCategoriaCustom] = useState('')
   const [usaCategoriaCustom, setUsaCategoriaCustom] = useState(categorias.length === 0)
   const [nombre, setNombre] = useState('')
+  const [descripcion, setDescripcion] = useState('')
   const [queResuelve, setQueResuelve] = useState('')
-  const [atacaDesvio, setAtacaDesvio] = useState('')
   const [dueno, setDueno] = useState('')
   const [criterioExito, setCriterioExito] = useState('')
   const [arranca, setArranca] = useState(fmt(hoy))
   const [termina, setTermina] = useState(fmt(enTresMeses))
   const [bandaAncha, setBandaAncha] = useState<'baja' | 'media' | 'alta'>('media')
+  const [impacto, setImpacto] = useState<'baja' | 'media' | 'alta'>('media')
   const [costoMin, setCostoMin] = useState('0')
   const [costoMax, setCostoMax] = useState('0')
   const [costoNota, setCostoNota] = useState('')
+  const [brechas, setBrechas] = useState<string[]>([])
+  const [showBrechasError, setShowBrechasError] = useState(false)
+  const [precondiciones, setPrecondiciones] = useState<string[]>([])
+  const [desbloquea, setDesbloquea] = useState<string[]>([])
 
   const categoriaFinal = (usaCategoriaCustom ? categoriaCustom : categoria).trim()
-  const camposCompletos = !!categoriaFinal && nombre.trim() && queResuelve.trim() && atacaDesvio.trim() && dueno.trim() && criterioExito.trim()
+  // Brecha obligatoria solo si hay métricas del propósito (Plan Jr las hereda y
+  // metricasProposito viene vacío → no se exige; el cap valida cobertura).
+  const camposCompletos = !!categoriaFinal && nombre.trim() && queResuelve.trim() && dueno.trim() && criterioExito.trim() && (metricasProposito.length === 0 || brechas.length > 0)
 
   function handleGuardar() {
-    if (!camposCompletos || saving) return
+    if (!camposCompletos || saving) {
+      if (metricasProposito.length > 0 && brechas.length === 0) setShowBrechasError(true)
+      return
+    }
     onGuardar({
       categoria: categoriaFinal,
       nombre: nombre.trim(),
+      descripcion: descripcion.trim(),
       que_resuelve: queResuelve.trim(),
-      ataca_desvio: atacaDesvio.trim(),
       dueno: dueno.trim(),
       criterio_exito: criterioExito.trim(),
       ventana_temporal: { arranca, termina },
       costo_banda_ancha: bandaAncha,
+      impacto,
+      brechas_atacadas: brechas,
       costo_monetario: {
         rango_min_usd: parseFloat(costoMin) || 0,
         rango_max_usd: parseFloat(costoMax) || 0,
         ...(costoNota.trim() ? { nota: costoNota.trim() } : {}),
       },
-      precondiciones: [],
-      desbloquea: [],
-      tipo_dependencia: 'ninguna',
+      precondiciones,
+      desbloquea,
+      tipo_dependencia: precondiciones.length > 0 ? 'sugerida' : 'ninguna',
     })
   }
 
@@ -140,8 +157,17 @@ export function ModalAgregarMovimiento({ categorias, categoriaSugerida, saving, 
           </div>
 
           <Field label="Nombre *" value={nombre} onChange={setNombre} />
+          <BrechasMultiSelect
+            metricas={metricasProposito}
+            seleccionadas={brechas}
+            onToggle={(m) => {
+              setBrechas(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])
+              setShowBrechasError(false)
+            }}
+            error={showBrechasError}
+          />
+          <Field label="Descripción" value={descripcion} onChange={setDescripcion} multiline />
           <Field label="Qué resuelve *" value={queResuelve} onChange={setQueResuelve} multiline />
-          <Field label="Ataca desvío *" value={atacaDesvio} onChange={setAtacaDesvio} multiline />
           <Field label="Dueño * ('[vacancia]' si no asignado)" value={dueno} onChange={setDueno} />
           <Field label="Criterio de éxito *" value={criterioExito} onChange={setCriterioExito} multiline />
 
@@ -151,7 +177,7 @@ export function ModalAgregarMovimiento({ categorias, categoriaSugerida, saving, 
           </div>
 
           <div className="space-y-1">
-            <label className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground/80">Banda ancha</label>
+            <label className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground/80">Esfuerzo (global)</label>
             <div className="flex gap-2">
               {(['baja', 'media', 'alta'] as const).map(b => (
                 <button
@@ -169,12 +195,51 @@ export function ModalAgregarMovimiento({ categorias, categoriaSugerida, saving, 
               ))}
             </div>
           </div>
+          <div className="space-y-1">
+            <label className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground/80">Impacto</label>
+            <div className="flex gap-2">
+              {(['baja', 'media', 'alta'] as const).map(b => (
+                <button
+                  key={b}
+                  type="button"
+                  onClick={() => setImpacto(b)}
+                  className={`rounded-md px-2.5 py-1 text-[12px] font-semibold capitalize transition-colors ${
+                    impacto === b
+                      // Color inverso al esfuerzo: alto impacto = verde.
+                      ? b === 'alta' ? 'bg-green-700 text-white' : b === 'media' ? 'bg-yellow-700 text-white' : 'bg-red-700 text-white'
+                      : 'border border-sidebar-border text-muted-foreground hover:bg-accent/40'
+                  }`}
+                >
+                  {b}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Costo mín USD" value={costoMin} onChange={setCostoMin} />
-            <Field label="Costo máx USD" value={costoMax} onChange={setCostoMax} />
+            <Field label="Costo mín US$" value={costoMin} onChange={setCostoMin} />
+            <Field label="Costo máx US$" value={costoMax} onChange={setCostoMax} />
           </div>
           <Field label="Nota costo (opcional)" value={costoNota} onChange={setCostoNota} />
+
+          <MovimientosMultiSelect
+            label="Depende de (precondiciones)"
+            hint="Movimientos que tienen que estar listos antes de arrancar este."
+            movimientos={allMovimientos}
+            movActualId={null}
+            seleccionados={precondiciones}
+            excluirIds={desbloquea}
+            onToggle={(id) => setPrecondiciones(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])}
+          />
+          <MovimientosMultiSelect
+            label="Desbloquea"
+            hint="Movimientos que pueden arrancar (o se facilitan) cuando este termine."
+            movimientos={allMovimientos}
+            movActualId={null}
+            seleccionados={desbloquea}
+            excluirIds={precondiciones}
+            onToggle={(id) => setDesbloquea(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])}
+          />
         </div>
 
         <footer className="flex-shrink-0 border-t border-sidebar-border px-5 py-3 flex items-center justify-end gap-2">
@@ -203,26 +268,40 @@ export function ModalAgregarMovimiento({ categorias, categoriaSugerida, saving, 
 
 interface EditarProps {
   movimiento: MovimientoPE
+  // Métricas del propósito para el multi-select de brechas.
+  metricasProposito: { metrica: string }[]
   saving: boolean
   onGuardar: (patch: Partial<MovimientoPE>) => void
   onCancelar: () => void
 }
 
-export function ModalEditarMovimiento({ movimiento, saving, onGuardar, onCancelar }: EditarProps) {
+export function ModalEditarMovimiento({ movimiento, metricasProposito, saving, onGuardar, onCancelar }: EditarProps) {
   const [nombre, setNombre] = useState(movimiento.nombre)
+  const [descripcion, setDescripcion] = useState(movimiento.descripcion ?? '')
   const [queResuelve, setQueResuelve] = useState(movimiento.que_resuelve)
-  const [atacaDesvio, setAtacaDesvio] = useState(movimiento.ataca_desvio)
   const [dueno, setDueno] = useState(movimiento.dueno)
   const [criterioExito, setCriterioExito] = useState(movimiento.criterio_exito)
+  const [bandaAncha, setBandaAncha] = useState<'alta' | 'media' | 'baja'>(movimiento.costo_banda_ancha ?? 'media')
+  const [impacto, setImpacto] = useState<'alta' | 'media' | 'baja'>(movimiento.impacto ?? 'media')
+  const [brechas, setBrechas] = useState<string[]>(movimiento.brechas_atacadas ?? [])
+  const [showBrechasError, setShowBrechasError] = useState(false)
 
   function handleGuardar() {
     if (saving) return
+    // Brecha obligatoria solo si hay métricas (Plan Jr las hereda → no se exige).
+    if (metricasProposito.length > 0 && brechas.length === 0) {
+      setShowBrechasError(true)
+      return
+    }
     onGuardar({
       nombre: nombre.trim() || movimiento.nombre,
+      descripcion: descripcion.trim(),
       que_resuelve: queResuelve.trim() || movimiento.que_resuelve,
-      ataca_desvio: atacaDesvio.trim() || movimiento.ataca_desvio,
       dueno: dueno.trim() || movimiento.dueno,
       criterio_exito: criterioExito.trim() || movimiento.criterio_exito,
+      costo_banda_ancha: bandaAncha,
+      impacto,
+      brechas_atacadas: brechas,
     })
   }
 
@@ -248,12 +327,72 @@ export function ModalEditarMovimiento({ movimiento, saving, onGuardar, onCancela
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
           <Field label="Nombre" value={nombre} onChange={setNombre} />
+          <BrechasMultiSelect
+            metricas={metricasProposito}
+            seleccionadas={brechas}
+            onToggle={(m) => {
+              setBrechas(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])
+              setShowBrechasError(false)
+            }}
+            error={showBrechasError}
+          />
+          <Field label="Descripción" value={descripcion} onChange={setDescripcion} multiline />
           <Field label="Qué resuelve" value={queResuelve} onChange={setQueResuelve} multiline />
-          <Field label="Ataca desvío" value={atacaDesvio} onChange={setAtacaDesvio} multiline />
           <Field label="Dueño" value={dueno} onChange={setDueno} />
           <Field label="Criterio de éxito" value={criterioExito} onChange={setCriterioExito} multiline />
+          {/* Esfuerzo global. */}
+          <div className="space-y-1">
+            <label className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground/80">Esfuerzo (global)</label>
+            <div className="inline-flex rounded-md border border-sidebar-border bg-background">
+              {(['alta', 'media', 'baja'] as const).map((opt, i) => {
+                const selected = bandaAncha === opt
+                const colorActivo =
+                  opt === 'alta' ? 'bg-red-900/60 text-red-200' :
+                  opt === 'media' ? 'bg-yellow-900/60 text-yellow-200' :
+                  'bg-green-900/60 text-green-200'
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setBandaAncha(opt)}
+                    className={`px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                      selected ? colorActivo : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground'
+                    } ${i > 0 ? 'border-l border-sidebar-border' : ''} first:rounded-l-md last:rounded-r-md`}
+                  >
+                    {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          {/* Impacto esperado. */}
+          <div className="space-y-1">
+            <label className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground/80">Impacto</label>
+            <div className="inline-flex rounded-md border border-sidebar-border bg-background">
+              {(['alta', 'media', 'baja'] as const).map((opt, i) => {
+                const selected = impacto === opt
+                // Color inverso al esfuerzo: alto impacto = verde (bueno).
+                const colorActivo =
+                  opt === 'alta' ? 'bg-green-900/60 text-green-200' :
+                  opt === 'media' ? 'bg-yellow-900/60 text-yellow-200' :
+                  'bg-red-900/60 text-red-200'
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setImpacto(opt)}
+                    className={`px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                      selected ? colorActivo : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground'
+                    } ${i > 0 ? 'border-l border-sidebar-border' : ''} first:rounded-l-md last:rounded-r-md`}
+                  >
+                    {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
           <p className="text-[12px] text-muted-foreground italic mt-2">
-            Ventana, costo, banda y dependencias siguen igual. Si necesitás editarlos, abrí el inventario completo (3.A).
+            Ventana, costo y dependencias siguen igual. Si necesitás editarlos, abrí el inventario completo (3.A).
           </p>
         </div>
 

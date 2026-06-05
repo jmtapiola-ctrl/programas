@@ -3,19 +3,22 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ChatInterface } from '@/components/planes-estrategicos/ChatInterface'
+import { NombreEditable } from '@/components/planes-estrategicos/NombreEditable'
 import { InventarioCategoria } from '@/components/planes-estrategicos/InventarioCategoria'
 import { PalancasValidadorModal } from '@/components/planes-estrategicos/PalancasValidadorModal'
 import { PanelInventarioInteractivo } from '@/components/planes-estrategicos/PanelInventarioInteractivo'
+import { P4InlineFlow } from '@/components/planes-estrategicos/P4InlineFlow'
+import { P5InlineFlow } from '@/components/planes-estrategicos/P5InlineFlow'
 import { BorradorVista } from '@/components/planes-estrategicos/BorradorVista'
 import { CuradoVista } from '@/components/planes-estrategicos/CuradoVista'
 import { RetroactividadControlSuaveModal, type CambioRetroactivoPayload } from '@/components/planes-estrategicos/RetroactividadControlSuaveModal'
 import { SupuestosFormModal } from '@/components/planes-estrategicos/SupuestosFormModal'
 import { CriterioExitoFormModal } from '@/components/planes-estrategicos/CriterioExitoFormModal'
 import {
-  ModalAgregarMovimiento,
-  ModalEditarMovimiento,
   ConfirmacionQuitarMovimiento,
 } from '@/components/planes-estrategicos/GestionInventarioModales'
+import { MovimientoFormModal } from '@/components/planes-estrategicos/MovimientoFormModal'
+import { BTN_CTA, BTN_SECONDARY_SM } from '@/components/ui/button-styles'
 import type { GestionInventario } from '@/components/planes-estrategicos/fichas/FichaMovimiento'
 import type { PlanEstrategico, TurnoPE, PanelUpdatePE, InventarioPE, MovimientoPE, PalancaQAPE, EstresQAPE, RespuestaEstructurada, BorradorIteracionPE, FaseSecuenciaPE, PlanCuradoPE, PlanCuradoVersionado } from '@/lib/types'
 import { getCuradoActivo } from '@/lib/types'
@@ -44,10 +47,22 @@ export default function EntrevistaPage() {
   const [loading, setLoading] = useState(true)
   // Sub-bloque 3.A — Inventario
   const [subBloqueActual, setSubBloqueActual] = useState<string>('0')
+  // Paso actual del wizard, hidratado desde la entrevista al cargar. Se usa
+  // para mostrar el banner de "Plan completo" cuando paso_actual >= 4 (el
+  // wizard llegó al final del scope implementado). Se actualiza al refresh —
+  // dentro de un mismo run, los cambios de paso ocurren via cerrar-paso/avance
+  // y el user navega a otra ruta.
+  const [pasoActualEntrevista, setPasoActualEntrevista] = useState<number>(0)
   const [inventarioOverride, setInventarioOverride] = useState<InventarioPE | null>(null)
   const [generandoInventario, setGenerandoInventario] = useState(false)
   const [generarError, setGenerarError] = useState<string | null>(null)
   const [mostrarModalInventario, setMostrarModalInventario] = useState(false)
+  // Vista inicial al abrir el modal de inventario. Default undefined → 'preview'.
+  // Si el usuario clickea "🔁 Secuenciar movimientos" en el header (acceso
+  // retroactivo desde 3.B/3.C/3.D), se setea a 'secuenciacion' antes de abrir.
+  const [vistaInicialInventario, setVistaInicialInventario] = useState<
+    'preview' | 'review' | 'validacion' | 'secuenciacion' | undefined
+  >(undefined)
   // Sub-bloque 3.B — Palancas (validador cross-provider).
   // null = no se disparó. 'inferring' = llamando endpoint. 'ready' = modal visible.
   const [palancasValidador, setPalancasValidador] = useState<
@@ -140,6 +155,12 @@ export default function EntrevistaPage() {
   // un cambio estructural sobre material validado, chat/route emite SSE
   // 'retroactividad_control_suave' con los datos del cambio. Mostramos modal.
   const [retroactividadCambio, setRetroactividadCambio] = useState<CambioRetroactivoPayload | null>(null)
+  // Separamos "modal visible" de "cambio pendiente". Cuando el SSE llega, ambos
+  // se activan. Si el user cierra el modal sin decidir (Escape/click-fuera/✕),
+  // SOLO bajamos retroactividadModalAbierto — el cambio queda pendiente y
+  // aparece un banner reabrible en la columna del chat. Decidir explícitamente
+  // (Confirmar o Cancelar) limpia ambos.
+  const [retroactividadModalAbierto, setRetroactividadModalAbierto] = useState(false)
   const [confirmandoRetroactividad, setConfirmandoRetroactividad] = useState(false)
   const [retroactividadError, setRetroactividadError] = useState<string | null>(null)
 
@@ -160,6 +181,7 @@ export default function EntrevistaPage() {
           const hist: TurnoPE[] = entrevista?.historial ?? []
           setHistorial(hist)
           setSubBloqueActual(entrevista?.sub_bloque_actual ?? '0')
+          setPasoActualEntrevista(entrevista?.paso_actual ?? 0)
 
           // Hidratar cierreSugeridoPaso desde el estado persistido. Si Juan
           // recarga la página después de que el modelo emitió cierre_sugerido
@@ -307,6 +329,7 @@ export default function EntrevistaPage() {
                 descripcion_cambio: evt.cambio.descripcion_cambio ?? '',
                 impactos_detectados: Array.isArray(evt.cambio.impactos_detectados) ? evt.cambio.impactos_detectados : [],
               })
+              setRetroactividadModalAbierto(true)
               setRetroactividadError(null)
             }
           } else if (evt.type === 'cierre_sugerido') {
@@ -378,9 +401,22 @@ export default function EntrevistaPage() {
 
   // Mínimo dinámico de respuestas — Issue B
   const meta = panelData?.proxima_respuesta_metadata
-  const minChars = meta?.caracteres_minimos
-  const minWords = meta?.palabras_minimas
-  const placeholderModel = meta?.placeholder_textarea
+  // EXCEPCIONES P-4 y P-5: ambas capturan el razonamiento DENTRO del panel
+  // (por edge en P-4, por mov en P-5). No requieren razonamiento textual
+  // masivo post-Confirmar. Si el modelo (en un turno previo al cambio de
+  // regla) emitió proxima_respuesta_metadata con mínimos, lo ignoramos
+  // client-side para que el usuario pueda avanzar con respuesta corta.
+  //
+  // IMPORTANTE: restringimos por id de pregunta. En 3.B SOLO P-4 (secuenciacion)
+  // y P-5 (marcado_simple) tienen flow inline. En 3.D las preguntas E-N pueden
+  // usar los mismos modos pero el panel lateral derecho clásico — no inline.
+  const preguntaActiva = preguntaActualParaPanel()
+  const esModoConRazonInline =
+    (preguntaActiva?.modo_interaccion === 'secuenciacion' && preguntaActiva?.id === 'P-4')
+    || (preguntaActiva?.modo_interaccion === 'marcado_simple' && preguntaActiva?.id === 'P-5')
+  const minChars = esModoConRazonInline ? undefined : meta?.caracteres_minimos
+  const minWords = esModoConRazonInline ? undefined : meta?.palabras_minimas
+  const placeholderModel = esModoConRazonInline ? undefined : meta?.placeholder_textarea
   const charsActuales = inputValue.trim().length
   const wordsActuales = inputValue.trim().length === 0 ? 0 : inputValue.trim().split(/\s+/).length
   const cumpleMinChars = minChars === undefined || charsActuales >= minChars
@@ -640,8 +676,23 @@ export default function EntrevistaPage() {
           numero_iteracion: iteracionesPrevias.length + 1,
         }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      // Parseo robusto: leer como texto primero, intentar JSON.parse aparte.
+      // Si el body está vacío (timeout / connection cut / server crash sin
+      // body), damos un mensaje útil en vez del críptico "JSON.parse: unexpected
+      // end of data" que tira res.json() ante body vacío.
+      const raw = await res.text()
+      let data: any = null
+      if (raw) {
+        try { data = JSON.parse(raw) } catch { /* fall-through: data queda null */ }
+      }
+      if (!res.ok) {
+        const msg = data?.error
+          ?? (raw ? `HTTP ${res.status}: ${raw.slice(0, 200)}` : `HTTP ${res.status} sin body — posible timeout del servidor (la llamada a Opus puede demorar 60-180s; si esto se repite, hay un timeout en el deploy).`)
+        throw new Error(msg)
+      }
+      if (!data) {
+        throw new Error('El servidor devolvió respuesta vacía. Probablemente timeout durante la llamada a Opus (60-180s). Probá de nuevo — si persiste, hay un timeout configurado abajo de esa duración en el deploy.')
+      }
       // Refrescar plan local con el plan_actualizado del endpoint.
       if (data.plan_actualizado) {
         setPlan(prev => prev ? { ...prev, plan: data.plan_actualizado } : prev)
@@ -735,8 +786,22 @@ export default function EntrevistaPage() {
           disconformidades: payload,
         }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      // Parseo robusto: idéntico al de handleGenerarBorrador. Sin esto, si el
+      // endpoint devuelve body vacío (timeout/crash), JSON.parse tira un error
+      // críptico que queda en borradorError sin que el user lo vea claro.
+      const raw = await res.text()
+      let data: any = null
+      if (raw) {
+        try { data = JSON.parse(raw) } catch { /* fall-through: data queda null */ }
+      }
+      if (!res.ok) {
+        const msg = data?.error
+          ?? (raw ? `HTTP ${res.status}: ${raw.slice(0, 200)}` : `HTTP ${res.status} sin body — posible timeout del servidor.`)
+        throw new Error(msg)
+      }
+      if (!data) {
+        throw new Error('El servidor devolvió respuesta vacía. Probablemente timeout durante la llamada a Opus (60-180s). Probá de nuevo.')
+      }
       if (data.plan_actualizado) {
         setPlan(prev => prev ? { ...prev, plan: data.plan_actualizado } : prev)
       }
@@ -788,6 +853,44 @@ export default function EntrevistaPage() {
     }
   }
 
+  // ── Escape hatch 3.D → 3.E ────────────────────────────────────────────────
+  // El modelo a veces dice "avanzamos a 3.E (curado)" pero omite emitir
+  // sub_bloque_actual='3.E' en su PANEL_UPDATE. Resultado: subBloqueActual
+  // queda en '3.D' y el banner de "Generar plan curado" no aparece. Este
+  // handler permite forzar la transición manualmente desde la UI.
+  const [forzandoAvance3E, setForzandoAvance3E] = useState(false)
+  async function handleForzarAvance3E() {
+    if (forzandoAvance3E) return
+    setForzandoAvance3E(true)
+    try {
+      const res = await fetch(`/api/planes-estrategicos/${id}/entrevista`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sub_bloque_actual: '3.E' }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.error ?? `HTTP ${res.status}`)
+      }
+      setSubBloqueActual('3.E')
+      // Aviso al modelo via mensaje al chat con sentinel anti-stale-read,
+      // mismo patrón que handleAceptarBorrador (3.C → 3.D).
+      setTimeout(
+        () => sendMessage(
+          '[Sistema] El usuario forzó la transición a 3.E (curado del plan). Por favor avanzá con el sub-bloque 3.E.',
+          historial,
+          plan,
+          { expected_sub_bloque: '3.E' },
+        ),
+        300,
+      )
+    } catch (e) {
+      setError(`No se pudo forzar el avance a 3.E: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setForzandoAvance3E(false)
+    }
+  }
+
   // ── Sub-bloque 3.E — Plan Curado (Chunk D) ────────────────────────────────
   //
   // Generar: POST /paso3/curado/generar (Opus, integra borrador + ajustes 3.D
@@ -808,8 +911,24 @@ export default function EntrevistaPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ajuste_narrativo: ajusteNarrativo ?? null }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      // Parseo robusto (body vacío → timeout sin response).
+      const raw = await res.text()
+      let data: any = null
+      if (raw) {
+        try { data = JSON.parse(raw) } catch { /* fall-through */ }
+      }
+      if (!res.ok) {
+        // Si el endpoint devolvió preview del output de Opus (parse failure),
+        // mostramoslo al user para que vea qué Opus emitió.
+        const previewInicio = data?.output_preview_inicio ? `\n\n[Inicio del output de Opus]: ${data.output_preview_inicio.slice(0, 300)}...` : ''
+        const previewFinal = data?.output_preview_final ? `\n\n${data.output_preview_final.slice(0, 200)}` : ''
+        const msg = data?.error
+          ?? (raw ? `HTTP ${res.status}: ${raw.slice(0, 200)}` : `HTTP ${res.status} sin body — posible timeout.`)
+        throw new Error(`${msg}${previewInicio}${previewFinal}`)
+      }
+      if (!data) {
+        throw new Error('El servidor devolvió respuesta vacía. Probablemente timeout durante la llamada a Opus (60-180s). Probá de nuevo.')
+      }
       if (data.plan_actualizado) {
         setPlan(prev => prev ? { ...prev, plan: data.plan_actualizado } : prev)
       }
@@ -904,6 +1023,7 @@ export default function EntrevistaPage() {
       // 2. Cerrar modal + enviar mensaje al chat para que el modelo aplique.
       const descripcion = retroactividadCambio.descripcion_cambio
       setRetroactividadCambio(null)
+      setRetroactividadModalAbierto(false)
       setTimeout(
         () => sendMessage(
           `[Sistema] Usuario confirma cambio retroactivo. Bloque afectado: ${retroactividadCambio.bloque_afectado}. Cambio a aplicar: ${descripcion}. El warning ya quedó registrado en plan.warnings_retroactivos — aplicá ahora la mutación correspondiente en tu PANEL_UPDATE.`,
@@ -921,6 +1041,7 @@ export default function EntrevistaPage() {
 
   function handleCancelarRetroactividad() {
     setRetroactividadCambio(null)
+    setRetroactividadModalAbierto(false)
     setRetroactividadError(null)
   }
 
@@ -958,6 +1079,7 @@ export default function EntrevistaPage() {
     setSavingRespuestaEstructurada(true)
     setError(null)
     try {
+      // 1. Persistir respuesta_estructurada de la pregunta (behavior original).
       const res = await fetch(`/api/planes-estrategicos/${id}/paso3/palancas/respuesta-estructurada`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -965,10 +1087,58 @@ export default function EntrevistaPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
-      // Refrescar plan en state local — el plan ahora tiene la respuesta_estructurada
-      // persistida. El render del panel queda bloqueado hasta que el user mande
-      // el "por qué" en el chat (panel se oculta hasta el próximo turno del modelo).
       if (data.plan_actualizado) setPlan(prev => prev ? { ...prev, plan: data.plan_actualizado } : prev)
+
+      // 2. Si la respuesta es de pares: sincronizar bidireccionalmente con
+      //    mov.precondiciones del inventario. Los pares del panel se vuelven
+      //    fuente de verdad — actualiza precondiciones por target, el
+      //    auto-mirror server-side propaga al desbloquea del source.
+      //    Esto cierra el split-brain 3.B vs inventario.
+      if (respuesta.modo === 'agrupacion_pares') {
+        const planActual = data.plan_actualizado ?? plan?.plan
+        const inv: InventarioPE | undefined = planActual?.inventario
+        if (inv) {
+          // Mapa hacia → desde[] que represente el estado deseado del panel.
+          const deseadoPorHacia = new Map<string, string[]>()
+          for (const par of respuesta.pares) {
+            const arr = deseadoPorHacia.get(par.hacia) ?? []
+            if (!arr.includes(par.desde)) arr.push(par.desde)
+            deseadoPorHacia.set(par.hacia, arr)
+          }
+          // Por cada mov, comparar precondiciones actuales vs deseadas.
+          // PATCH solo los que difieren (orden agnóstico). Aplicar secuencial
+          // para que el auto-mirror del server no entre en race conditions.
+          let ultimoInv: InventarioPE | null = null
+          for (const mov of inv.movimientos) {
+            const objetivo = deseadoPorHacia.get(mov.id) ?? []
+            const actuales = mov.precondiciones ?? []
+            const sameSet = actuales.length === objetivo.length &&
+              actuales.every(idP => objetivo.includes(idP))
+            if (sameSet) continue
+            try {
+              const pr = await fetch(`/api/planes-estrategicos/${id}/paso3/inventario/decision`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  movimiento_id: mov.id,
+                  estado: 'editado',
+                  patch: { precondiciones: objetivo },
+                }),
+              })
+              const prData = await pr.json().catch(() => null)
+              if (pr.ok && prData?.inventario_actualizado) {
+                ultimoInv = prData.inventario_actualizado
+              }
+            } catch (syncErr) {
+              console.warn(`[handleConfirmarRespuestaEstructurada] sync ${mov.id} falló:`, syncErr)
+            }
+          }
+          // Refrescar plan local con el último inventario sincronizado.
+          if (ultimoInv) {
+            setPlan(prev => prev?.plan ? { ...prev, plan: { ...prev.plan, inventario: ultimoInv! } } : prev)
+          }
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -996,15 +1166,20 @@ export default function EntrevistaPage() {
       ? plan.plan.palancas?.preguntas_principal ?? []
       : plan.plan.estres?.preguntas ?? []
 
-    for (let i = candidatos.length - 1; i >= 0; i--) {
-      const q = candidatos[i]
-      // Match si la pregunta tiene modo_interaccion (caso normal) O si tiene
-      // respuesta_estructurada (caso recuperación: el modelo re-emitió la
-      // pregunta sin metadata del panel pero el user ya había marcado). El
-      // componente del panel infiere el modo desde respuesta_estructurada.modo
-      // cuando modo_interaccion no está.
-      if (q.modo_interaccion || q.respuesta_estructurada) return q
-    }
+    if (candidatos.length === 0) return null
+
+    // El panel acompaña a la PREGUNTA ACTUAL del modelo, no a la última que
+    // tuvo panel. Si la pregunta más reciente NO tiene modo_interaccion
+    // (texto puro), el panel se pliega — el user no está respondiendo una
+    // pregunta panel-eable. Si SÍ tiene modo (pendiente o ya respondida), el
+    // panel se muestra hasta que llegue la próxima pregunta del modelo.
+    //
+    // Lógica de prioridad anterior (priorizar pendiente con modo sobre
+    // respondida más reciente sin modo) generaba un bug: en E-2 texto-puro,
+    // el panel seguía mostrando E-1 marcado_simple confirmada con su selección
+    // visible — visualmente sugería que E-1 todavía requería acción.
+    const ultima = candidatos[candidatos.length - 1]
+    if (ultima.modo_interaccion) return ultima
     return null
   }
 
@@ -1024,7 +1199,19 @@ export default function EntrevistaPage() {
     if (subBloqueActual !== '3.B') return
     const palancas = plan.plan.palancas
     const principal = palancas?.preguntas_principal ?? []
-    const todasResp = principal.length === 5 && principal.every(q => q.respuesta?.trim())
+    // Detección de respuesta completa por pregunta:
+    //   - Modos "inline" (secuenciacion P-4, marcado_simple P-5): el flow
+    //     captura el razonamiento POR MOV dentro del editor, no en chat. El
+    //     usuario puede responder corto ("ok"/"listo") y el modelo no siempre
+    //     persiste q.respuesta texto. Para esos modos, basta con que
+    //     respuesta_estructurada esté confirmada.
+    //   - Modos clásicos (seleccion_unica, ranked, pares, sin modo): siguen
+    //     requiriendo q.respuesta texto no-vacío.
+    const todasResp = principal.length === 5 && principal.every(q => {
+      const modoInline = q.modo_interaccion === 'secuenciacion' || q.modo_interaccion === 'marcado_simple'
+      if (modoInline && q.respuesta_estructurada) return true
+      return !!q.respuesta?.trim()
+    })
     const yaTieneValidador = (palancas?.preguntas_validador ?? []).length > 0
     const yaCorrio = palancas?.costo_validador_usd !== undefined
 
@@ -1104,6 +1291,7 @@ export default function EntrevistaPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
       setMostrarModalInventario(false)
+      setVistaInicialInventario(undefined)
       setSubBloqueActual('3.B')
       // El modelo arrancará 3.B en el próximo turno conversacional. Disparamos
       // mensaje vacío para que el chat pida al modelo que arranque.
@@ -1132,21 +1320,43 @@ export default function EntrevistaPage() {
   return (
     <div className="flex flex-col h-screen">
       {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between border-b border-sidebar-border px-6 py-3">
+      <div className="flex-shrink-0 flex items-center justify-between border-b border-sidebar-border px-6 py-3 gap-3">
         <div>
-          <p className="text-[13px] font-semibold text-foreground">{plan.nombre}</p>
+          <NombreEditable
+            planId={id}
+            nombreActual={plan.nombre}
+            onNombreActualizado={(nuevoNombre) => setPlan(prev => prev ? { ...prev, nombre: nuevoNombre } : prev)}
+          />
           <p className="text-[12px] text-muted-foreground">
             Plan {plan.tipo}{plan.plan_sr_nombre ? ` · alineado a: ${plan.plan_sr_nombre}` : ''}
           </p>
         </div>
-        <a
-          href={`/planes-estrategicos/${id}/vista`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm"
-        >
-          Ver plan →
-        </a>
+        <div className="flex items-center gap-2">
+          {/* Acceso retroactivo a 3.A.6 — visible desde 3.B/3.C/3.D si hay
+              inventario. Permite editar dependencias después de cerrado 3.A.
+              El subBloqueActual implícitamente garantiza paso_actual===3. */}
+          {['3.B', '3.C', '3.D'].includes(subBloqueActual)
+            && plan.plan?.inventario && (
+            <button
+              onClick={() => {
+                setVistaInicialInventario('secuenciacion')
+                setMostrarModalInventario(true)
+              }}
+              className={BTN_SECONDARY_SM}
+              title="Abrir el inventario en modo secuenciación para revisar/editar dependencias entre movimientos"
+            >
+              🔁 Secuenciar movimientos
+            </button>
+          )}
+          <a
+            href={`/planes-estrategicos/${id}/vista`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={BTN_SECONDARY_SM}
+          >
+            Ver plan →
+          </a>
+        </div>
       </div>
 
       {/* Content */}
@@ -1166,6 +1376,89 @@ export default function EntrevistaPage() {
               onRetry={handleRetry}
               onPanelUpdate={setPanelData}
             />
+            {/* P-4 (secuenciacion) — el card del flow vive AL FINAL del scroll
+                del chat (no como frame fijo sobre el input), así aparece como
+                "respuesta esperada" después de la pregunta del modelo y se ve
+                cuando el user termina de scrollear el texto.
+
+                CONDICIÓN DE VISIBILIDAD: solo cuando P-4 está PENDIENTE
+                (sin respuesta_estructurada). Una vez confirmada, el card
+                desaparece para no bloquear el feedback del modelo + la próxima
+                pregunta. Si el user quiere re-confirmar el cronograma puede
+                usar el botón global "Secuenciar movimientos" del header. */}
+            {(() => {
+              const preguntaP4 = preguntaActiva
+              if (preguntaP4?.modo_interaccion !== 'secuenciacion') return null
+              if (preguntaP4.id !== 'P-4') return null  // solo P-4 de 3.B, no E-N de 3.D
+              if (preguntaP4.respuesta_estructurada) return null
+              if (!plan.plan?.inventario?.movimientos) return null
+              return (
+                <div className="px-4 py-3 max-w-[860px] mx-auto">
+                  <P4InlineFlow
+                    pregunta={preguntaP4}
+                    movimientos={plan.plan.inventario.movimientos}
+                    planId={id}
+                    duenosRevisadosSignature={plan.plan.inventario.duenos_revisados_signature}
+                    saving={savingRespuestaEstructurada}
+                    onConfirmar={(resp) => handleConfirmarRespuestaEstructurada(preguntaP4.id, resp)}
+                    onInventarioUpdate={(invActualizado) =>
+                      setPlan(prev => prev?.plan ? { ...prev, plan: { ...prev.plan, inventario: invActualizado } } : prev)
+                    }
+                    onVerDetalleMov={(movId) => setModalEditarFicha({ id: movId })}
+                  />
+                </div>
+              )
+            })()}
+            {/* P-5 (marcado_simple riesgo) — mismo patrón que P-4: card embebido
+                al final del scroll del chat, modal fullscreen al click. */}
+            {(() => {
+              const preguntaP5 = preguntaActiva
+              if (preguntaP5?.modo_interaccion !== 'marcado_simple') return null
+              if (preguntaP5.id !== 'P-5') return null  // solo P-5 de 3.B, no E-N de 3.D
+              if (preguntaP5.respuesta_estructurada) return null
+              if (!plan.plan?.inventario?.movimientos) return null
+              return (
+                <div className="px-4 py-3 max-w-[860px] mx-auto">
+                  <P5InlineFlow
+                    pregunta={preguntaP5}
+                    movimientos={plan.plan.inventario.movimientos}
+                    planId={id}
+                    saving={savingRespuestaEstructurada}
+                    onConfirmar={(resp) => handleConfirmarRespuestaEstructurada(preguntaP5.id, resp)}
+                    onInventarioUpdate={(invActualizado) =>
+                      setPlan(prev => prev?.plan ? { ...prev, plan: { ...prev.plan, inventario: invActualizado } } : prev)
+                    }
+                  />
+                </div>
+              )
+            })()}
+            {/* Banner reabrible del modal de cambio retroactivo. Aparece al
+                final del scroll del chat cuando el user cerró el modal sin
+                decidir (Escape, click fuera, ✕). El cambio queda pendiente
+                hasta que confirme o cancele explícitamente. */}
+            {retroactividadCambio && !retroactividadModalAbierto && (
+              <div className="px-4 py-3 max-w-[860px] mx-auto">
+                <div className="rounded-lg border-2 border-amber-700/70 bg-amber-950/30 px-4 py-3 space-y-2">
+                  <div>
+                    <p className="text-[12px] font-semibold uppercase tracking-wider text-amber-300/90">
+                      ⚠ Cambio retroactivo pendiente de decisión
+                    </p>
+                    <p className="mt-1 text-[13px] text-amber-100">
+                      <span className="font-semibold">Bloque afectado:</span> {retroactividadCambio.bloque_afectado}
+                    </p>
+                    <p className="mt-1 text-[12px] text-amber-200/80 line-clamp-2">
+                      {retroactividadCambio.descripcion_cambio}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setRetroactividadModalAbierto(true)}
+                    className="w-full rounded-md bg-amber-700 hover:bg-amber-600 px-4 py-2 text-[13px] font-bold text-amber-50 transition-colors"
+                  >
+                    Abrir cambio retroactivo →
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Banner del Sub-bloque 3.0.D — Criterio de éxito.
@@ -1185,7 +1478,7 @@ export default function EntrevistaPage() {
                 </div>
                 <button
                   onClick={() => setCriterioAbierto(true)}
-                  className="flex-shrink-0 rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                  className={`${BTN_CTA} flex-shrink-0`}
                 >
                   Completar criterios →
                 </button>
@@ -1211,7 +1504,7 @@ export default function EntrevistaPage() {
                 </div>
                 <button
                   onClick={() => setSupuestosAbierto(true)}
-                  className="flex-shrink-0 rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                  className={`${BTN_CTA} flex-shrink-0`}
                 >
                   Completar supuestos →
                 </button>
@@ -1238,7 +1531,7 @@ export default function EntrevistaPage() {
                   <button
                     onClick={handleGenerarInventario}
                     disabled={generandoInventario}
-                    className="rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className={BTN_CTA}
                   >
                     {generandoInventario ? 'Generando inventario… (30-60s)' : 'Generar inventario'}
                   </button>
@@ -1250,7 +1543,7 @@ export default function EntrevistaPage() {
               {(inventarioOverride || plan.plan?.inventario) && !mostrarModalInventario && (
                 <button
                   onClick={() => setMostrarModalInventario(true)}
-                  className="rounded-lg border border-sidebar-border px-4 py-2 text-[13px] font-medium text-foreground hover:bg-accent/50 transition-colors"
+                  className={BTN_CTA}
                 >
                   Continuar revisión del inventario →
                 </button>
@@ -1274,7 +1567,7 @@ export default function EntrevistaPage() {
                   <button
                     onClick={handleGenerarBorrador}
                     disabled={generandoBorrador}
-                    className="rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className={BTN_CTA}
                   >
                     {generandoBorrador ? 'Generando borrador… (60-120s)' : 'Generar borrador'}
                   </button>
@@ -1286,7 +1579,7 @@ export default function EntrevistaPage() {
               {ultimaIteracionBorrador !== null && !borradorAbierto && (
                 <button
                   onClick={() => setBorradorAbierto(true)}
-                  className="rounded-lg border border-sidebar-border px-4 py-2 text-[13px] font-medium text-foreground hover:bg-accent/50 transition-colors"
+                  className={BTN_CTA}
                 >
                   Ver borrador (iteración {ultimaIteracionBorrador.numero}/3) →
                 </button>
@@ -1294,11 +1587,34 @@ export default function EntrevistaPage() {
             </div>
           )}
 
+          {/* Escape hatch para transición 3.D → 3.E. El modelo TIENE la regla
+              de emitir sub_bloque_actual='3.E' cuando dice "vamos a curar" en
+              3.D, pero a veces se olvida y queda el usuario stuck. Este botón
+              da control manual cuando el user lee "avanzamos a 3.E" en el chat
+              pero el banner de 3.E nunca aparece (el modelo se comió el campo). */}
+          {subBloqueActual === '3.D' && (
+            <div className="flex-shrink-0 border-t border-sidebar-border bg-yellow-950/10 px-4 py-2">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[11px] text-yellow-200/70 italic">
+                  Si el modelo dijo "vamos a 3.E (curado)" pero el banner no apareció, forzá la transición:
+                </p>
+                <button
+                  onClick={handleForzarAvance3E}
+                  disabled={forzandoAvance3E}
+                  className="rounded-md border border-yellow-700/40 bg-yellow-950/30 px-3 py-1 text-[12px] font-medium text-yellow-100/90 hover:bg-yellow-900/40 disabled:opacity-40 transition-colors"
+                  title="Marca la entrevista como 3.E (curado) y avisa al modelo. Usalo solo si el modelo ya confirmó cierre de 3.D."
+                >
+                  {forzandoAvance3E ? 'Avanzando…' : 'Forzar avance a 3.E (curado) →'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Banner del Sub-bloque 3.E — Plan curado (Chunk D).
               Si no hay curado aún: botón "Generar plan curado" (Opus 60-90s).
               Si ya hay: botón "Ver plan curado" para abrir el modal. */}
           {subBloqueActual === '3.E' && (
-            <div className="flex-shrink-0 border-t border-sidebar-border bg-gradient-to-r from-primary/5 to-transparent px-4 py-3">
+            <div className="flex-shrink-0 border-t border-sidebar-border bg-gradient-to-r from-primary/5 to-transparent px-4 py-3 space-y-2">
               {curadoActual === null && (
                 <div className="space-y-2">
                   <div>
@@ -1310,22 +1626,27 @@ export default function EntrevistaPage() {
                   <button
                     onClick={() => handleGenerarCurado()}
                     disabled={generandoCurado}
-                    className="rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className={BTN_CTA}
                   >
                     {generandoCurado ? 'Generando plan curado… (60-90s)' : 'Generar plan curado'}
                   </button>
-                  {curadoError && (
-                    <p className="text-[12px] text-red-400">Error: {curadoError}</p>
-                  )}
                 </div>
               )}
               {curadoActual !== null && !curadoAbierto && (
                 <button
                   onClick={() => setCuradoAbierto(true)}
-                  className="rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 text-[13px] font-semibold text-foreground hover:bg-primary/20 transition-colors"
+                  className={BTN_CTA}
                 >
                   Ver plan curado →
                 </button>
+              )}
+              {/* Error visible siempre que haya curadoError, en ambos casos
+                  (sin curado o con curado pero modal cerrado). El modal
+                  abierto muestra el error en su propio footer interno. */}
+              {curadoError && !curadoAbierto && (
+                <p className="text-[12px] text-red-400 leading-snug">
+                  <span className="font-semibold">Error:</span> {curadoError}
+                </p>
               )}
             </div>
           )}
@@ -1354,10 +1675,37 @@ export default function EntrevistaPage() {
                 <button
                   onClick={handleCerrarPaso}
                   disabled={cerrandoPaso}
-                  className="flex-shrink-0 rounded-lg bg-primary px-4 py-2 text-[13px] font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-md"
+                  className={`${BTN_CTA} flex-shrink-0`}
                 >
                   {cerrandoPaso ? 'Cerrando…' : `Cerrar Paso ${cierreSugeridoPaso} y revisar →`}
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* Banner "Plan completo" — visible cuando paso_actual >= 4. Indica
+              que el wizard llegó al final del scope implementado (post-cierre
+              definitivo del Paso 3 con auditoría aprobada). El input sigue
+              habilitado para charla libre pero el flow principal terminó. */}
+          {pasoActualEntrevista >= 4 && (
+            <div className="flex-shrink-0 border-t border-sidebar-border bg-gradient-to-r from-emerald-950/40 to-emerald-900/20 px-4 py-4">
+              <div className="max-w-3xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[14px] font-bold text-emerald-200">
+                    ✓ Plan completo — Paso 3 cerrado con auditoría aprobada
+                  </p>
+                  <p className="text-[12px] text-emerald-200/80 mt-0.5 leading-relaxed">
+                    El plan está auditado e inmutable. El próximo paso (Paso 4 — cierre + outputs + derivación a planes Jr de Randy/Charly/Nico) estará disponible cuando se construya esa fase del wizard.
+                  </p>
+                </div>
+                <a
+                  href={`/planes-estrategicos/${id}/vista`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-shrink-0 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-4 py-2 text-[13px] font-bold text-white transition-colors shadow-md"
+                >
+                  Ver plan final →
+                </a>
               </div>
             </div>
           )}
@@ -1384,8 +1732,9 @@ export default function EntrevistaPage() {
             )}
             {/* Indicador de la respuesta estructurada confirmada (Issue B parte 3).
                 Aparece arriba del textarea cuando hay panel interactivo activo
-                y el user ya confirmó su selección — visible solo en 3.B/3.D. */}
-            {(() => {
+                y el user ya confirmó su selección — visible solo en 3.B/3.D.
+                Skip para P-4/P-5: ya hay un indicador propio dentro del inline flow. */}
+            {!esModoConRazonInline && (() => {
               const resumen = resumenRespuestaEstructurada()
               if (!resumen) return null
               return (
@@ -1413,14 +1762,14 @@ export default function EntrevistaPage() {
                       ? 'Podés ir escribiendo tu próxima respuesta… (se enviará cuando termine el guardado)'
                       : (placeholderModel ?? 'Explicá tu razonamiento — qué viste, por qué elegiste esto, qué descartaste.')
                 }
-                rows={7}
-                className="flex-1 resize-y rounded-lg border border-sidebar-border bg-sidebar px-3 py-2 text-[16px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 min-h-[60px] max-h-[600px]"
+                rows={5}
+                className="flex-1 resize-y rounded-lg border border-sidebar-border bg-sidebar px-3 py-2 text-[17px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 min-h-[60px] max-h-[600px]"
               />
               <button
                 onClick={() => handleEnviar()}
                 disabled={!inputValue.trim() || isStreaming || saveFailed || !cumpleMinimos}
                 title={!cumpleMinimos ? mensajeFaltanteMinimo() ?? undefined : undefined}
-                className="flex-shrink-0 rounded-lg bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className={`${BTN_CTA} flex-shrink-0`}
               >
                 Enviar
               </button>
@@ -1451,9 +1800,18 @@ export default function EntrevistaPage() {
         {/* Panel derecho — solo aparece el PanelInventarioInteractivo cuando
             hay pregunta activa con respuesta estructurada sobre el inventario
             (3.B palancas). Sin panel informacional — el reporte (/vista) cumple
-            esa función. */}
+            esa función. EXCEPCIONES: P-4 (secuenciacion) y P-5 (marcado_simple)
+            NO usan panel derecho — su flow vive embebido en la columna de chat
+            (P4InlineFlow / P5InlineFlow) por UX: el trabajo real ocurre en un
+            modal fullscreen, no en un sidebar paralelo. */}
         {(() => {
           const preguntaPanel = preguntaActualParaPanel()
+          // SOLO P-4 y P-5 de 3.B tienen inline flow. En 3.D las preguntas E-N
+          // que usen los mismos modos van al panel derecho clásico.
+          const esInline =
+            (preguntaPanel?.modo_interaccion === 'secuenciacion' && preguntaPanel?.id === 'P-4')
+            || (preguntaPanel?.modo_interaccion === 'marcado_simple' && preguntaPanel?.id === 'P-5')
+          if (esInline) return null
           if (preguntaPanel && plan.plan?.inventario?.movimientos) {
             return (
               <div className="w-[40vw] min-w-[480px] max-w-[640px] flex-shrink-0 overflow-hidden border-l border-sidebar-border">
@@ -1464,6 +1822,12 @@ export default function EntrevistaPage() {
                   saving={savingRespuestaEstructurada}
                   gestion={gestionInventarioActiva}
                   onAgregarMovimiento={gestionInventarioActiva ? () => setModalAgregarFicha(true) : undefined}
+                  planId={id}
+                  duenosRevisadosSignature={plan.plan.inventario.duenos_revisados_signature}
+                  onInventarioUpdate={(invActualizado) =>
+                    setPlan(prev => prev?.plan ? { ...prev, plan: { ...prev.plan, inventario: invActualizado } } : prev)
+                  }
+                  onVerDetalleMov={(movId) => setModalEditarFicha({ id: movId })}
                 />
               </div>
             )
@@ -1479,7 +1843,27 @@ export default function EntrevistaPage() {
           plan={plan}
           inventario={inventarioOverride ?? plan.plan!.inventario!}
           onInventarioUpdate={(inv) => setInventarioOverride(inv)}
-          onCerrarInventario={handleCerrarInventario}
+          onPropositoUpdate={(proposito) => setPlan(prev => prev ? { ...prev, proposito } : prev)}
+          onPreparativosUpdate={(preparativos) => setPlan(prev =>
+            prev?.plan ? { ...prev, plan: { ...prev.plan, preparativos } } : prev
+          )}
+          vistaInicial={vistaInicialInventario}
+          modoRetroactivo={subBloqueActual !== '3.A'}
+          onSalir={() => {
+            // Cerrar el modal y volver a la entrevista SIN cierre formal de 3.A.
+            // Lo hecho ya está persistido por acción (API) — no se pierde nada.
+            setMostrarModalInventario(false)
+            setVistaInicialInventario(undefined)
+          }}
+          onCerrarInventario={subBloqueActual === '3.A'
+            ? handleCerrarInventario
+            : () => {
+                // Modo retroactivo: solo cerrar el modal. NO disparar el endpoint
+                // de cierre formal (el inventario ya está cerrado en su momento).
+                setMostrarModalInventario(false)
+                setVistaInicialInventario(undefined)
+              }
+          }
         />
       )}
 
@@ -1508,7 +1892,8 @@ export default function EntrevistaPage() {
           onReIterar={handleReIterarBorrador}
           onAceptar={handleAceptarBorrador}
           saving={generandoBorrador}
-          onCerrar={() => setBorradorAbierto(false)}
+          error={borradorError}
+          onCerrar={() => { setBorradorAbierto(false); setBorradorError(null) }}
         />
       )}
 
@@ -1524,6 +1909,7 @@ export default function EntrevistaPage() {
           totalVersiones={curadoVersionado?.versiones?.length}
           versionActiva={curadoVersionado?.version_activa}
           onCambiarVersion={handleCambiarVersionCurado}
+          error={curadoError}
         />
       )}
 
@@ -1532,11 +1918,12 @@ export default function EntrevistaPage() {
           'retroactividad_control_suave' (modelo detectó cambio estructural
           sobre material validado). Confirmar registra warning + envía mensaje
           al chat para que el modelo aplique. Cancelar cierra sin más. */}
-      {retroactividadCambio && (
+      {retroactividadCambio && retroactividadModalAbierto && (
         <RetroactividadControlSuaveModal
           cambio={retroactividadCambio}
           onConfirmar={handleConfirmarRetroactividad}
           onCancelar={handleCancelarRetroactividad}
+          onCerrarSinDecidir={() => setRetroactividadModalAbierto(false)}
           saving={confirmandoRetroactividad}
           error={retroactividadError}
         />
@@ -1563,24 +1950,56 @@ export default function EntrevistaPage() {
         />
       )}
 
-      {/* Mejora 2 — Modales de gestión de inventario durante 3.B/3.C/3.D */}
-      {modalAgregarFicha && (
-        <ModalAgregarMovimiento
+      {/* Mejora 2 — Modal unificado de gestión de inventario durante 3.B/3.C/3.D.
+          Usa el MISMO MovimientoFormModal de 3.A para consistencia total a lo
+          largo de todo el Paso 3 (mismos campos, mismas validaciones, mismo
+          manejo de dependencias). */}
+      {modalAgregarFicha && plan.plan?.inventario && (
+        <MovimientoFormModal
+          mode='agregar'
+          planId={id}
           categorias={categoriasInventario}
-          saving={savingFicha}
-          onGuardar={handleAgregarFichaInventario}
-          onCancelar={() => setModalAgregarFicha(false)}
+          metricasProposito={plan.proposito?.metricas ?? []}
+          duenosExistentes={plan.plan.inventario.movimientos
+            .filter(m => m.estado_usuario !== 'quitado')
+            .map(m => m.dueno)}
+          onSuccess={(invActualizado, idNuevo) => {
+            setPlan(prev => prev?.plan ? { ...prev, plan: { ...prev.plan, inventario: invActualizado } } : prev)
+            if (idNuevo) {
+              setCambiosInventario(prev => ({
+                ...prev,
+                agregados: new Set([...prev.agregados, idNuevo]),
+              }))
+            }
+            setModalAgregarFicha(false)
+          }}
+          onCerrar={() => setModalAgregarFicha(false)}
         />
       )}
-      {modalEditarFicha && (() => {
-        const mov = plan.plan?.inventario?.movimientos.find(m => m.id === modalEditarFicha.id)
+      {modalEditarFicha && plan.plan?.inventario && (() => {
+        const mov = plan.plan.inventario.movimientos.find(m => m.id === modalEditarFicha.id)
         if (!mov) return null
         return (
-          <ModalEditarMovimiento
+          <MovimientoFormModal
+            mode='editar'
             movimiento={mov}
-            saving={savingFicha}
-            onGuardar={(patch) => handleEditarFichaInventario(modalEditarFicha.id, patch)}
-            onCancelar={() => setModalEditarFicha(null)}
+            planId={id}
+            categorias={categoriasInventario}
+            metricasProposito={plan.proposito?.metricas ?? []}
+            mostrarDeps={true}
+            allMovimientos={plan.plan?.inventario?.movimientos ?? []}
+            duenosExistentes={plan.plan?.inventario?.movimientos
+              .filter(m => m.estado_usuario !== 'quitado')
+              .map(m => m.dueno) ?? []}
+            onSuccess={(invActualizado) => {
+              setPlan(prev => prev?.plan ? { ...prev, plan: { ...prev.plan, inventario: invActualizado } } : prev)
+              setCambiosInventario(prev => ({
+                ...prev,
+                editados: new Set([...prev.editados, modalEditarFicha.id]),
+              }))
+              setModalEditarFicha(null)
+            }}
+            onCerrar={() => setModalEditarFicha(null)}
           />
         )
       })()}

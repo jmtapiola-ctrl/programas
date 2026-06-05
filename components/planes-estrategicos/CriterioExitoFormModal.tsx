@@ -10,6 +10,7 @@
 // On submit: (1) manda mensaje formateado al chat para el modelo, (2) el
 // caller también puede patchear Airtable directo como fallback de persistencia.
 
+import { BTN_CTA } from '@/components/ui/button-styles'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { CriterioExitoMetricaPE, MetricaPE } from '@/lib/types'
@@ -185,7 +186,7 @@ function Contenido({ metricasProposito, criterioActual, onEnviar, onCerrar, savi
             <button
               onClick={handleEnviar}
               disabled={!puedeEnviar || saving}
-              className="rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className={BTN_CTA}
             >
               {saving ? 'Enviando…' : 'Enviar respuestas →'}
             </button>

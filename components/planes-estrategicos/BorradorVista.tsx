@@ -11,7 +11,8 @@
 //     Re-iterar requiere al menos 1 disconformidad con razón. Deshabilitado
 //     en iteración 3 (sugiere volver a 3.A/3.B).
 
-import { useEffect, useMemo, useState } from 'react'
+import { BTN_CTA } from '@/components/ui/button-styles'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { BorradorIteracionPE, FaseSecuenciaPE, MovimientoPE } from '@/lib/types'
 
@@ -32,6 +33,11 @@ interface Props {
   // Aceptar: padre llama al endpoint /iteracion (PATCH iteracion_aceptada).
   onAceptar?: () => void
   saving?: boolean
+  // Mensaje de error de la última operación (re-iteración o aceptación). Se
+  // muestra en el footer del modal — clave para que el user vea fallos de
+  // re-iteración (timeout, Airtable size limit, etc) sin tener que cerrar el
+  // modal y volver al chat.
+  error?: string | null
   onCerrar: () => void
 }
 
@@ -42,14 +48,30 @@ export function BorradorVista(props: Props) {
   return createPortal(<Contenido {...props} />, document.body)
 }
 
-function Contenido({ iteracion, movimientos, onReorderSecuencia, onReIterar, onAceptar, saving, onCerrar }: Props) {
+function Contenido({ iteracion, movimientos, onReorderSecuencia, onReIterar, onAceptar, saving, error, onCerrar }: Props) {
   const [secuencia, setSecuencia] = useState<FaseSecuenciaPE[]>(iteracion.secuencia_movimientos)
-  // Marcas por elemento. Reset al cambiar iteración (nueva propuesta = empezar de cero).
+  // Marcas por elemento. Al re-iterar (la prop `iteracion` cambia), preservamos
+  // las marcas cuyo contenido textual del elemento NO cambió entre iteraciones
+  // — el user no debería re-marcar OK los elementos que Opus dejó iguales.
+  // Comparación por contenido (no por elementoId/índice) porque Opus puede
+  // reordenar listas: una "decisión X" que estaba en decision:0 ahora puede
+  // estar en decision:2. Ver preservarMarcasEntreIteraciones abajo.
   const [marcas, setMarcas] = useState<Map<string, Marca>>(new Map())
+  const iteracionPrevRef = useRef<BorradorIteracionPE | null>(null)
 
   useEffect(() => {
     setSecuencia(iteracion.secuencia_movimientos)
-    setMarcas(new Map())
+    const prev = iteracionPrevRef.current
+    if (prev && prev.numero !== iteracion.numero) {
+      // Re-iteración: preservar marcas que aplican.
+      setMarcas(prevMarcas => preservarMarcasEntreIteraciones(prevMarcas, prev, iteracion))
+    } else if (!prev) {
+      // Primer mount: arrancar con marcas vacías (caso normal).
+      setMarcas(new Map())
+    }
+    // Re-render por otra razón (ej: padre re-pasa la misma iteración tras
+    // un PATCH): no tocar las marcas.
+    iteracionPrevRef.current = iteracion
   }, [iteracion])
 
   const movimientosById = useMemo(() => {
@@ -121,6 +143,40 @@ function Contenido({ iteracion, movimientos, onReorderSecuencia, onReIterar, onA
 
   const puedeReIterar = iteracion.numero < 3 && disconformidadesAEnviar.length > 0
   const enMaxIteracion = iteracion.numero >= 3
+
+  // Conteo total de elementos marcables en la iteración. Se usa para gatear
+  // los botones del footer: hasta que el user no haya marcado TODOS, ningún
+  // botón se habilita. Eso fuerza la lectura completa antes de aceptar/reiterar.
+  const totalElementos = useMemo(() => {
+    return 1 /* contexto */
+      + (iteracion.decisiones_priorizacion?.length ?? 0)
+      + (iteracion.secuencia_movimientos?.length ?? 0)
+      + (iteracion.supuestos_criticos?.length ?? 0)
+      + 3 /* criterio: pleno, minimo, path_minimo */
+      + (iteracion.alternativas_descartadas?.length ?? 0)
+  }, [iteracion])
+
+  // Conteo de marcas válidas (OK o NO-con-razón). Una marca NO SIN razón no
+  // cuenta como "marcada" — incentiva al user a completar la razón.
+  const marcasValidas = useMemo(() => {
+    let c = 0
+    for (const m of marcas.values()) {
+      if (m.marca === 'ok') c++
+      else if (m.marca === 'no' && m.razon.trim()) c++
+    }
+    return c
+  }, [marcas])
+
+  // Estado del footer:
+  //   - 'incompleto': faltan elementos por marcar (o NO sin razón). Ningún botón habilita.
+  //   - 'hay_no':    al menos un elemento marcado NO con razón → solo Re-iterar.
+  //   - 'todos_ok':  TODOS marcados Y ningún NO → solo Aceptar.
+  const todoMarcado = marcasValidas >= totalElementos
+  const hayNoConRazon = disconformidadesAEnviar.length > 0
+  const estadoFooter: 'incompleto' | 'hay_no' | 'todos_ok' =
+    !todoMarcado ? 'incompleto'
+    : hayNoConRazon ? 'hay_no'
+    : 'todos_ok'
 
   return (
     <div
@@ -256,16 +312,35 @@ function Contenido({ iteracion, movimientos, onReorderSecuencia, onReIterar, onA
           </Seccion>
         </div>
 
-        <footer className="flex-shrink-0 border-t border-sidebar-border px-6 py-3 flex items-center justify-between gap-3">
+        <footer className="flex-shrink-0 border-t border-sidebar-border px-6 py-3 flex flex-col gap-2">
+          {error && (
+            <div className="rounded-md border border-red-700/60 bg-red-950/30 px-3 py-2 text-[12px] text-red-100">
+              <span className="font-semibold">⚠ Error:</span> {error}
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-3">
           <div className="flex flex-col gap-0.5 min-w-0">
-            <p className="text-[12px] text-muted-foreground truncate">
-              {disconformidadesAEnviar.length === 0
-                ? 'Sin disconformidades marcadas — si todo te cierra, aceptá el borrador.'
-                : `${disconformidadesAEnviar.length} disconformidad(es) marcada(s).`}
+            <p className="text-[12px] truncate">
+              {estadoFooter === 'incompleto' && (
+                <span className="text-yellow-300/90">
+                  Faltan {totalElementos - marcasValidas} de {totalElementos} elementos por marcar.
+                  {' '}<span className="text-muted-foreground">Marcá OK / No me cierra en cada uno antes de avanzar.</span>
+                </span>
+              )}
+              {estadoFooter === 'hay_no' && (
+                <span className="text-amber-300/90">
+                  {disconformidadesAEnviar.length} disconformidad(es) marcada(s) — re-iterá para que Opus las atienda.
+                </span>
+              )}
+              {estadoFooter === 'todos_ok' && (
+                <span className="text-green-400/90">
+                  ✓ Todo OK — listo para aceptar el borrador.
+                </span>
+              )}
             </p>
-            {enMaxIteracion && (
+            {enMaxIteracion && estadoFooter === 'hay_no' && (
               <p className="text-[12px] italic text-yellow-300/80">
-                Iteración 3/3 — última. Si seguís disconforme, volvé a 3.A o 3.B.
+                Iteración 3/3 — última. Si seguís disconforme después de re-iterar, volvé a 3.A o 3.B.
               </p>
             )}
           </div>
@@ -277,13 +352,15 @@ function Contenido({ iteracion, movimientos, onReorderSecuencia, onReIterar, onA
             >
               Cerrar
             </button>
-            {onReIterar && (
+            {/* Re-iterar: solo visible cuando todo está marcado Y hay al menos
+                un NO con razón. Si está en max iteración (3/3) sigue visible
+                pero deshabilitado con título explicativo. */}
+            {onReIterar && estadoFooter === 'hay_no' && (
               <button
                 onClick={() => onReIterar(disconformidadesAEnviar)}
                 disabled={saving || !puedeReIterar}
                 title={
-                  enMaxIteracion ? 'Ya estás en iteración 3 — última permitida.' :
-                  disconformidadesAEnviar.length === 0 ? 'Marcá al menos 1 disconformidad con razón.' :
+                  enMaxIteracion ? 'Ya estás en iteración 3 — última permitida. Volvé a 3.A o 3.B para refinar.' :
                   `Re-iterar con ${disconformidadesAEnviar.length} disconformidad(es) → genera iteración ${iteracion.numero + 1}/3`
                 }
                 className="rounded-md bg-amber-700 hover:bg-amber-600 px-3 py-1.5 text-[13px] font-semibold text-amber-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
@@ -291,16 +368,18 @@ function Contenido({ iteracion, movimientos, onReorderSecuencia, onReIterar, onA
                 {saving ? 'Generando…' : `Re-iterar con disconformidades (→ ${iteracion.numero + 1}/3)`}
               </button>
             )}
-            {onAceptar && (
+            {/* Aceptar: solo visible cuando TODOS están marcados OK (sin NO). */}
+            {onAceptar && estadoFooter === 'todos_ok' && (
               <button
                 onClick={onAceptar}
                 disabled={saving}
                 title="Aceptar este borrador y avanzar a 3.D"
-                className="rounded-md bg-primary hover:bg-primary/90 px-4 py-1.5 text-[13px] font-semibold text-primary-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className={BTN_CTA}
               >
                 {saving ? 'Guardando…' : 'Aceptar borrador →'}
               </button>
             )}
+          </div>
           </div>
         </footer>
       </div>
@@ -520,4 +599,85 @@ function getLabel(iteracion: BorradorIteracionPE, elementoId: string): string {
     return `Alternativa descartada #${i + 1}: ${a?.decision?.slice(0, 100) ?? ''}`
   }
   return elementoId
+}
+
+// ─── Preservación de marcas entre iteraciones ────────────────────────────────
+//
+// Cuando el user re-itera con disconformidades, Opus genera una iteración
+// nueva. Las marcas OK/NO del user en la iteración previa NO deberían
+// resetearse — los elementos que Opus NO cambió siguen siendo válidos los
+// veredictos previos. Comparamos por CONTENIDO (no por índice) porque Opus
+// puede reordenar listas y un mismo elemento puede cambiar de índice.
+
+// Devuelve una representación textual canónica del contenido del elemento.
+// Para objects (decision, fase, alternativa) usamos JSON.stringify estable.
+// Para fases ordenamos los movimientos para que el orden no genere falsos
+// "cambios" — la fase es la misma si tiene el mismo nombre + mismo set.
+function extraerContenidoElemento(it: BorradorIteracionPE, elementoId: string): string | undefined {
+  if (elementoId === 'contexto') return (it.contexto ?? '').trim()
+  if (elementoId.startsWith('decision:')) {
+    const i = parseInt(elementoId.split(':')[1], 10)
+    const d = it.decisiones_priorizacion[i]
+    return d ? JSON.stringify(d) : undefined
+  }
+  if (elementoId.startsWith('fase:')) {
+    const i = parseInt(elementoId.split(':')[1], 10)
+    const f = it.secuencia_movimientos[i]
+    if (!f) return undefined
+    return JSON.stringify({ fase: f.fase, movs: [...(f.movimientos ?? [])].sort() })
+  }
+  if (elementoId.startsWith('supuesto:')) {
+    const i = parseInt(elementoId.split(':')[1], 10)
+    return (it.supuestos_criticos[i] ?? '').trim() || undefined
+  }
+  if (elementoId === 'criterio:pleno') return (it.criterio_exito?.pleno ?? '').trim() || undefined
+  if (elementoId === 'criterio:minimo') return (it.criterio_exito?.minimo ?? '').trim() || undefined
+  if (elementoId === 'criterio:path_minimo') return (it.criterio_exito?.path_minimo ?? '').trim() || undefined
+  if (elementoId.startsWith('alternativa:')) {
+    const i = parseInt(elementoId.split(':')[1], 10)
+    const a = it.alternativas_descartadas[i]
+    return a ? JSON.stringify(a) : undefined
+  }
+  return undefined
+}
+
+// Indexa todos los elementos de una iteración por su contenido textual →
+// elementoId. Permite hacer reverse-lookup: dado el contenido de un elemento
+// en la iter previa, encontrar dónde quedó (si quedó) en la iter nueva.
+function indexarPorContenido(it: BorradorIteracionPE): Map<string, string> {
+  const out = new Map<string, string>()
+  function add(elementoId: string) {
+    const c = extraerContenidoElemento(it, elementoId)
+    if (c) out.set(c, elementoId)
+  }
+  add('contexto')
+  it.decisiones_priorizacion.forEach((_, i) => add(`decision:${i}`))
+  it.secuencia_movimientos.forEach((_, i) => add(`fase:${i}`))
+  it.supuestos_criticos.forEach((_, i) => add(`supuesto:${i}`))
+  add('criterio:pleno')
+  add('criterio:minimo')
+  add('criterio:path_minimo')
+  it.alternativas_descartadas.forEach((_, i) => add(`alternativa:${i}`))
+  return out
+}
+
+function preservarMarcasEntreIteraciones(
+  marcasPrev: Map<string, Marca>,
+  iteracionPrev: BorradorIteracionPE,
+  iteracionNueva: BorradorIteracionPE,
+): Map<string, Marca> {
+  const indexNuevo = indexarPorContenido(iteracionNueva)
+  const out = new Map<string, Marca>()
+  for (const [elementoIdPrev, marca] of marcasPrev.entries()) {
+    const contenidoPrev = extraerContenidoElemento(iteracionPrev, elementoIdPrev)
+    if (!contenidoPrev) continue
+    const elementoIdNuevo = indexNuevo.get(contenidoPrev)
+    if (elementoIdNuevo) {
+      // Mismo contenido (mismo elemento aunque en otra posición) → preservar.
+      out.set(elementoIdNuevo, marca)
+    }
+    // Si el contenido no se encuentra: el elemento cambió o desapareció.
+    // No preservamos la marca — el user debe re-evaluar.
+  }
+  return out
 }

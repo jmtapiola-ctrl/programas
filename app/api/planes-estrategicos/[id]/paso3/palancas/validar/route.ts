@@ -59,7 +59,20 @@ export async function POST(
       error: `El validador requiere las 5 preguntas principal completas. Hay ${principal.length}.`,
     }, { status: 409 })
   }
-  const sinRespuesta = principal.filter(qa => !qa.respuesta?.trim())
+  // Validación de "respuesta presente":
+  //   - Modos inline (secuenciacion P-4, marcado_simple P-5): el flow captura
+  //     el razonamiento POR MOV dentro del editor (precondiciones_razonamiento,
+  //     arranca_override_razonamiento, riesgo_ejecucion_razonamiento) y no
+  //     necesariamente en chat. Si respuesta_estructurada está confirmada,
+  //     consideramos la pregunta como respondida aunque qa.respuesta texto
+  //     esté vacío.
+  //   - Modos clásicos (seleccion_unica, seleccion_multiple_ranked,
+  //     agrupacion_pares, sin modo): siguen requiriendo qa.respuesta texto.
+  const sinRespuesta = principal.filter(qa => {
+    const modoInline = qa.modo_interaccion === 'secuenciacion' || qa.modo_interaccion === 'marcado_simple'
+    if (modoInline && qa.respuesta_estructurada) return false
+    return !qa.respuesta?.trim()
+  })
   if (sinRespuesta.length > 0) {
     return NextResponse.json({
       error: `Hay ${sinRespuesta.length} pregunta(s) principal sin respuesta del usuario: ${sinRespuesta.map(q => q.id).join(', ')}.`,

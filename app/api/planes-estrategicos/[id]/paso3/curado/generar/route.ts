@@ -17,6 +17,7 @@
 // descripciones → SupuestoExogenoPE completo. El modelo solo emite el esqueleto
 // narrativo. Esto evita errores de transcripción.
 
+import { PE_MODEL } from '@/lib/llm-config'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import Anthropic from '@anthropic-ai/sdk'
@@ -37,7 +38,32 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const OPUS_INPUT_PER_M = 15
 const OPUS_OUTPUT_PER_M = 75
 
+// Opus con max_tokens=24000 + reasoning interno + curado pesado (integra
+// borrador + 9 ajustes 3.D + ajuste narrativo) puede tardar 60-180s. Sin
+// maxDuration, Vercel cierra antes y el cliente recibe respuesta vacía.
+export const maxDuration = 300
+
 export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    return await handlePOST(req, { params })
+  } catch (err) {
+    // Global catch: cualquier excepción no atrapada (parsing del Opus output,
+    // updatePlanEstrategico, etc) cae acá. Sin esto el route retorna 500 sin
+    // body. Logueamos el stack completo del lado server.
+    const errAny = err as any
+    console.error('[paso3/curado/generar] UNCAUGHT EXCEPTION:', errAny?.message)
+    console.error('[paso3/curado/generar] stack:', errAny?.stack)
+    return NextResponse.json({
+      error: `Error interno del servidor: ${errAny?.message ?? String(err)}`,
+      hint: 'Mirá los logs del server para el stack trace completo.',
+    }, { status: 500 })
+  }
+}
+
+async function handlePOST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -107,7 +133,7 @@ export async function POST(
     try {
       const attemptStart = Date.now()
       const stream = anthropic.messages.stream({
-        model: 'claude-opus-4-7',
+        model: PE_MODEL,
         max_tokens: 24000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
@@ -152,17 +178,39 @@ export async function POST(
     }, { status: 500 })
   }
 
+  // Parsing robusto: tres estrategias en orden.
+  //  1. JSON.parse directo (caso normal).
+  //  2. Extraer entre ```json ... ``` (markdown fence — Opus a veces lo envuelve).
+  //  3. Extraer entre el primer "{" y el último "}" del texto (fallback genérico).
   let parsed: any
   try {
     parsed = JSON.parse(text)
   } catch {
-    const m = text.match(/\{[\s\S]*\}/)
-    if (m) { try { parsed = JSON.parse(m[0]) } catch { /* fall-through */ } }
+    // Estrategia 2: markdown fence ```json ... ```
+    const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/)
+    if (fenceMatch?.[1]) {
+      try { parsed = JSON.parse(fenceMatch[1].trim()) } catch { /* fall-through */ }
+    }
+    // Estrategia 3: primer "{" hasta último "}"
+    if (!parsed) {
+      const firstBrace = text.indexOf('{')
+      const lastBrace = text.lastIndexOf('}')
+      if (firstBrace !== -1 && lastBrace > firstBrace) {
+        try { parsed = JSON.parse(text.slice(firstBrace, lastBrace + 1)) } catch { /* fall-through */ }
+      }
+    }
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    // Log del output COMPLETO al server para diagnóstico — el cliente recibe
+    // un preview + el tail (donde típicamente se ve el truncado).
+    console.error('[paso3/curado/generar] PARSE FAILED. Output completo de Opus:')
+    console.error(text)
     return NextResponse.json({
       error: 'Opus output no parseable como JSON object.',
-      opus_response_preview: text.slice(0, 500),
+      output_chars: text.length,
+      output_preview_inicio: text.slice(0, 600),
+      output_preview_final: text.length > 600 ? `[...última parte (puede revelar truncado)] ${text.slice(-400)}` : '(output corto, ver preview de inicio)',
+      hint: 'Si el output termina abruptamente sin "}" final, es truncado por max_tokens. Si tiene markdown ```json al inicio, el parseo de fence falló — revisar regex.',
     }, { status: 500 })
   }
 

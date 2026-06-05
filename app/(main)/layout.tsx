@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { authOptions } from '@/lib/auth'
 import { getInboxCount } from '@/lib/airtable'
 import { MainShell } from '@/components/ui/MainShell'
@@ -11,6 +12,19 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   const userId = (session.user as any)?.id as string | undefined
   const rol = (session.user as any)?.role as string | undefined
   const nombre = session.user?.name ?? ''
+  const passwordTemporal = !!(session.user as any)?.password_temporal
+
+  // Forzar cambio de password si está marcado como temporal. Excepción: si el
+  // user YA está navegando a /admin/cambiar-password, no redirigir (evita loop).
+  // El pathname viene del header `x-pathname` que inyecta middleware.ts (los
+  // layouts de App Router no reciben el pathname de otra forma confiable).
+  if (passwordTemporal) {
+    const hdrs = await headers()
+    const path = hdrs.get('x-pathname') ?? hdrs.get('x-invoke-path') ?? hdrs.get('next-url') ?? ''
+    if (!path.includes('/admin/cambiar-password')) {
+      redirect('/admin/cambiar-password')
+    }
+  }
 
   const inboxCount = userId && rol ? await getInboxCount(userId, rol) : 0
 

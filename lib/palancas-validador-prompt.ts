@@ -17,6 +17,7 @@
 //     techo, no piso.
 
 import type { PlanEstrategico, PalancaQAPE } from './types'
+import { buildJrContextoHeredadoMd } from './jr-paso3-context'
 
 export function buildPalancasValidadorSystemPrompt(): string {
   return `Sos un consultor estratégico senior actuando como VALIDADOR INDEPENDIENTE del Sub-bloque 3.B "Preguntas de palanca" del Paso 3 de un plan estratégico.
@@ -65,7 +66,10 @@ export function buildPalancasValidadorUserMessage(
   const preparativos = plan.plan?.preparativos
   const inventario = plan.plan?.inventario
 
-  const propMd = proposito
+  // Plan Jr: propósito heredado (no se construye acá). Ver buildJrContextoHeredadoMd.
+  const propMd = plan.tipo === 'Jr'
+    ? buildJrContextoHeredadoMd(plan)
+    : proposito
     ? `## Propósito del plan
 Escena: ${proposito.escena}
 Métricas clave: ${(proposito.metricas ?? []).map(m => `${m.metrica}: ${m.valor_objetivo} (hoy: ${m.valor_actual || 'sin baseline'})`).join('; ')}
@@ -99,10 +103,42 @@ ${inventario.movimientos
   .join('\n')}`
     : ''
 
+  // Construye un texto sintético para la "respuesta del usuario" en modos inline
+  // (P-4 secuenciacion, P-5 marcado_simple) cuando qa.respuesta está vacío. Los
+  // razonamientos viven POR MOV en el inventario:
+  //   - secuenciacion: precondiciones_razonamiento + arranca_override_razonamiento.
+  //   - marcado_simple: riesgo_ejecucion_razonamiento.
+  // Sin esta síntesis el validador recibiría "Respuesta del usuario: " vacío.
+  function respuestaSintetica(qa: PalancaQAPE): string {
+    if (qa.respuesta?.trim()) return qa.respuesta
+    const re = qa.respuesta_estructurada
+    if (!re) return '(sin respuesta)'
+    const movs = inventario?.movimientos ?? []
+    if (re.modo === 'marcado_simple') {
+      const marcadosIds = new Set(re.marcados)
+      if (marcadosIds.size === 0) {
+        return '(Marcó 0 movimientos con riesgo alto — "happy path": el usuario considera que ningún mov tiene riesgo de ejecución desproporcionado.)'
+      }
+      const conRazon = movs
+        .filter(m => marcadosIds.has(m.id) && !!m.riesgo_ejecucion_razonamiento)
+        .map(m => `  - **${m.id}** "${m.nombre}" [${m.categoria}] — razon: "${m.riesgo_ejecucion_razonamiento}"`)
+        .join('\n')
+      return `El usuario marcó ${marcadosIds.size} movimientos con riesgo alto de ejecución y dejó razon por mov in-line en el inventario:\n${conRazon}`
+    }
+    if (re.modo === 'secuenciacion') {
+      const conOverride = movs.filter(m => !!m.arranca_override)
+      const overrideMd = conOverride.length > 0
+        ? `\n\nMovimientos con arranque MOVIDO MANUALMENTE (override del CPM):\n${conOverride.map(m => `  - **${m.id}** "${m.nombre}" → arranca_override=${m.arranca_override}${m.arranca_override_razonamiento ? ` — razon: "${m.arranca_override_razonamiento}"` : ''}`).join('\n')}`
+        : ''
+      return `El usuario confirmó el cronograma calculado por CPM (basado en duraciones, dependencias FS/FF/continuo + lag, y vacancias).${overrideMd}`
+    }
+    return '(sin texto, ver respuesta_estructurada del panel)'
+  }
+
   const qaMd = preguntasPrincipal
     .map((qa, i) => `### Pregunta ${i + 1}: ${qa.pregunta}
 
-**Respuesta del usuario:** ${qa.respuesta}
+**Respuesta del usuario:** ${respuestaSintetica(qa)}
 
 ${qa.observacion_modelo ? `**Observación del modelo principal:** ${qa.observacion_modelo}` : ''}`)
     .join('\n\n')

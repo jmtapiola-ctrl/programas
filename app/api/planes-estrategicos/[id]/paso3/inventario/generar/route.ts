@@ -12,6 +12,7 @@
 // ya existe, devuelve 409 (no re-generar — usar el existente o pasar por flow
 // de re-generación que llegará en Fase D si hace falta).
 
+import { PE_MODEL } from '@/lib/llm-config'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import Anthropic from '@anthropic-ai/sdk'
@@ -102,7 +103,7 @@ export async function POST(
       console.log(`[paso3/inventario/generar] Intento ${attempt}: llamando a Opus...`)
       const attemptStart = Date.now()
       const stream = anthropic.messages.stream({
-        model: 'claude-opus-4-7',
+        model: PE_MODEL,
         max_tokens: 16000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
@@ -197,9 +198,20 @@ export async function POST(
     }, { status: 500 })
   }
 
+  // Forzar deps vacías en los movs generados: las dependencias se trabajan
+  // exclusivamente en sub-bloque 3.A.6 (Secuenciación). Aunque Opus regrese
+  // y emita deps, las dropeamos acá para que el user arranque 3.A.1 con
+  // stock puro sin contaminación de relaciones inferidas.
+  const movimientosSinDeps = parsed.movimientos.map((m: any) => ({
+    ...m,
+    precondiciones: [],
+    desbloquea: [],
+    tipo_dependencia: 'ninguna',
+  }))
+
   // Setear generado_en si Opus no lo metió
   inventarioParsed = {
-    movimientos: parsed.movimientos,
+    movimientos: movimientosSinDeps,
     resumenes_categoria: parsed.resumenes_categoria ?? [],
     generado_en: parsed.generado_en || new Date().toISOString(),
     costo_usd: costoUsd,

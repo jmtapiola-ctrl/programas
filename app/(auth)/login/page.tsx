@@ -1,13 +1,25 @@
 'use client'
 
-import { useState } from 'react'
-import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useState, Suspense } from 'react'
+import { signIn, useSession } from 'next-auth/react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 
+// useSearchParams() requiere un boundary de Suspense para que Next pueda
+// prerenderear la página en el build (sino el build falla con CSR bailout).
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  )
+}
+
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const info = searchParams?.get('info')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -27,8 +39,12 @@ export default function LoginPage() {
     setLoading(false)
 
     if (res?.error) {
-      setError('Email no encontrado o usuario inactivo.')
+      setError('Email no encontrado, usuario inactivo, o password incorrecto.')
     } else {
+      // El callback de NextAuth setea session.user.password_temporal. La
+      // página de destino (home) lee el flag y redirige a cambiar-password
+      // si está activo. Acá solo redirigimos al home — el RootLayout o el
+      // server component del home maneja la lógica de "forzar cambio".
       router.push('/')
       router.refresh()
     }
@@ -62,6 +78,12 @@ export default function LoginPage() {
             onChange={e => setPassword(e.target.value)}
             placeholder="Dejá vacío si no tenés contraseña asignada"
           />
+
+          {info === 'password_actualizado' && (
+            <div className="bg-emerald-900/30 border border-emerald-700 rounded p-3 text-sm text-emerald-300">
+              Password actualizado. Inicia sesión con tu nuevo password.
+            </div>
+          )}
 
           {error && (
             <div className="bg-red-900/30 border border-red-700 rounded p-3 text-sm text-red-300">

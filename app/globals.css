@@ -82,7 +82,9 @@
   --secondary: oklch(0.160 0.010 280);
   --secondary-foreground: oklch(0.850 0.008 280);
   --muted: oklch(0.140 0.010 280);
-  --muted-foreground: oklch(0.540 0.010 280);
+  /* Subido de 0.540 → 0.750 para más contraste sobre el fondo oscuro (2026-06).
+     Afecta a toda la app vía text-muted-foreground. */
+  --muted-foreground: oklch(0.750 0.010 280);
   --accent: oklch(0.160 0.010 280);
   --accent-foreground: oklch(0.940 0.005 280);
   --destructive: oklch(0.650 0.220 25);

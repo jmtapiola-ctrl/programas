@@ -13,14 +13,21 @@ import type { MovimientoPE, CampoFichaMovimiento, RespuestaEstructurada } from '
 import { FichaMovimiento, type EstadoFicha, type GestionInventario } from './FichaMovimiento'
 
 interface Props {
+  // Movs visibles en el grid (post-filtro). Pueden ser un subconjunto.
   movimientos: MovimientoPE[]
+  // Inventario completo activo (sin quitados). Usado para lookup de nombres
+  // en el listado "Pares creados" — un par puede involucrar movs filtrados.
+  todosLosMovimientos?: MovimientoPE[]
   campos: CampoFichaMovimiento[]
   pares: Array<{ desde: string; hacia: string }>
   onChange: (pares: Array<{ desde: string; hacia: string }>) => void
   gestion?: GestionInventario
 }
 
-export function ModoAgrupacionPares({ movimientos, campos, pares, onChange, gestion }: Props) {
+export function ModoAgrupacionPares({ movimientos, todosLosMovimientos, campos, pares, onChange, gestion }: Props) {
+  // Lookup de nombre/categoria: si hay todosLosMovimientos, lo usamos; si no,
+  // fallback a `movimientos` (back-compat).
+  const inventarioParaLookup = todosLosMovimientos ?? movimientos
   const [asociandoDesde, setAsociandoDesde] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -63,7 +70,7 @@ export function ModoAgrupacionPares({ movimientos, campos, pares, onChange, gest
       {/* Status del modo asociar */}
       {asociandoDesde && (
         <div className="rounded-md bg-amber-950/40 border border-amber-700 px-3 py-2 text-[12px] text-amber-200">
-          ⚡ Asociando desde <strong>{asociandoDesde}</strong> "{movimientos.find(m => m.id === asociandoDesde)?.nombre}" →
+          ⚡ Asociando desde <strong>{asociandoDesde}</strong> "{inventarioParaLookup.find(m => m.id === asociandoDesde)?.nombre}" →
           click en la ficha destino, o en la misma para cancelar.
         </div>
       )}
@@ -75,8 +82,8 @@ export function ModoAgrupacionPares({ movimientos, campos, pares, onChange, gest
             Pares creados ({pares.length})
           </p>
           {pares.map((p, i) => {
-            const movDesde = movimientos.find(m => m.id === p.desde)
-            const movHacia = movimientos.find(m => m.id === p.hacia)
+            const movDesde = inventarioParaLookup.find(m => m.id === p.desde)
+            const movHacia = inventarioParaLookup.find(m => m.id === p.hacia)
             return (
               <div key={i} className="flex items-center gap-2 text-[12px]">
                 <span className="font-mono text-[12px] text-purple-300">{p.desde}</span>
@@ -93,27 +100,62 @@ export function ModoAgrupacionPares({ movimientos, campos, pares, onChange, gest
         </div>
       )}
 
-      {/* Grid con SVG overlay de flechas */}
+      {/* Grid agrupado por categoría con SVG overlay de flechas.
+          La hipótesis es que la mayoría de pares son intra-categoría — agrupar
+          reduce el caos visual. Cross-cat sigue funcionando (click en una
+          sección + click en otra → crea par). */}
       <div ref={containerRef} className="relative">
         <FlechasSVG containerRef={containerRef} pares={pares} />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 relative">
-          {movimientos.map(m => (
-            <FichaMovimiento
-              key={m.id}
-              movimiento={m}
-              campos={campos}
-              estado={rolDeFicha(m.id)}
-              onClick={() => handleClick(m.id)}
-              htmlId={`ficha-pair-${m.id}`}
-              cambioReciente={gestion?.agregados.has(m.id) ? 'agregado' : gestion?.editados.has(m.id) ? 'editado' : undefined}
-              onEditar={gestion ? () => gestion.onEditar(m.id) : undefined}
-              onQuitar={gestion ? () => gestion.onQuitar(m.id) : undefined}
-            />
+        <div className="space-y-3 relative">
+          {agruparPorCategoria(movimientos).map(grupo => (
+            <section key={grupo.categoria}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <p className="text-[12px] font-semibold uppercase tracking-wider text-foreground/80">
+                  {grupo.categoria}
+                </p>
+                <span className="text-[11px] text-muted-foreground">
+                  ({grupo.movs.length})
+                </span>
+                <div className="flex-1 h-px bg-sidebar-border/40" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {grupo.movs.map(m => (
+                  <FichaMovimiento
+                    key={m.id}
+                    movimiento={m}
+                    campos={campos}
+                    estado={rolDeFicha(m.id)}
+                    onClick={() => handleClick(m.id)}
+                    htmlId={`ficha-pair-${m.id}`}
+                    cambioReciente={gestion?.agregados.has(m.id) ? 'agregado' : gestion?.editados.has(m.id) ? 'editado' : undefined}
+                    onEditar={gestion ? () => gestion.onEditar(m.id) : undefined}
+                    onQuitar={gestion ? () => gestion.onQuitar(m.id) : undefined}
+                  />
+                ))}
+              </div>
+            </section>
           ))}
+          {movimientos.length === 0 && (
+            <p className="text-[12px] italic text-muted-foreground text-center py-4">
+              Sin resultados — ajustá el filtro de búsqueda.
+            </p>
+          )}
         </div>
       </div>
     </div>
   )
+}
+
+// Agrupa movs por categoria preservando el orden de aparición de cada
+// categoria (la primera vez que se ve un mov de esa cat marca el orden).
+function agruparPorCategoria(movs: MovimientoPE[]): Array<{ categoria: string; movs: MovimientoPE[] }> {
+  const map = new Map<string, MovimientoPE[]>()
+  const orden: string[] = []
+  for (const m of movs) {
+    if (!map.has(m.categoria)) { orden.push(m.categoria); map.set(m.categoria, []) }
+    map.get(m.categoria)!.push(m)
+  }
+  return orden.map(c => ({ categoria: c, movs: map.get(c)! }))
 }
 
 // Componente del overlay SVG con flechas. Recalcula posiciones via

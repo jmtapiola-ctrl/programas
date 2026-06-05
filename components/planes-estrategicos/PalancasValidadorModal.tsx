@@ -14,6 +14,7 @@
 //      por pregunta + botón "Guardar respuestas y avanzar a 3.C" (deshabilitado
 //      hasta que las N tengan respuesta)
 
+import { BTN_CTA } from '@/components/ui/button-styles'
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { PalancaQAPE, MovimientoPE } from '@/lib/types'
@@ -280,7 +281,7 @@ function ContenidoValidador({ planId, propuesta, costoUsd, latenciaMs, movimient
             <button
               onClick={handleAvanzar}
               disabled={saving || (tienePreguntas && !todasRespondidas)}
-              className="rounded-md bg-primary px-4 py-1.5 text-[14px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
+              className={BTN_CTA}
             >
               {saving ? 'Guardando…' : tienePreguntas ? 'Guardar y avanzar a 3.C →' : 'Avanzar a 3.C →'}
             </button>

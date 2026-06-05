@@ -11,6 +11,7 @@
 // hipótesis inicial.
 
 import type { PlanEstrategico } from './types'
+import { buildJrContextoHeredadoMd } from './jr-paso3-context'
 
 export function buildInventarioSystemPrompt(): string {
   return `Sos un consultor estratégico senior. Tu tarea: generar un INVENTARIO INICIAL de movimientos candidatos para un plan estratégico, basado en el Propósito + Situación + Preparativos del Paso 3.0 (áreas afectadas, supuestos exógenos, priorización, criterio de éxito).
@@ -25,13 +26,11 @@ REGLAS DURAS:
 
 4. **Cada movimiento es ATÓMICO.** Una acción organizacional con principio y fin, dueño claro, recursos definidos. NO movimientos vagos tipo "mejorar la cultura" — sí "lanzar programa de onboarding mensual con materiales videos + checklist + evaluación 90 días".
 
-5. **Dueños CONCRETOS.** Tomá los responsables del campo plan.preparativos.areas_afectadas. Si el área tiene responsable asignado (ej "Vicky Flores"), usalo. Si está como '[vacancia]', el dueño del movimiento es '[vacancia: <rol>]' Y agregás un movimiento separado de contratación.
+5. **Dueños CONCRETOS + flag de vacancia estructurado.** Tomá los responsables del campo plan.preparativos.areas_afectadas.
+   - Si el área tiene responsable asignado con nombre (ej "Vicky Flores"), seteá \`dueno: "Vicky Flores"\` y \`dueno_es_vacante: false\` (o omití el flag).
+   - Si el área está como '[vacancia]' o sin responsable, seteá \`dueno: "<rol/cargo descriptivo>"\` (ej: "Director Comercial" — el NOMBRE DEL PUESTO, no el placeholder), Y seteá \`dueno_es_vacante: true\` + \`dueno_semanas_cobertura: <estimación>\`. Estimaciones razonables: director/C-level = 12, gerencia media = 8, analistas/operativos = 4. Y además agregás un movimiento separado de contratación que ATAQUE esa vacancia.
 
-6. **Dependencias declaradas.** Para cada movimiento, listá:
-   - precondiciones: ids de movimientos que tienen que estar hechos primero
-   - desbloquea: ids de movimientos que se vuelven posibles cuando este termina
-   - tipo_dependencia: 'dura' (A debe terminar antes de empezar B) | 'blanda' (A facilita B pero no bloquea) | 'ninguna' (A y B pueden correr en paralelo)
-   Esto permite secuenciar el plan correctamente en sub-bloques posteriores.
+6. **NO declarés dependencias entre movimientos.** Las relaciones de precondición/desbloqueo entre movs se trabajan después en sub-bloque 3.A.6 (Secuenciación). Acá el foco es PURO STOCK: qué movimientos existen, no en qué orden van. NO incluyas precondiciones, desbloquea ni tipo_dependencia en el output.
 
 7. **Resumen por categoría.** Al final del JSON, generá un objeto por categoría con: total / aceptados (=0) / editados (=0) / quitados (=0). El usuario va a actualizar estos números cuando revise.
 
@@ -51,23 +50,22 @@ SCHEMA EXACTO DEL OUTPUT:
     {
       "id": "M-1",
       "categoria": "<string — usar la misma categoría para movimientos relacionados>",
-      "nombre": "<string — frase corta accionable>",
+      "nombre": "<string — frase corta accionable, 4-10 palabras>",
+      "descripcion": "<string — explicación más extensa del movimiento (1-3 oraciones): qué se hace concretamente, qué entregables produce, qué cambia visible en la operación. Distinto a 'que_resuelve' (que es el problema que ataca) — esto es el QUÉ del movimiento.>",
       "que_resuelve": "<string — qué brecha cierra de la SituaciónPropósito>",
-      "ataca_desvio": "<string — referencia al desvío del Bloque 0-2 o capacidad del Propósito>",
-      "costo_banda_ancha": "<'baja' | 'media' | 'alta'>",
+      "ataca_desvio": "<string OPCIONAL — narrativa libre adicional sobre el desvío o capacidad atacada. Se prefiere dejarlo vacío y declarar la brecha en brechas_atacadas. Solo poblar si querés agregar contexto cualitativo que no entra en otros campos>",
+      "brechas_atacadas": ["<nombre EXACTO de una métrica de proposito.metricas[].metrica>", "..."],
+      "costo_banda_ancha": "<'baja' | 'media' | 'alta' — ESFUERZO global del movimiento: combina banda ancha ejecutiva + financiero + organizativo + cualquier costo relevante. NO es solo esfuerzo ejecutivo.>",
+      "impacto": "<'baja' | 'media' | 'alta' — IMPACTO esperado del movimiento sobre las métricas del propósito si se ejecuta exitosamente.>",
       "costo_monetario": {
         "rango_min_usd": <number>,
         "rango_max_usd": <number>,
         "nota": "<string opcional>"
       },
-      "ventana_temporal": {
-        "arranca": "<YYYY-MM>",
-        "termina": "<YYYY-MM>"
-      },
-      "precondiciones": ["<id de otro movimiento>"],
-      "desbloquea": ["<id de otro movimiento>"],
-      "tipo_dependencia": "<'dura' | 'blanda' | 'ninguna'>",
-      "dueno": "<string — actor concreto del organigrama>",
+      "duracion_meses_ejecucion": <number — meses estimados de ejecución, SIN contar el tiempo de cubrir vacancia. Range típico 1-12. Estimación: movs operativos rápidos (lanzar, configurar, capacitar) 1-2 meses; movs de implementación (sistemas, procesos) 3-6 meses; cambios estructurales grandes (re-estructuración, comprar tierras, abrir sucursales) 6-12 meses. NO emitas ventana_temporal — el cronograma (arranca/termina) lo computa el sistema en P-4 con CPM>,
+      "dueno": "<string — actor concreto del organigrama, O el nombre del puesto si está vacante>",
+      "dueno_es_vacante": <boolean OPCIONAL — true si el dueño es un puesto a cubrir, no una persona concreta. Si no se incluye, se asume false>,
+      "dueno_semanas_cobertura": <number OPCIONAL — solo si dueno_es_vacante=true. Semanas estimadas para cubrir la vacancia. Default razonable 8>,
       "criterio_exito": "<string — qué tiene que pasar para considerar el movimiento exitoso>",
       "estado_usuario": "pendiente"
     }
@@ -86,12 +84,16 @@ SCHEMA EXACTO DEL OUTPUT:
 
 NO INCLUYAS NADA fuera de ese JSON. Empezá tu respuesta con "{" y terminá con "}". Si necesitas explicar algo, hacelo dentro del campo "nota" de costo_monetario o en "criterio_exito".
 
+REGLA DURA — \`brechas_atacadas\`:
+
+Cada movimiento DEBE declarar al menos 1 entry en \`brechas_atacadas\`. Los nombres tienen que coincidir EXACTAMENTE (case-sensitive, incluyendo acentos, espacios, slashes) con los strings de \`proposito.metricas[i].metrica\`. NO inventes nombres nuevos. NO uses sinónimos. Si dudás entre 2 métricas, incluí ambas. Si NO podés justificar al menos 1 métrica del Propósito que este movimiento mueva (aunque sea parcialmente), ese movimiento NO debería estar en el inventario — quitalo. La lista exacta de métricas válidas la tenés en el user message bajo "Propósito → Métricas".
+
 CASOS BORDE:
 
 - Si una categoría detectada tiene solo 1 movimiento, está OK — no fuerces a 3 movimientos por categoría.
 - Si dos movimientos parecen redundantes, dejá solo uno (más fuerte). Si dudás, dejá ambos y el usuario va a quitar uno.
-- Si el plan tiene supuestos exógenos con estrategia "hedge" (ej: "si crédito reactiva, expandirse a media-baja"), el hedge se vuelve un movimiento candidato del inventario con su propia ventana temporal y precondiciones.
-- Las "vacancias" del campo areas_afectadas se vuelven movimientos de contratación separados con dueño = '[vacancia]' y precondiciones para los movimientos que dependen de esa contratación.`
+- Si el plan tiene supuestos exógenos con estrategia "hedge" (ej: "si crédito reactiva, expandirse a media-baja"), el hedge se vuelve un movimiento candidato del inventario con su propia ventana temporal.
+- Las "vacancias" del campo areas_afectadas se modelan así: el dueño del mov que necesita esa persona queda con \`dueno_es_vacante: true\` + \`dueno_semanas_cobertura: <N>\` y se agrega ADEMÁS un movimiento de contratación separado que ATAQUE la vacancia (ese mov de contratación puede tener su propio dueño no-vacante, ej: HR o el ejecutivo que recluta).`
 }
 
 export function buildInventarioUserMessage(plan: PlanEstrategico): string {
@@ -99,7 +101,18 @@ export function buildInventarioUserMessage(plan: PlanEstrategico): string {
   const situacion = plan.situacion
   const preparativos = plan.plan?.preparativos
 
-  const propMd = proposito ? `
+  // Plan Jr: la narrativa del propósito se hereda, pero las MÉTRICAS son propias
+  // (definidas en el Paso 1). Mostramos las métricas estructuradas (para que
+  // brechas_atacadas matchee, igual que el Sr) + el contexto heredado del Sr
+  // como material suplementario.
+  const propMd = plan.tipo === 'Jr'
+    ? `
+## Propósito de la línea — MÉTRICAS (cada movimiento debe atacar al menos una)
+
+Métricas de la línea (${proposito?.metricas?.length ?? 0}):
+${(proposito?.metricas ?? []).map(m => `- ${m.metrica}: objetivo=${m.valor_objetivo} | actual=${m.valor_actual || '(sin baseline)'}`).join('\n') || '(sin métricas — el Jr debió definirlas en el Paso 1)'}
+${buildJrContextoHeredadoMd(plan)}`
+    : proposito ? `
 ## Propósito (a dónde queremos llegar)
 
 Escena ideal: ${proposito.escena}

@@ -1,3 +1,4 @@
+import { PE_MODEL } from '@/lib/llm-config'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import Anthropic from '@anthropic-ai/sdk'
@@ -59,11 +60,13 @@ export async function POST(req: NextRequest) {
     entrevista.sub_bloque_actual = expected_sub_bloque
   }
 
-  // Cargar Plan Sr si es Jr
-  let planSr: any = null
-  if (plan.tipo === 'Jr' && plan.plan_sr_id) {
-    planSr = await getPlanEstrategico(plan.plan_sr_id).catch(() => null)
-  }
+  // Sistema Sr→Jr Fase 5: el chat del Jr NO carga el plan Sr crudo. La única
+  // referencia al Sr que ve el modelo es `plan.contexto_curado` (los 5 campos
+  // editados por el Sr/Admin en el wizard de despliegue, concatenados a markdown
+  // por pe-system-prompt) + `plan.movs_heredados_snapshot`.
+  // Esto preserva la confidencialidad entre líneas Jr y simplifica el chat:
+  // el modelo solo razona sobre el contexto curado, no sobre todo el plan Sr.
+  const planSr = null
 
   // Construir messages para Anthropic.
   //
@@ -141,7 +144,7 @@ export async function POST(req: NextRequest) {
 
       try {
         const anthropicStream = await anthropic.messages.stream({
-          model: 'claude-opus-4-7',
+          model: PE_MODEL,
           // 16000 da margen para respuesta conversacional + PANEL_UPDATE consolidado
           // de un plan rico (Pasos 0-2 ricos + Pasos 3-5 futuros). El costo solo
           // crece si el modelo efectivamente emite más output — el techo es protección
@@ -643,7 +646,7 @@ Si verbalizaste un cambio retroactivo, además del sub-tree mutado: incluí tamb
 
   try {
     const resp = await anthropic.messages.create({
-      model: 'claude-opus-4-7',
+      model: PE_MODEL,
       // 12000 = solo el bloque PANEL_UPDATE consolidado (sin texto conversacional
       // adicional, porque pedimos "SOLO el bloque"). Margen para planes ricos.
       max_tokens: 12000,

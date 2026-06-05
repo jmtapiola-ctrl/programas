@@ -1,11 +1,14 @@
 // POST /api/planes-estrategicos/[id]/audit/[turno_id]/apply
 //
 // Aplica las decisiones del usuario al plan. Apply splitteado:
+//   - Cross-block changes aprobados → sustitución determinística por código
+//     sobre Pasos anteriores. Cada cross-block aplicado registra un
+//     WarningRetroactivo en plan.warnings_retroactivos como audit trail.
 //   - Errors aprobados → sustitución determinística por código (no Opus).
-//   - Cross-block changes aprobados → NO-OP en Fase 4 (validador enforza vacío
-//     para Bloque 1, único bloque auditable hoy). Registrados en decisiones para
-//     tracking pero no aplicados al plan vivo.
 //   - Questions respondidas → integración semántica vía Opus.
+//
+// Orden: cross-block PRIMERO (modifican Pasos anteriores — establecen la base),
+// después errors (modifican Paso actual), después questions (semántica).
 //
 // Body: { decisiones: DecisionUsuario[] }
 // Devuelve: { ok: true, fields_modified, warnings, apply_metrics }
@@ -14,6 +17,7 @@
 // (Pantalla 4) tras éxito. En falla, rollback a `auditoria_completa` para que el
 // user pueda reintentar el procesamiento.
 
+import { PE_MODEL } from '@/lib/llm-config'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import Anthropic from '@anthropic-ai/sdk'
@@ -26,7 +30,7 @@ import {
   updateReviewerDecisionesAndApply,
   updateSubEstadoPaso,
 } from '@/lib/airtable'
-import { splitDecisiones, applyErrorsDeterministicamente } from '@/lib/audit-apply'
+import { splitDecisiones, applyErrorsDeterministicamente, applyCrossBlockChanges } from '@/lib/audit-apply'
 import { buildApplySystemPrompt, buildApplyUserMessage } from '@/lib/apply-prompt'
 import type { DecisionUsuario, PlanEstrategico, PropositorPE, SituacionPE } from '@/lib/types'
 
@@ -108,19 +112,23 @@ export async function POST(
   }))
 
   try {
-    // ── 1. Apply de errors deterministicamente ──
-    const applyResult = applyErrorsDeterministicamente(plan, split.errorsAprobados)
-    let planTrabajado = applyResult.planActualizado
-    const fieldsModificados = [...applyResult.fieldsModificados]
-    const warnings = [...applyResult.warnings]
+    // ── 1. Apply de cross-block changes (modifican Pasos anteriores) ──
+    // Se aplican PRIMERO porque establecen la base estructural: errors después
+    // operan sobre el plan con los cross-block ya integrados. Cada cross-block
+    // aplicado registra un WarningRetroactivo en plan.warnings_retroactivos.
+    const crossBlockResult = applyCrossBlockChanges(plan, split.crossBlockAprobados, {
+      paso_origen: paso,
+      sub_bloque_origen: entrevista.sub_bloque_actual ?? '',
+    })
+    let planTrabajado = crossBlockResult.planActualizado
+    const fieldsModificados = [...crossBlockResult.fieldsModificados]
+    const warnings = [...crossBlockResult.warnings]
 
-    // Cross-block changes: NO-OP en Fase 4. Solo registramos para tracking.
-    if (split.crossBlockAprobados.length > 0) {
-      warnings.push(
-        `${split.crossBlockAprobados.length} cross-block change(s) aprobado(s) NO se aplicaron — feature pendiente. ` +
-        `Quedan registrados en Reviewer Decisiones JSON para auditoría futura.`,
-      )
-    }
+    // ── 2. Apply de errors deterministicamente sobre el plan ya integrado ──
+    const applyResult = applyErrorsDeterministicamente(planTrabajado, split.errorsAprobados)
+    planTrabajado = applyResult.planActualizado
+    fieldsModificados.push(...applyResult.fieldsModificados)
+    warnings.push(...applyResult.warnings)
 
     // ── 2. Apply de questions respondidas vía Opus ──
     let opusCost = 0
@@ -139,7 +147,7 @@ export async function POST(
       // max_tokens podría llevar a runtime > 10 min. Con 32k + Opus reasoning
       // entra en ese rango. messages.stream() resuelve el cap.
       const stream = anthropic.messages.stream({
-        model: 'claude-opus-4-7',
+        model: PE_MODEL,
         // 32k necesario: Opus reescribe el resumen completo del Bloque + reasoning
         // interno consume tokens. 16k era insuficiente y truncaba el JSON output
         // (descubierto en smoke real end-to-end).
@@ -222,6 +230,9 @@ export async function POST(
       event: 'apply_completed',
       plan_id: planId,
       paso,
+      cross_block_aplicados: crossBlockResult.crossBlockAplicados,
+      cross_block_no_encontrados: crossBlockResult.crossBlockNoEncontrados,
+      warnings_retroactivos_creados: crossBlockResult.warningsRetroactivosCreados,
       errors_aplicados: applyResult.errorsAplicados,
       errors_no_encontrados: applyResult.errorsNoEncontrados,
       fields_modificados: fieldsModificados.length,
@@ -238,10 +249,12 @@ export async function POST(
       apply_metrics: {
         costo_usd: opusCost,
         latencia_ms: opusLatency,
+        cross_block_aplicados: crossBlockResult.crossBlockAplicados,
+        cross_block_no_encontrados: crossBlockResult.crossBlockNoEncontrados,
+        warnings_retroactivos_creados: crossBlockResult.warningsRetroactivosCreados,
         errors_aplicados: applyResult.errorsAplicados,
         errors_no_encontrados: applyResult.errorsNoEncontrados,
         questions_integradas: split.questionsRespondidas.length,
-        cross_block_no_aplicados: split.crossBlockAprobados.length,
       },
       // `from_apply=1` indica a Pantalla 4 que viene del POST de apply. Si Airtable
       // todavía no propagó la transición a esperando_aprobacion_final (eventual

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { BTN_CTA, BTN_SECONDARY } from '@/components/ui/button-styles'
 import type { PlanEstrategico } from '@/lib/types'
 
 export default function NuevoPlanPage() {
@@ -9,6 +10,7 @@ export default function NuevoPlanPage() {
   const [tipo, setTipo] = useState<'Sr' | 'Jr' | null>(null)
   const [planesSr, setPlanesSr] = useState<PlanEstrategico[]>([])
   const [planSrId, setPlanSrId] = useState('')
+  const [nombre, setNombre] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingPlanesSr, setLoadingPlanesSr] = useState(false)
 
@@ -29,6 +31,7 @@ export default function NuevoPlanPage() {
 
   async function handleComenzar() {
     if (!tipo) return
+    if (!nombre.trim()) return
     if (tipo === 'Jr' && !planSrId) return
     setLoading(true)
     try {
@@ -38,6 +41,7 @@ export default function NuevoPlanPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tipo,
+          nombre: nombre.trim(),
           plan_sr_id: planSrId || undefined,
           plan_sr_nombre: planSr?.nombre,
         }),
@@ -50,7 +54,7 @@ export default function NuevoPlanPage() {
     }
   }
 
-  const puedeComenzar = tipo === 'Sr' || (tipo === 'Jr' && !!planSrId)
+  const puedeComenzar = !!tipo && nombre.trim().length > 0 && (tipo === 'Sr' || !!planSrId)
   const sinPlanesSr = tipo === 'Jr' && !loadingPlanesSr && planesSr.length === 0
 
   return (
@@ -114,17 +118,38 @@ export default function NuevoPlanPage() {
         </div>
       )}
 
+      {/* Nombre del plan — requerido. Aparece solo después de elegir tipo (y
+          Plan Sr si es Jr) para no abrumar el form con todo de entrada. */}
+      {tipo && (tipo === 'Sr' || planSrId) && (
+        <div className="mb-8">
+          <label className="block text-[13px] font-medium text-foreground mb-2">
+            Nombre del plan <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="text"
+            value={nombre}
+            onChange={e => setNombre(e.target.value)}
+            placeholder="Ej: Plan Sr Terravinci 2026, Plan Jr Compras Q3, ..."
+            autoFocus
+            className="w-full rounded-lg border border-sidebar-border bg-sidebar px-3 py-2 text-[13px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          <p className="mt-1 text-[12px] text-muted-foreground">
+            Lo podés editar después desde el header del wizard. Sugerencia: poné algo descriptivo (área + año, o área + foco) para distinguirlo fácil en el listado.
+          </p>
+        </div>
+      )}
+
       <div className="flex gap-3">
         <button
           onClick={() => router.back()}
-          className="rounded-lg border border-sidebar-border px-4 py-2 text-[13px] font-medium text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors"
+          className={BTN_SECONDARY}
         >
           Cancelar
         </button>
         <button
           onClick={handleComenzar}
           disabled={!puedeComenzar || loading || sinPlanesSr}
-          className="rounded-lg bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className={BTN_CTA}
         >
           {loading ? 'Iniciando...' : 'Comenzar entrevista'}
         </button>

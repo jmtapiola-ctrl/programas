@@ -38,8 +38,10 @@ import {
 import { callReviewer } from '@/lib/openai-client'
 import { buildReviewerSystemPrompt, buildReviewerUserMessage } from '@/lib/reviewer-prompt'
 import { validateReviewerReport, REVIEWER_REPORT_SCHEMA } from '@/lib/reviewer-validator'
-import type { PlanEstrategico, SnapshotPaso, SubEstadoPaso } from '@/lib/types'
-import { getCuradoActivo } from '@/lib/types'
+import type { PlanEstrategico, SnapshotPaso, SubEstadoPaso, ReviewerQuestion } from '@/lib/types'
+import { getCuradoActivo, contextoCuradoToMarkdown } from '@/lib/types'
+import { generarDivergenciasCapJr } from '@/lib/cap-jr'
+import { updatePlanEstrategico } from '@/lib/airtable'
 
 // ─── Helper: serializar el resumen del Paso a markdown ──────────────────────
 
@@ -157,7 +159,7 @@ ${resistenciasList}
       : '_(ninguna)_'
     const secuenciaList = c.secuencia_movimientos?.length
       ? c.secuencia_movimientos.map(f => {
-          const movs = f.movimientos.map(m => `  - **${m.id}** ${m.nombre} (dueño: ${m.dueno || '_(sin asignar)_'}, ventana: ${m.ventana_temporal.arranca}→${m.ventana_temporal.termina})`).join('\n')
+          const movs = f.movimientos.map(m => `  - **${m.id}** ${m.nombre} (dueño: ${m.dueno || '_(sin asignar)_'}, ventana: ${m.ventana_temporal?.arranca ?? '?'}→${m.ventana_temporal?.termina ?? '?'})`).join('\n')
           return `**${f.fase}** — ${f.razon_secuencia}\n${movs}`
         }).join('\n\n')
       : '_(sin movimientos secuenciados)_'
@@ -482,14 +484,27 @@ async function handleAudit(
     // estado actual del plan — solo el material auditado.
     const resumenMd = overrides.overrideResumen ?? await serializeResumenPaso(plan, paso)
 
+    // ── Cap del Plan Jr (Fase 6) — solo al auditar el Paso 3 de un Jr ──
+    // Mitad determinística (agregados costo/duración/cobertura) + contexto
+    // heredado que se le pasa al reviewer para la mitad semántica (Bloque D).
+    const esCapJr = plan.tipo === 'Jr' && paso === 3
+    const cap = esCapJr ? generarDivergenciasCapJr(plan, new Date().toISOString()) : null
+    const capContextoMd = esCapJr ? `${contextoCuradoToMarkdown(plan.contexto_curado)}
+
+## Agregados (referencia para el cap)
+- Costo total del plan curado del Jr: USD ${Math.round(cap!.capSnapshot.costo_total_jr_usd).toLocaleString('en-US')}
+- Costo baseline estimado por el Sr: USD ${Math.round(cap!.capSnapshot.costo_baseline_sr_usd).toLocaleString('en-US')}
+- Duración total Jr: ${cap!.capSnapshot.duracion_total_jr_meses} meses · baseline Sr: ${cap!.capSnapshot.duracion_baseline_sr_meses} meses` : undefined
+
     // ── Construir prompts ──
     // Si readOnly: pasamos el flag `historicoEducativo` al system prompt para
     // que el reviewer NO se contenga marcando hallazgos posiblemente resueltos.
-    const systemPrompt = buildReviewerSystemPrompt(paso, { historicoEducativo: overrides.readOnly })
+    const systemPrompt = buildReviewerSystemPrompt(paso, { historicoEducativo: overrides.readOnly, capJr: esCapJr })
     const userMessage = buildReviewerUserMessage({
       bloque: paso,
       turnos: turnosInput,
       resumenEstructurado: resumenMd,
+      capContextoMd,
       auditoriasPrevias: audicionesPrevias.length > 0
         ? audicionesPrevias.map(a => ({
             report: a.report,
@@ -578,6 +593,26 @@ async function handleAudit(
         retry_available: currentCount < 3,
       })
       return
+    }
+
+    // ── Cap Jr: fusionar divergencias determinísticas + persistir snapshot ──
+    // Las divergencias de agregados (costo/cobertura) se suman a las questions
+    // del reviewer (que ya trae las semánticas del Bloque D). El cap_snapshot
+    // queda como trazabilidad en el plan.
+    if (cap) {
+      const nuevas: ReviewerQuestion[] = cap.divergencias
+      if (nuevas.length > 0) {
+        validation.data.questions = [...validation.data.questions, ...nuevas]
+        validation.data.meta.preguntas_criticas += nuevas.filter(q => q.categoria === 'CRITICA').length
+        validation.data.meta.preguntas_recomendadas += nuevas.filter(q => q.categoria === 'RECOMENDADA').length
+      }
+      cap.capSnapshot.divergencias_detectadas = validation.data.questions.length
+      try {
+        const planoActual = plan.plan ?? {}
+        await updatePlanEstrategico(plan.id, { plan: { ...planoActual, cap_auditoria_jr: cap.capSnapshot } as any })
+      } catch (e) {
+        console.warn('[audit/start] no se pudo persistir cap_auditoria_jr:', (e as any)?.message)
+      }
     }
 
     // ── Éxito: persistir turno reviewer + incrementar counter + transicionar ──

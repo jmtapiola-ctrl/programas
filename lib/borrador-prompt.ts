@@ -12,6 +12,8 @@
 // disconformidad como contexto adicional para regenerar.
 
 import type { PlanEstrategico, BorradorIteracionPE, MovimientoPE } from './types'
+import { formatLinchpinsSection } from './linchpins'
+import { buildJrContextoHeredadoMd } from './jr-paso3-context'
 
 // ─── Post-procesamiento: inyectar nombre en cada M-X de texto narrativo ──────
 //
@@ -120,7 +122,13 @@ REGLAS DURAS:
    - Leé cada disconformidad: { elemento: "<qué marcó>", razon: "<por qué no le cierra>" }.
    - Regenerá el plan resolviendo cada disconformidad PERO preservando lo que NO marcó como disconforme. Si la disconformidad fue sobre secuencia_movimientos pero el contexto y las decisiones le cerraban, no cambies contexto y decisiones — solo secuencia.
 
-7. **IDs de movimientos SIEMPRE con nombre entre paréntesis — TODAS las apariciones, no solo la primera** (regla crítica de legibilidad). Cuando uses un ID de movimiento (M-1, M-2, ..., M-N) en CUALQUIER campo de TEXTO NARRATIVO del output, sumá el nombre del movimiento entre paréntesis inmediatamente después. **Esto aplica a CADA aparición individual, no solo a la primera mención en una sección o frase.** Si M-1 aparece 5 veces en un mismo texto, las 5 deben tener \`M-1 (nombre)\`. Trata las menciones como atómicas, no como referencias contextualizadas.
+7. **Movimientos palanca (alto out-degree).** El user message incluye una sección "Movimientos palanca detectados" con los movs que desbloquean ≥3 otros del inventario. ESTOS son los habilitadores del plan: si caen tarde, el resto se demora. Reglas:
+   - Salvo justificación dura (precondición externa, vacancia bloqueante, restricción regulatoria/temporal), los movs palanca van en la PRIMERA fase de \`secuencia_movimientos\` (Q1 o equivalente).
+   - Si un mov palanca queda en una fase tardía, escribí la razón explícita en \`razon_secuencia\` de esa fase.
+   - Mencioná al menos 1 mov palanca en \`decisiones_priorizacion\` — la decisión grande de habilitar el plan desde ahí.
+   - Si la sección viene vacía (plan chico, sin palancas detectadas), ignorá esta regla.
+
+8. **IDs de movimientos SIEMPRE con nombre entre paréntesis — TODAS las apariciones, no solo la primera** (regla crítica de legibilidad). Cuando uses un ID de movimiento (M-1, M-2, ..., M-N) en CUALQUIER campo de TEXTO NARRATIVO del output, sumá el nombre del movimiento entre paréntesis inmediatamente después. **Esto aplica a CADA aparición individual, no solo a la primera mención en una sección o frase.** Si M-1 aparece 5 veces en un mismo texto, las 5 deben tener \`M-1 (nombre)\`. Trata las menciones como atómicas, no como referencias contextualizadas.
 
    Formato obligatorio: \`M-X (nombre del movimiento)\`. El nombre lo sacás del inventario que te paso en el user message (cada movimiento tiene su \`"nombre"\`). Usá el nombre completo, no abreviado.
 
@@ -191,13 +199,18 @@ export function buildBorradorUserMessage(
   const inventario = planoP3.inventario
   const movsActivos = (inventario?.movimientos ?? []).filter(m => m.estado_usuario !== 'quitado')
 
-  let msg = `# Contexto del plan
-
-## Propósito
+  // Plan Jr: propósito heredado (no se construye acá). Ver buildJrContextoHeredadoMd.
+  const propMd = plan.tipo === 'Jr'
+    ? buildJrContextoHeredadoMd(plan)
+    : `## Propósito
 Escena ideal: ${plan.proposito?.escena ?? '(no declarada)'}
 Métricas: ${JSON.stringify(plan.proposito?.metricas ?? [], null, 2)}
 Fuera de scope: ${JSON.stringify(plan.proposito?.fuera ?? [], null, 2)}
-Horizonte: ${plan.proposito?.horizonte ?? '(no declarado)'}
+Horizonte: ${plan.proposito?.horizonte ?? '(no declarado)'}`
+
+  let msg = `# Contexto del plan
+
+${propMd}
 
 ## Situación
 Desvío principal: ${plan.situacion?.desvio_principal ?? '(no declarado)'}
@@ -214,14 +227,33 @@ Criterio de éxito: ${JSON.stringify(planoP3.preparativos?.criterio_exito ?? nul
 ${movsActivos.map(m => {
   const precond = m.precondiciones?.length ? ` precond=[${m.precondiciones.join(',')}]` : ''
   const desbloq = m.desbloquea?.length ? ` desbloquea=[${m.desbloquea.join(',')}]` : ''
-  return `${m.id} (${m.categoria}): "${m.nombre}" · dueño=${m.dueno} · resuelve="${m.que_resuelve}" · ventana=${m.ventana_temporal.arranca}→${m.ventana_temporal.termina} · banda=${m.costo_banda_ancha}${precond}${desbloq}`
+  const durStr = m.duracion_meses_ejecucion ? `duración=${m.duracion_meses_ejecucion}m` : (m.ventana_temporal ? `ventana=${m.ventana_temporal.arranca}→${m.ventana_temporal.termina}` : 'sin-duración')
+  // Campos user-edited inline (P-4 override + P-5 riesgo). Si están seteados,
+  // los sumamos al render del mov para que el modelo del borrador los vea sin
+  // tener que cross-referenciar con respuesta_estructurada de las preguntas.
+  const riesgo = m.riesgo_ejecucion_razonamiento ? ` · ⚠ RIESGO ALTO ejecución: "${m.riesgo_ejecucion_razonamiento}"` : ''
+  const override = m.arranca_override
+    ? ` · arranca_override=${m.arranca_override}${m.arranca_override_razonamiento ? ` (razon: "${m.arranca_override_razonamiento}")` : ''}`
+    : ''
+  return `${m.id} (${m.categoria}): "${m.nombre}" · dueño=${m.dueno} · resuelve="${m.que_resuelve}" · ${durStr} · banda=${m.costo_banda_ancha}${precond}${desbloq}${riesgo}${override}`
 }).join('\n')}
+
+${formatLinchpinsSection(movsActivos)}
 
 ## Palancas (3.B) — 5 preguntas principal con respuestas del usuario
 ${(planoP3.palancas?.preguntas_principal ?? []).map(q => {
   const re = q.respuesta_estructurada
   const reStr = re ? ` [panel: ${JSON.stringify(re)}]` : ''
-  return `${q.id}: "${q.pregunta}"\n  → respuesta del usuario: "${q.respuesta}"${reStr}`
+  // Si el modo es inline (P-4 secuenciacion, P-5 marcado_simple) y la respuesta
+  // texto está vacía, decimos explícitamente que las razones viven in-line en
+  // el inventario (ya rendereado más arriba con los campos user-edited).
+  const modoInline = q.modo_interaccion === 'secuenciacion' || q.modo_interaccion === 'marcado_simple'
+  const respTexto = q.respuesta?.trim()
+    ? q.respuesta
+    : (modoInline && re
+        ? `(respuesta dada en el panel; los razonamientos por mov viven in-line en el inventario — ver campos arranca_override_razonamiento / riesgo_ejecucion_razonamiento de cada mov arriba)`
+        : '(sin respuesta texto)')
+  return `${q.id}: "${q.pregunta}"\n  → respuesta del usuario: "${respTexto}"${reStr}`
 }).join('\n\n')}
 
 ${(planoP3.palancas?.preguntas_validador?.length ?? 0) > 0 ? `## Validador (3.B) — ${planoP3.palancas?.preguntas_validador?.length ?? 0} preguntas complementarias con respuestas

@@ -10,9 +10,11 @@ import {
   K_PE_FALLAS,
   K_PE_DEFINICION,
   K_PE_ESTRATEGIA_VS_TACTICA,
+  K_PE_PASO1_JR,
+  K_PE_CAP_JR,
 } from './knowledge-pe'
-import { getContextoTemporalArg } from './types'
-import type { RespuestaEstructurada } from './types'
+import { getContextoTemporalArg, normalizeDepTipoEdge, contextoCuradoToMarkdown } from './types'
+import type { RespuestaEstructurada, InventarioPE, MovimientoPE } from './types'
 
 // Renderiza la respuesta_estructurada de una pregunta (3.B/3.D Panel
 // Interactivo de Fichas) en una línea legible para el modelo. Sin esto, el
@@ -39,6 +41,69 @@ function formatRespuestaEstructurada(re: RespuestaEstructurada | undefined): str
         ? 'marcó: ninguna ficha (respuesta válida = "ninguno tiene este atributo")'
         : `marcó fichas: ${re.marcados.join(', ')}`
   }
+}
+
+// Renderiza el grafo completo de dependencias del inventario en una sección
+// compacta del system prompt. Sin esto, el modelo SOLO ve "Inventario: N
+// movimientos" y no tiene visibilidad de qué precondicíona a qué, qué tipo
+// (FS/FF/continuo) ni qué lag. Eso le llevó a decir incorrectamente "M-X
+// está aislado" cuando el user había declarado dependencias vía P-3 o el
+// editor DAG de 3.A.6. Esta función emite el grafo completo: una línea por
+// mov con sus precondiciones + desbloqueos, tipos y lag, más una lista final
+// de movs huérfanos. Ver Plan: "Visibilidad completa del grafo de dependencias".
+function renderGrafoDependencias(inventario: InventarioPE): string {
+  const movs = inventario.movimientos.filter(m => m.estado_usuario !== 'quitado')
+  if (movs.length === 0) return ''
+  const movsById = new Map<string, MovimientoPE>(movs.map(m => [m.id, m]))
+
+  // Render de un edge: "M-X (FS +1m)" o "M-X (sugerida)".
+  function renderEdge(otherId: string, tipo: string | undefined | null, lag: number): string {
+    const t = normalizeDepTipoEdge(tipo)
+    const lagStr = (t !== 'sugerida' && lag > 0) ? ` +${lag}m` : ''
+    return `${otherId} (${t.toUpperCase()}${lagStr})`
+  }
+
+  const lineas: string[] = []
+  const huerfanos: string[] = []
+  let totalEdges = 0
+
+  for (const m of movs) {
+    const precs = m.precondiciones ?? []
+    const desbl = m.desbloquea ?? []
+    if (precs.length === 0 && desbl.length === 0) {
+      huerfanos.push(m.id)
+      lineas.push(`  ${m.id} (${m.nombre}): (sin dependencias declaradas)`)
+      continue
+    }
+    const partes: string[] = []
+    if (precs.length > 0) {
+      const renderedPrecs = precs.map(precId => {
+        const tipo = m.precondiciones_tipo?.[precId]
+        const lag = m.precondiciones_lag_meses?.[precId] ?? 0
+        return renderEdge(precId, tipo, lag)
+      })
+      partes.push(`← precond [${renderedPrecs.join(', ')}]`)
+    }
+    if (desbl.length > 0) {
+      // El tipo + lag del edge "M → target" vive en target.precondiciones_tipo[M.id]
+      // y target.precondiciones_lag_meses[M.id]. Lookup por target.
+      const renderedDesbl = desbl.map(targetId => {
+        const target = movsById.get(targetId)
+        const tipo = target?.precondiciones_tipo?.[m.id]
+        const lag = target?.precondiciones_lag_meses?.[m.id] ?? 0
+        return renderEdge(targetId, tipo, lag)
+      })
+      partes.push(`→ desbloquea [${renderedDesbl.join(', ')}]`)
+    }
+    totalEdges += precs.length
+    lineas.push(`  ${m.id} (${m.nombre}): ${partes.join(' · ')}`)
+  }
+
+  const header = `Grafo de dependencias del inventario (${movs.length} movs activos, ${totalEdges} edges totales):`
+  const huerfanosLinea = huerfanos.length > 0
+    ? `\nMovs sin dependencias declaradas: ${huerfanos.join(', ')}`
+    : ''
+  return `\n${header}\n${lineas.join('\n')}${huerfanosLinea}\n`
 }
 
 // TODO: el campo cierre_sugerido del PANEL_UPDATE (sumado al schema y al bloque
@@ -74,7 +139,9 @@ de historial.
 - Si paso_actual=1 → estás en Propósito. Continuá donde dice sub_bloque_actual.
 - Si paso_actual=2 → estás en Situación. Continuá donde dice sub_bloque_actual.
 - Si paso_actual=3 → estás en Plan (Paso 3). Continuá donde dice sub_bloque_actual.
-- Si paso_actual ≥ 4 → el wizard llegó al FIN del scope implementado actualmente. Tu rol: emitir un mensaje breve diciendo "El plan está completo hasta donde el wizard tiene scope implementado. Paso 4 (Cierre + outputs) estará disponible cuando se construya" Y emití PANEL_UPDATE con paso_actual=4, sub_bloque_actual='completado', cierre_sugerido=false. NO inventes nuevas preguntas ni nuevos sub-bloques.
+- Si paso_actual ≥ 4 → el wizard llegó al FIN del scope implementado actualmente. Tu rol: emitir un mensaje breve diciendo "El plan está completo hasta donde el wizard tiene scope implementado. Paso 4 (Cierre + outputs) estará disponible cuando se construya" Y emití PANEL_UPDATE con paso_actual=4, sub_bloque_actual='completado', cierre_sugerido=false. NO inventes nuevas preguntas ni nuevos sub-bloques.${esSr ? '' : `
+
+NOTA PLAN JR: este es un Plan Jr. El Paso 1 NO es de definición de propósito — es LIVIANO (solo alineación con el propósito heredado). Seguí el bloque "OVERRIDE PARA PLAN JR — PASO 1" del cuestionario, NO los sub-bloques 1.A–1.E genéricos. El propósito/criterios/métricas ya están dados en el "Contexto curado heredado".`}
 
 CASO ESPECIAL — "sesión nueva sin historial pero paso_actual > 0":
 Si turnos_previos_en_historial=0 PERO paso_actual > 0, significa que el usuario
@@ -112,6 +179,32 @@ ${plan.plan ? `
 ### Plan (Paso 3) construido hasta ahora
 Preparativos: ${plan.plan.preparativos ? 'declarados' : '(pendiente)'}
 Inventario: ${plan.plan.inventario?.movimientos?.length ? `${plan.plan.inventario.movimientos.length} movimientos` : '(pendiente)'}
+${plan.plan.inventario?.movimientos?.length ? renderGrafoDependencias(plan.plan.inventario) : ''}
+${(() => {
+  // Sección: movs con campos USER-EDITED in-line en el inventario (P-4 arranca
+  // override + P-5 riesgo de ejecución). El system prompt resume el inventario
+  // como conteo nada más; los campos editados por el usuario (arranca_override,
+  // riesgo_ejecucion_razonamiento) NO se ven sino. Esta sección le da al modelo
+  // visibilidad EXPLÍCITA de esos cambios para que pueda procesarlos en P-4/P-5.
+  const movs = plan.plan?.inventario?.movimientos ?? []
+  const conRiesgo = movs.filter((m: any) => !!m.riesgo_ejecucion_razonamiento)
+  const conOverride = movs.filter((m: any) => !!m.arranca_override)
+  if (conRiesgo.length === 0 && conOverride.length === 0) return ''
+  const partes: string[] = []
+  if (conRiesgo.length > 0) {
+    partes.push(`Movimientos marcados con RIESGO ALTO de ejecución (respuesta del usuario a P-5, razon in-line por mov):
+${conRiesgo.map((m: any) =>
+  `  ${m.id} "${m.nombre}" [categoría: ${m.categoria}] — razon: "${m.riesgo_ejecucion_razonamiento}"`
+).join('\n')}`)
+  }
+  if (conOverride.length > 0) {
+    partes.push(`Movimientos con arranque MOVIDO MANUALMENTE (override del usuario en P-4):
+${conOverride.map((m: any) =>
+  `  ${m.id} "${m.nombre}" → arranca_override: ${m.arranca_override}${m.arranca_override_razonamiento ? ` — razon: "${m.arranca_override_razonamiento}"` : ' (sin razon todavía)'}`
+).join('\n')}`)
+  }
+  return '\n' + partes.join('\n\n') + '\n'
+})()}
 Palancas: ${plan.plan.palancas ? `${plan.plan.palancas.preguntas_principal?.length ?? 0} principal + ${plan.plan.palancas.preguntas_validador?.length ?? 0} validador` : '(pendiente)'}
 ${plan.plan.palancas?.preguntas_principal?.length ? `Preguntas principal hechas hasta ahora:
 ${plan.plan.palancas.preguntas_principal.map((q: any) => {
@@ -135,15 +228,44 @@ Curado: ${plan.plan.curado ? 'cerrado' : '(pendiente)'}
 ${plan.datos_faltantes?.length ? `Datos por conseguir: ${plan.datos_faltantes.join(', ')}` : ''}
 `
 
-  const planSrResumen = !esSr && planSr ? `
-## Plan Sr al que este plan se alinea: "${planSr.nombre}"
+  // Contexto del Plan Sr para Planes Jr — V2 sistema Sr→Jr (Fase 5):
+  // El Jr NO ve el plan Sr crudo. Solo ve:
+  //   - contexto_curado: los 5 campos editados por el Sr/Admin antes de
+  //     compartir, concatenados a markdown con contextoCuradoToMarkdown().
+  //   - movs_heredados_snapshot: snapshot de los movs del Sr asignados a este Jr.
+  // El parámetro planSr se ignora intencionalmente para Jr — quedará null porque
+  // el chat route ya no lo carga (decisión de confidencialidad). El parámetro se
+  // mantiene en la signature para backward-compat con scripts de diagnóstico.
+  const contextoCuradoMd = contextoCuradoToMarkdown(plan.contexto_curado)
+  const pasoActualNum = entrevista?.paso_actual ?? 0
+  const contextoJrBlock = !esSr ? `
+## Contexto curado heredado del Plan Sr — DADO, NO SE REDEFINE
 
-${planSr.proposito ? `
-Propósito (escena ideal): ${planSr.proposito.escena}
-Métricas: ${JSON.stringify(planSr.proposito.metricas)}
-Fuera de scope: ${JSON.stringify(planSr.proposito.fuera)}
-Horizonte: ${planSr.proposito.horizonte}
-` : '(propósito del Sr no disponible)'}
+⚠️ NO tenés acceso al plan Sr crudo (propósito, situación, plan curado, otras líneas Jr). Lo que sigue es el contexto editado por el Plan Sr/Admin antes de compartirte este Jr. Es tu fuente de verdad sobre el Sr Y el propósito/criterios/métricas de ESTA línea: son un DADO heredado, no se redefinen en este wizard. El Jr define su SITUACIÓN de partida y los MOVIMIENTOS para llegar a este propósito.
+
+${contextoCuradoMd
+    ? contextoCuradoMd
+    : '(El contexto curado todavía no fue generado. Pedile al Plan Sr/Admin que termine de desplegar este Jr antes de avanzar con la entrevista.)'}
+
+${(plan.movs_heredados_snapshot?.length ?? 0) > 0 ? `
+## Movimientos heredados del Plan Sr (REFERENCIA / baseline, snapshot al desplegar)
+
+El Sr estimó ${plan.movs_heredados_snapshot.length} movimientos para esta línea, con sus costos, duraciones y criterios. NO son tu inventario (vas a armar uno fresco con el dueño Jr): son la REFERENCIA de alcance/costo/duración que el Sr esperaba. Usalos para calibrar y para detectar shortfalls (ver CAP más abajo).
+
+${(plan.movs_heredados_snapshot ?? []).map((m: any) => {
+  const precs = (m.precondiciones ?? []).join(', ') || 'ninguna'
+  const desbl = (m.desbloquea ?? []).join(', ') || 'ninguno'
+  const venta = m.ventana_temporal ? `${m.ventana_temporal.arranca}→${m.ventana_temporal.termina}` : 'sin secuenciar'
+  const dueno = m.dueno_es_vacante ? `${m.dueno} [VACANCIA, ${m.dueno_semanas_cobertura ?? 8}sem]` : m.dueno
+  return `  ${m.id} "${m.nombre}" [${m.categoria}]
+    qué resuelve: ${(m.que_resuelve ?? '').slice(0, 250)}
+    dueño: ${dueno} · ventana: ${venta} · esfuerzo: ${m.costo_banda_ancha} · impacto: ${m.impacto ?? 'media'}
+    costo: USD ${m.costo_monetario?.rango_min_usd ?? '?'}-${m.costo_monetario?.rango_max_usd ?? '?'}
+    precondiciones: [${precs}] · desbloquea: [${desbl}]
+    criterio éxito: ${(m.criterio_exito ?? '').slice(0, 200)}`
+}).join('\n')}
+` : ''}
+${pasoActualNum === 3 ? K_PE_CAP_JR : ''}
 ` : ''
 
   const contextoTemporal = `
@@ -168,6 +290,7 @@ Al final de CADA respuesta tuya emitís el bloque \`<!--PANEL_UPDATE-->...<!--/P
 - Saltarte el bloque "porque el turno fue corto" o "porque solo respondí una pregunta". El bloque va igual.
 - Saltarte el bloque al aplicar un cambio retroactivo. Justamente ahí es donde el bloque importa más, porque tenés que mutar \`proposito\` / \`situacion\` / \`plan\` para que el cambio quede.
 - Saltarte el bloque después de un mensaje "[Sistema] Usuario confirma cambio retroactivo: ...". Ese turno DEBE traer la mutación + cambio_retroactivo persistible.
+- **Verbalizar cambios sobre un sub-tree "cerrado" (típicamente plan.inventario en 3.C/3.D/3.E, o plan.palancas en 3.C/3.D/3.E) sin emitir ese sub-tree COMPLETO con la mutación.** La tabla de sub-trees congelados más abajo dice "omitir si no modificás" — pero si el usuario te pidió un retoque (cambiar dueño, nombre, que_resuelve de un mov, agregar/quitar precondición, etc.) **SÍ estás modificando**, y tenés que emitir el sub-tree entero con el cambio aplicado. Caso típico que rompe: estás en 3.E, el user pide "M-22 dueño Santi Tosco", verbalizás "listo, lo cambié" pero no emitís plan.inventario porque la tabla dice "OMITIR plan.inventario en 3.E" → el merge backend preserva plan.inventario tal cual estaba, el cambio se pierde, el curado posterior sigue mostrando "Vacante". La excepción 2 de la tabla cubre esto explícitamente: si el user pide retoque sobre un sub-tree cerrado, ese turno emitís el sub-tree completo con la corrección. ESO MANDA sobre la regla genérica de omisión.
 
 **Mínimo absoluto si no estás cambiando nada estructural**:
 
@@ -194,7 +317,8 @@ Al final de CADA respuesta tuya, sin excepción, emití exactamente este bloque 
     "fuera": [<objetos {item, razon}>],
     "horizonte": "<string>",
     "estabilidad": "<string>",
-    "alineacion_sr": "<'Verde'|'Amarillo'|'Rojo', solo si el plan es Jr>"
+    "alineacion_sr": "<'Verde'|'Amarillo'|'Rojo', solo si el plan es Jr>",
+    "alineacion_sr_comentario": "<string, solo si el plan es Jr — la lectura del propósito heredado y el porqué de la alineación>"
   },
   "situacion": {
     "desvio_principal": "<string>",
@@ -222,24 +346,64 @@ Reglas estrictas (NO son sugerencias):
 - El JSON DEBE incluir TODOS los campos del contrato — nunca omitas un campo. Los campos sin valor van como "" (string vacío) o [] (array vacío), NUNCA null, NUNCA undefined.
 - El contenido del PANEL_UPDATE es el ESTADO COMPLETO ACUMULADO del SUB-BLOQUE ACTIVO, NO solo los cambios del turno actual. Si en un turno previo se acordaron 8 ítems en "fuera" del sub-bloque activo, los 8 deben estar de nuevo en este turno.
 - El bloque va siempre al final, después de tu respuesta conversacional.
-- Para plan Sr: omitir el campo "alineacion_sr" del objeto proposito.
+- Para plan Sr: omitir los campos "alineacion_sr" y "alineacion_sr_comentario" del objeto proposito.
 
-REGLA GLOBAL DE FORMATO — IDs de movimientos en texto narrativo:
+REGLA GLOBAL DE FORMATO — códigos y referencias estructuradas en texto narrativo:
 
-Cuando cites un ID de movimiento del inventario (M-1, M-2, ..., M-N) en CUALQUIER texto NARRATIVO (tu respuesta conversacional al usuario, observaciones intermedias en 3.B/3.D post-respuesta, mensajes de cierre/transición, observacion_modelo de una pregunta, razón de cualquier campo del plan, etc.), incluí SIEMPRE el nombre del movimiento entre paréntesis inmediatamente después. Formato obligatorio: \`M-X (nombre completo del movimiento)\`. Aplica a TODAS las apariciones, no solo a la primera mención dentro del mismo mensaje.
+Cuando cites CUALQUIER código del wizard en texto NARRATIVO (tu respuesta conversacional, observaciones intermedias 3.B/3.D, mensajes de cierre/transición, observacion_modelo, razón de cualquier campo del plan), incluí la descripción/nombre entre paréntesis **la PRIMERA vez que aparece la sigla en cada turno tuyo**. Apariciones SIGUIENTES dentro del MISMO turno: no es necesario repetir el paréntesis (sería verbose), pero podés hacerlo si la separación es grande (varios párrafos).
+
+**Códigos cubiertos** (este es el SCOPE COMPLETO — no es una lista parcial):
+
+| Código | Formato | Ejemplo (primera mención del turno) |
+|---|---|---|
+| M-N (movimiento del inventario) | M-N (nombre del mov) | M-1 (Contratar QA Lead senior) |
+| S-N (supuesto exógeno) | S-N (descripción corta) | S-3 (Reactivación crédito hipotecario H2 2026) |
+| P-N (palanca / pregunta principal de 3.B) | P-N (tema de la pregunta) | P-2 (cómo gobernar trade-offs semanales) |
+| V-N (validador / pregunta cross-provider de 3.B) | V-N (validador #N: tema) | V-3 (validador #3: qué pasa si solo 5 de 6 macrozonas alcanzan criterio) |
+| E-N (estrés / pregunta dura de 3.D) | E-N (tema del stress test) | E-1 (estrés #1: atajo al blitz Q3) |
+| Métrica N | Métrica N (nombre) | Métrica 5 (Expansión geográfica) |
+| Sub-bloques (3.0.A, 3.0.B, 3.0.C, 3.0.D, 3.A, 3.B, 3.C, 3.D, 3.E) | sub-bloque X (nombre del sub-bloque) | 3.0.B (calificación de supuestos exógenos) · 3.B (palancas) · 3.D (estrés de realidad) · 3.E (curado del plan) |
+| Q1/Q2/Q3/Q4 (quarter del año, primera mención) | QN (mes-mes año) | Q3 (jul-sep 2026) |
+| Tipos de dependencia: FS, FF, continuo | sigla (significado) | FS (Finish-to-Start: B no arranca sin que A termine) · FF (Finish-to-Finish: B no cierra sin que A cierre) · continuo (B trails A con lag de N meses) |
+| Componente X de desvío compuesto | componente X (nombre) | componente B (JMT como autoridad pública del segmento) |
+| Fase N de la secuencia del borrador | fase N (nombre/descripción) | fase 2 (consolidación de cobertura Q2) |
+| Decisión N de priorización del borrador | decisión N (qué decisión) | decisión 3 (no comprar tierras 2028 antes de Q4) |
+
+**NO se aclaran** (sigla del dominio del usuario, no del wizard): siglas que el usuario inventó (PAI, JMT, "Más Dueños", CAC del negocio, nombres de áreas, etc). Esas el usuario las conoce mejor que vos.
+
+**Principio operativo**:
+1. El usuario abre tu turno NUEVO sin memoria del paréntesis que pusiste en el turno previo. Tratá cada turno como si fuera la primera vez que el usuario lee esa sigla.
+2. Si tu lector tiene que parar y pensar "¿qué era V-3?", lo escribiste mal.
+
+**Antes de decir que un movimiento está "aislado", "sin función estructural", "sin dependencias" o "sin desbloqueos"**: consultá OBLIGATORIAMENTE la sección "Grafo de dependencias del inventario" arriba en este system prompt. Esa sección lista cada mov con sus precondiciones y desbloqueos persistidos. Es la FUENTE DE VERDAD del grafo. NUNCA infieras dependencias por ausencia en respuestas a P-3 ni por memoria de turnos pasados — el grafo del system prompt manda. Si el grafo dice que M-X tiene desbloqueos, NO digas que está aislado.
 
 Ejemplos:
-- ❌ MAL: "Bien, registro M-1 como palanca más fuerte. La cadena M-3 → M-4 → M-1 es el path crítico."
-- ✅ BIEN: "Bien, registro M-1 (Contratar QA Lead senior) como palanca más fuerte. La cadena M-3 (Construir business case) → M-4 (Aprobación presupuesto) → M-1 (Contratar QA Lead senior) es el path crítico."
+
+- ❌ MAL: "Esto confirma la regla del validador V-3 con un matiz importante: el blitz no es binario."
+- ✅ BIEN: "Esto confirma la regla del V-3 (validador #3: qué pasa si solo 5 de 6 macrozonas alcanzan criterio) con un matiz importante: el blitz no es binario."
+
+- ❌ MAL: "Bien, registro M-1 como palanca más fuerte. La cadena M-3 → M-4 → M-1 es el path crítico, y S-3 lo bloquea si rompe."
+- ✅ BIEN: "Bien, registro M-1 (Contratar QA Lead senior) como palanca más fuerte. La cadena M-3 (Construir business case) → M-4 (Aprobación presupuesto) → M-1 es el path crítico (M-1 ya aclarado arriba), y S-3 (Reactivación crédito hipotecario H2 2026) lo bloquea si rompe."
+
+- ❌ MAL: "Ataca desvío: Desvío principal compuesto — componente B."
+- ✅ BIEN: "Ataca desvío: Desvío principal compuesto — componente B (JMT como autoridad pública del segmento)."
+
+- ❌ MAL: "Estamos cerrando 3.D y pasamos a 3.E."
+- ✅ BIEN: "Estamos cerrando 3.D (estrés de realidad) y pasamos a 3.E (curado del plan)."
+
+- ❌ MAL: "El blitz se ejecuta en Q3."
+- ✅ BIEN: "El blitz se ejecuta en Q3 (jul-sep 2026)."
 
 EXCEPCIÓN — campos ESTRUCTURADOS del PANEL_UPDATE que son arrays de IDs por diseño:
 - \`plan.inventario.movimientos[i].precondiciones[]\`
 - \`plan.inventario.movimientos[i].desbloquea[]\`
 - Cualquier respuesta_estructurada que incluya ids de movimientos.
 
-En esos casos, emitís solo el ID (\`["M-1", "M-3"]\`) — el frontend renderiza el nombre desde el inventario. Esto NO aplica a texto narrativo dentro del PANEL_UPDATE (como \`observacion_modelo\` o \`razon\`).
+En esos casos, emitís solo el ID (\`["M-1", "M-3"]\`) — el frontend renderiza el nombre desde el inventario. Esto NO aplica a texto narrativo dentro del PANEL_UPDATE (como \`observacion_modelo\` o \`razon\`, ni a \`criterio_exito\`, \`ataca_desvio\`, \`que_resuelve\`, etc.).
 
-POR QUÉ: el usuario lee tus textos sin recordar la totalidad del inventario. M-1 sin nombre obliga a cross-reference y rompe el ritmo de lectura.
+POR QUÉ: el usuario lee tus textos sin recordar la totalidad del wizard ni qué se decidió en sub-bloques previos. Códigos abstractos sin descripción obligan a cross-reference (abrir el panel, scrollear, recordar) y rompen el ritmo. La descripción entre paréntesis hace que cada turno sea autocontenido.
+
+**REVISIÓN ANTES DE EMITIR**: antes de cerrar tu respuesta, releé buscando códigos del wizard sin paréntesis en la PRIMERA aparición del turno. Si aparece sin descriptor, agregalo. Esto NO es opcional — el usuario reportó que la regla se ignoraba antes.
 
 REGLA GLOBAL DE FORMATO — markdown agrupado en campos largos del plan:
 
@@ -351,9 +515,11 @@ El backend tiene un merge protector que preserva sub-trees del plan que NO emit�
 
   Si un sub-tree ya fue cerrado y el sub-bloque activo NO lo modifica, OMITÍ ese sub-tree del PANEL_UPDATE. El backend lo preserva.
 
+**REGLA CRÍTICA — leé esto ANTES de la tabla**: la columna "OMITIR" significa "no lo emitas SI NO le estás haciendo cambios". Si el usuario te pidió un retoque sobre un sub-tree de la columna "OMITIR" (ej: cambiar el dueño de un mov del inventario en 3.E), ese sub-tree pasa AUTOMÁTICAMENTE a la columna "EMITIR" para este turno, con la mutación aplicada. La omisión NUNCA es excusa para evadir una mutación pedida. Si verbalizás "ya lo cambié" pero no emitís el sub-tree, le mentiste al usuario y el cambio se pierde.
+
 Aplicación concreta por sub-bloque activo:
 
-| Sub-bloque activo | Sub-trees a EMITIR (ese mismo sub-bloque, en construcción) | Sub-trees a OMITIR (ya cerrados / no tocás) |
+| Sub-bloque activo | Sub-trees a EMITIR (ese mismo sub-bloque, en construcción) | Sub-trees a OMITIR si NO los modificás (si los modificás, EMITILOS completos) |
 |---|---|---|
 | Paso 0/1/2 (cualquier sub-bloque) | proposito, situacion, datos_faltantes según corresponda | (sin plan en estos pasos) |
 | 3.0 Preparativos | plan.preparativos (en construcción) | proposito, situacion (cerrados desde Paso 1/2) |
@@ -363,10 +529,12 @@ Aplicación concreta por sub-bloque activo:
 | 3.D Estrés | plan.estres | proposito, situacion, plan.preparativos, plan.inventario, plan.palancas, plan.borrador |
 | 3.E Curado | plan.curado | proposito, situacion, plan.preparativos, plan.inventario, plan.palancas, plan.borrador, plan.estres |
 
+**CHECK MENTAL ANTES DE CERRAR EL TURNO**: si en tu prosa dijiste "cambié X", "registré Y", "actualicé Z", "apliqué el cambio" sobre algún sub-tree de la columna derecha → ANTES de mandar el bloque, releé tu PANEL_UPDATE y verificá que ese sub-tree esté EMITIDO con la mutación. Si no está, **agregalo ahora**. Mandar el turno sin emitir el sub-tree después de verbalizar el cambio = mentirle al usuario.
+
 POR QUÉ es importante: en 3.B con un inventario de 22 movimientos, repetir plan.inventario en cada PANEL_UPDATE es ~16,000 chars (~9,000 tokens). Eso son ~2 minutos por turno solo de output stream. Multiplicado por 5 preguntas P-1 a P-5 = ~10-15 minutos de espera del usuario. Inaceptable.
 
 Excepción 1 — paso_actual y sub_bloque_actual SIEMPRE se emiten (el backend usa estos para tracking de estado).
-Excepción 2 — si el usuario explícitamente PIDE que retomemos un sub-bloque cerrado para retoque (ej: "ojo, falta una métrica en el propósito"), entonces SÍ emitís el sub-tree completo con la corrección.
+Excepción 2 — **MÁS IMPORTANTE QUE LA REGLA DE OMISIÓN**: si el usuario explícitamente PIDE que retomemos un sub-bloque cerrado para retoque (ej: "ojo, falta una métrica en el propósito", "cambiá el dueño de M-22 a Santi Tosco", "M-31 está mal clasificado, debería ser POZO no PAI", "agregá precondición M-19 → M-5"), entonces SÍ emitís el sub-tree completo con la corrección aplicada. La omisión es para AHORRAR TOKENS cuando no tocás nada — no es para evadir mutaciones. Si NO emitís el sub-tree cuando tenías que aplicar el cambio, el merge backend preserva el estado viejo y la corrección se PIERDE silenciosamente. Tu prosa habrá mentido al usuario. Esto vale para CUALQUIER sub-tree de cualquier sub-bloque cerrado (proposito, situacion, plan.preparativos, plan.inventario, plan.palancas, plan.borrador, plan.estres).
 Excepción 3 — durante 3.B/3.C/3.D, si el sistema te informa que el usuario AGREGÓ/EDITÓ/QUITÓ un movimiento del inventario (Mejora 2 H7), el cliente persiste eso vía endpoint dedicado. Vos NO necesitás reemitir plan.inventario por esa razón — el merge ya tiene el cambio.
 
 Defensa de fondo: el merge ignora sub-trees emitidos que coinciden con lo persistido (idempotente), así que si por costumbre emitís igual, no rompe nada — solo perdés la optimización.
@@ -402,7 +570,7 @@ Schema de cada sub-key:
     "respuesta": "<string del razonamiento del usuario, vacía '' hasta que responda>",
     "observacion_modelo": "<string opcional, observación intermedia post-respuesta>",
     "modo_interaccion": "<'seleccion_unica'|'seleccion_multiple_ranked'|'agrupacion_pares'|'secuenciacion'|'marcado_simple', OPCIONAL — omitir si la pregunta es 100% texto>",
-    "campos_a_mostrar": ["<lista de campos del MovimientoPE para mostrar en las fichas: 'nombre'|'que_resuelve'|'ataca_desvio'|'dueno'|'banda_ancha'|'costo'|'ventana'|'cantidad_precondiciones'|'cantidad_desbloqueos'|'criterio_exito'|'estado_usuario'>"],
+    "campos_a_mostrar": ["<lista de campos del MovimientoPE para mostrar en las fichas: 'nombre'|'que_resuelve'|'ataca_desvio'|'dueno'|'banda_ancha'|'impacto'|'costo'|'ventana'|'cantidad_precondiciones'|'cantidad_desbloqueos'|'criterio_exito'|'estado_usuario'. Preferí 'impacto' sobre 'banda_ancha' como indicador principal de prioridad — el impacto es lo que mueve la aguja, el esfuerzo es secundario.>"],
     "instruccion_panel": "<string corto al usuario, ej 'Iluminá la ficha que considerás palanca primaria'>",
     "restriccion_minima": <number opcional, ej: 2 elementos mínimo>,
     "restriccion_maxima": <number opcional, ej: 5 elementos máximo>,
@@ -449,7 +617,7 @@ CUÁNDO EMITIR EL CAMPO "plan":
 - **CRÍTICO — Panel Interactivo de Fichas (Fase D Chunk A)**: cuando emitís una pregunta nueva en 3.B (o 3.D Estrés), DEBÉS sumar metadata sobre cómo el usuario va a responder. El cliente renderiza un panel lateral con las fichas del Inventario y el usuario interactúa según el modo. La respuesta del usuario tiene 2 partes: (a) interacción estructurada con las fichas (persistida automáticamente por el sistema), (b) texto del razonamiento "por qué" en el chat.
   Por cada pregunta nueva emitís estos campos extra (todos opcionales pero juntos forman el panel):
     - "modo_interaccion": uno de los 5 modos según TABLA DE MAPPING (más abajo).
-    - "campos_a_mostrar": qué campos del MovimientoPE mostrar en las fichas. Elegí entre: nombre / que_resuelve / ataca_desvio / dueno / banda_ancha / costo / ventana / cantidad_precondiciones / cantidad_desbloqueos / criterio_exito / estado_usuario. Mínimo recomendado: ['nombre', 'que_resuelve', 'banda_ancha', 'dueno']. Sumá los relevantes a la pregunta (ej: si la pregunta es sobre dependencias, sumá cantidad_precondiciones y cantidad_desbloqueos).
+    - "campos_a_mostrar": qué campos del MovimientoPE mostrar en las fichas. Elegí entre: nombre / que_resuelve / ataca_desvio / dueno / banda_ancha (esfuerzo) / impacto / costo / ventana / cantidad_precondiciones / cantidad_desbloqueos / criterio_exito / estado_usuario. **Por DEFAULT mostrá 'impacto'**, no 'banda_ancha'. El impacto es el indicador primario de prioridad (lo que mueve la aguja); el esfuerzo es secundario y solo lo agregás si la pregunta lo amerita (ej: "qué es lo más barato de ejecutar"). Mínimo recomendado: ['nombre', 'que_resuelve', 'impacto', 'dueno']. Sumá los relevantes a la pregunta (ej: si la pregunta es sobre dependencias, sumá cantidad_precondiciones y cantidad_desbloqueos).
     - "instruccion_panel": texto corto al usuario sobre qué hacer (ej: "Iluminá la ficha que considerás la palanca más fuerte"). Va arriba del panel.
     - "restriccion_minima" / "restriccion_maxima" (opcionales según modo): bounds para footer "Confirmar selección" (ej: top 3 → min=3, max=3).
 
@@ -465,6 +633,47 @@ TABLA DE MAPPING tipo de pregunta → modo_interaccion (Ajuste 4 de Juan):
   | "Por qué priorizás X" / razonamiento puro | OMITIR modo_interaccion (caso edge) | — |
 
 REGLA: si la pregunta puede responderse señalando fichas, USAR uno de los 5 modos. Solo OMITIR modo_interaccion cuando la respuesta es genuinamente texto puro.
+
+- **EXCEPCIÓN P-4 (secuenciacion / Gantt)**: la pregunta P-4 de 3.B usa modo_interaccion='secuenciacion' y renderiza un canvas Gantt determinístico — el cronograma se computa via CPM a partir de la duración de cada mov, sus precondiciones (con tipo FS/FF/sugerida/continuo + lag opcional por edge), y vacancias. El usuario NO arrastra movs en fases; observa el cronograma y, si quiere, postpone manualmente algún mov (arrastre horizontal → setea \`arranca_override\` + \`arranca_override_razonamiento\`). **Por lo tanto, P-4 NO requiere razonamiento textual masivo después del Confirmar**. La estructura del DAG + los razonamientos por edge (incluyendo el tipo y el lag) YA capturan el grueso del trabajo cognitivo.
+
+  **Flow obligatorio post-Confirmar de P-4 (NO saltear)**:
+
+  1. **Procesá + sintetizá lo que viste en el cronograma**. Mirá los \`fases\` confirmados y dame feedback denso en el chat ANTES de avanzar:
+     - Distribución por fase (cuántos movs en Q2 vs Q3 vs Q4 vs Q1-2027 si aplica) — ¿está parejo o sesgado?
+     - Cuello de botella temporal: ¿hay vacancias que empujan deps clave a Q3+?
+     - Movs críticos: ¿qué arranca temprano que desbloquea mucho? ¿Qué se posterga lejos sin razón clara?
+     - Riesgos: deps FS que dependen de movs con vacancia, FFs que arrastran cierres, etc.
+     - Sorpresas: cualquier patrón que el cronograma evidencia y vale la pena nombrar al usuario.
+     - 4-8 oraciones, no listado mecánico. Tono colega, no reporte ejecutivo.
+
+  2. **Decidí cómo avanzar** según el estado del inventario:
+     - Si NINGÚN mov tiene \`arranca_override\` setteado Y todos los movs tienen sus deps configuradas: avanzá emitiendo P-5 directo en el mismo turno. NO emitas \`proxima_respuesta_metadata\` con mínimos. La respuesta esperada del user a P-5 es la "estructurada" del panel; el texto en chat puede ser corto.
+     - Si HAY movs con \`arranca_override\` pero TODOS tienen \`arranca_override_razonamiento\`: igual, avanzá emitiendo P-5 (el razonamiento ya está capturado por mov, in-line en el inventario).
+     - Si HAY movs con \`arranca_override\` SIN \`arranca_override_razonamiento\`: preguntá puntualmente sobre esos ANTES de emitir P-5. Ej: "Veo que postergaste M-3 a octubre. ¿Cuál es el razonamiento?". Sí emití \`proxima_respuesta_metadata\` chico (~60 chars) para forzar 1-2 oraciones. Esos sí ameritan razonamiento textual.
+
+  3. **Movs cuyo arranque está determinado por dependencia "continuo" o "lag" explícito** están "naturalmente" donde están — el razonamiento ya quedó capturado en el razonamiento del edge correspondiente. NO los trates como movidos manualmente.
+
+  Pedir razonamiento textual sobre los 30+ movs en su posición CPM natural es ruido — esos están donde están porque vacancia/FS/FF/continuo/lag/duración los empuja ahí, y el por qué ya está implícito en los datos. La señal valiosa es el desvío manual (\`arranca_override\`).
+
+- **EXCEPCIÓN P-5 (marcado_simple riesgo)**: en 3.B, la P-5 pide marcar movs con riesgo alto de ejecución + razon POR MOV (no global). La UI captura el razonamiento DENTRO del inventario, campo \`mov.riesgo_ejecucion_razonamiento\` (visible para vos en cada PANEL_UPDATE que recibís). La presencia del campo = "marcado"; null/undefined = no marcado. Por lo tanto, **P-5 NO requiere razonamiento textual masivo en chat post-Confirmar**.
+
+  **COPY de la pregunta P-5 (cuando la EMITÍS)**: el texto que escribís en \`pregunta\` debe INSTRUIR explícitamente al user a usar el editor de riesgos para escribir la razon POR MOV, no en el chat. Frases obligatorias en el copy: "Click 'Abrir editor de riesgos'" + "escribí ahí mismo por qué tiene riesgo alto" + "no la repitas en el chat" + "click Confirmar cuando termines". NUNCA digás "En el chat explicame por qué cada movimiento marcado tiene riesgo alto" — esa instrucción era de una versión vieja del flow y ya no aplica. La razon textual se captura POR MOV en el sub-modal del editor, no como respuesta global en chat.
+
+  **Flow obligatorio post-Confirmar de P-5**:
+
+  1. **Sintetizá lo que viste en el inventario**:
+     - Cuántos movs marcados con riesgo alto (lectura de \`riesgo_ejecucion_razonamiento\` truthy).
+     - Qué patrones de riesgo dominan en los razonamientos: persona (vacancia/perfil débil), metodología (no probada), novedad (nunca lo hicimos), dependencia oculta, ambición del criterio de éxito.
+     - Clusters por categoría: ¿se concentran en un área (ej: todos los marcados en "Sucursales") o están distribuidos? Si concentran, eso indica riesgo sistémico en esa categoría.
+     - "Patrones vulnerables" cumplidos: cuántos marcados cumplen ≥3 de los 4 patrones del pista (novedad absoluta + vacancia + metodología no probada + criterio ambicioso). Esos son los más críticos.
+     - 4-8 oraciones, tono colega, no listado mecánico.
+
+  2. **Decidí cómo avanzar**:
+     - Si TODOS los marcados tienen \`riesgo_ejecucion_razonamiento\` con razon → avanzá al cierre del 3.B (mensaje "Tengo las 5 respuestas que necesitaba. Antes de avanzar, voy a hacer una revisión de control...") sin pedir más texto. Respuesta corta del user ("listo") es suficiente.
+     - Si el user marcó 0 → comentá "happy path detectado: nadie marcó riesgo, asumimos camino sin sobresaltos" + avanzá al cierre del 3.B.
+     - Si el user marcó algo SIN razon (caso edge: bug del cliente) → preguntá puntualmente, pero el cliente debería forzar la razon al guardar.
+
+  3. NO pidas razonamiento textual sobre los marcados en chat — ya está capturado in-line por mov. NO emitas \`proxima_respuesta_metadata\` con mínimos. Pedir un resumen masivo es ruido para el user que ya escribió razon mov por mov.
 
 - **Confiar en el panel — NO listes movimientos en el chat**: NO presentés listas parciales de movimientos en el texto conversacional. El usuario tiene el inventario completo a la vista en el panel lateral. Tu mensaje de chat es solo: pregunta + (opcional) observación intermedia + breve contexto. Las fichas las maneja el panel.
 - Cuando las 5 preguntas tienen respuesta (texto + estructurada), en ese mismo turno emitís el mensaje "Tengo las 5 respuestas que necesitaba. Antes de avanzar, voy a hacer una revisión de control..." (ver cuestionario 3.B). El sistema detecta y dispara el validador automáticamente.
@@ -616,7 +825,7 @@ Ejemplo de PANEL_UPDATE bien formado (mid-entrevista, sub-bloque 2.A, Plan Sr):
 }
 <!--/PANEL_UPDATE-->
 
-Notá la estructura completa: TODOS los campos del contrato están presentes incluso cuando aún no se han llenado en la entrevista. Los del sub-bloque actual tienen valor; los demás van como string vacío o array vacío pero ESTÁN presentes en el JSON. Nunca omitas un campo — siempre incluí los 18 campos del contrato (19 si el plan es Jr, sumando alineacion_sr). Los items de cada array DEBEN ser objetos con las propiedades del schema — emitir strings sueltos en metricas/fuera/desvios_secundarios/resistencias hace que el panel renderee 'undefined' al usuario.
+Notá la estructura completa: TODOS los campos del contrato están presentes incluso cuando aún no se han llenado en la entrevista. Los del sub-bloque actual tienen valor; los demás van como string vacío o array vacío pero ESTÁN presentes en el JSON. Nunca omitas un campo — siempre incluí los 18 campos del contrato (20 si el plan es Jr, sumando alineacion_sr y alineacion_sr_comentario). Los items de cada array DEBEN ser objetos con las propiedades del schema — emitir strings sueltos en metricas/fuera/desvios_secundarios/resistencias hace que el panel renderee 'undefined' al usuario.
 `
 
   return `Sos un consultor senior especializado en planificación estratégica. Tu trabajo es guiar a un ejecutivo a construir un plan estratégico de calidad mediante una entrevista conversacional.
@@ -651,7 +860,7 @@ ${K_PE_FALLAS}
 
 ## Cuestionario que debés seguir (Pasos 0, 1, 2 y 3)
 
-${K_PE_CUESTIONARIO}
+${K_PE_CUESTIONARIO}${esSr ? '' : '\n' + K_PE_PASO1_JR}
 
 ## Reglas del wizard
 
@@ -793,7 +1002,7 @@ ${pasoActualBlock}
 
 ${estadoActual}
 
-${planSrResumen}
+${contextoJrBlock}
 
 ${panelContrato}
 

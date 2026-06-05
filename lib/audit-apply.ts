@@ -6,10 +6,11 @@
 //     `que_dice_resumen` (cita textual del resumen) en los string fields del
 //     plan, y lo reemplaza por el `cambio_propuesto` (o `texto_editado` si el
 //     usuario editó el texto antes de aprobar).
-//   - Cross-block changes → NO-OP en Fase 4 (validador enforza que están vacíos
-//     en Bloque 1, único auditable hoy). Para Bloque 2+, se registran en las
-//     decisiones para tracking pero no se aplican automáticamente — un futuro
-//     incremento puede modificar el snapshot del bloque previo.
+//   - Cross-block changes aprobados / aprobado_con_cambios → sustitución
+//     determinística por código (mismo localizador que errors). Modifican
+//     campos del plan en Pasos anteriores (proposito / situacion). Cada
+//     cross-block aplicado registra un WarningRetroactivo en
+//     plan.warnings_retroactivos como audit trail permanente.
 //   - Questions respondidas → SÍ pasan por Opus para integración semántica.
 //     La llamada a Opus la hace el endpoint /apply (no este módulo), pero la
 //     selección de qué preguntas integrar la hace `splitDecisiones()` abajo.
@@ -23,11 +24,13 @@ import type {
   PlanEstrategico,
   PropositorPE,
   SituacionPE,
+  PlanoPE,
   ReviewerReport,
   ReviewerError,
   ReviewerQuestion,
   ReviewerCrossBlock,
   DecisionUsuario,
+  WarningRetroactivo,
 } from './types'
 
 // ─── Buckets de decisiones ────────────────────────────────────────────────────
@@ -182,6 +185,110 @@ export function applyErrorsDeterministicamente(
     warnings,
     errorsAplicados: aplicados,
     errorsNoEncontrados: noEncontrados,
+  }
+}
+
+// ─── Apply de cross-block changes ───────────────────────────────────────────
+//
+// Cambios retroactivos a Pasos anteriores aprobados por el user en Pantalla 3.
+// Usan el mismo localizador determinístico que los errors (busca el texto
+// `que_dice_actualmente` en los string fields y arrays del plan) y reemplazan
+// por el `texto_editado` del user o el `cambio_propuesto` del reviewer.
+//
+// Side effect: cada cross-block aplicado registra un WarningRetroactivo en
+// plan.warnings_retroactivos como audit trail permanente. Mismo contract que
+// el modal de control suave Bloque F.
+//
+// Los huérfanos (no se encuentra el texto en el plan) salen como warnings sin
+// abortar — el user los puede aplicar a mano. Patrón igual a errors.
+
+export interface ApplyCrossBlockResult {
+  planActualizado: PlanEstrategico
+  fieldsModificados: string[]
+  warnings: string[]
+  crossBlockAplicados: number
+  crossBlockNoEncontrados: number
+  warningsRetroactivosCreados: number
+}
+
+export function applyCrossBlockChanges(
+  planOriginal: PlanEstrategico,
+  crossBlockAprobados: Array<{ cbc: ReviewerCrossBlock; decision: DecisionUsuario }>,
+  contexto: { paso_origen: number; sub_bloque_origen: string },
+): ApplyCrossBlockResult {
+  const plan: PlanEstrategico = JSON.parse(JSON.stringify(planOriginal))
+  const fieldsModificados: string[] = []
+  const warnings: string[] = []
+  let aplicados = 0
+  let noEncontrados = 0
+
+  if (crossBlockAprobados.length === 0) {
+    return {
+      planActualizado: plan,
+      fieldsModificados,
+      warnings,
+      crossBlockAplicados: 0,
+      crossBlockNoEncontrados: 0,
+      warningsRetroactivosCreados: 0,
+    }
+  }
+
+  // Ensure plan.plan + warnings_retroactivos existen — vamos a appendar warnings
+  // por cada cross-block aplicado. Si el plan no tiene plan.plan todavía (caso
+  // muy edge — audit en Paso 1 sin Paso 3 iniciado), creamos shell vacío.
+  if (!plan.plan) plan.plan = {} as PlanoPE
+  if (!plan.plan.warnings_retroactivos) plan.plan.warnings_retroactivos = []
+
+  for (const { cbc, decision } of crossBlockAprobados) {
+    const textoFinal = decision.decision === 'aprobado_con_cambios' && decision.texto_editado
+      ? decision.texto_editado
+      : cbc.cambio_propuesto
+
+    const target = locateFieldByText(plan, cbc.que_dice_actualmente)
+
+    if (!target) {
+      warnings.push(
+        `Cross-block ${cbc.id} (Bloque ${cbc.bloque_afectado} · ${cbc.seccion_afectada}): ` +
+        `no se encontró el texto "${cbc.que_dice_actualmente.slice(0, 80)}..." en ningún campo del plan. NO se aplicó.`,
+      )
+      noEncontrados++
+      continue
+    }
+
+    applyAtTarget(plan, target, cbc.que_dice_actualmente, textoFinal)
+    fieldsModificados.push(
+      target.kind === 'string'
+        ? target.path
+        : `${target.arrayPath}[${target.index}].${target.itemKey}`,
+    )
+
+    // Registrar WarningRetroactivo — audit trail permanente. Igual contract que
+    // el modal de control suave Bloque F.
+    const warning: WarningRetroactivo = {
+      timestamp: new Date().toISOString(),
+      bloque_afectado: `Paso ${cbc.bloque_afectado} · ${cbc.seccion_afectada}`,
+      paso_de_origen: contexto.paso_origen,
+      sub_bloque_de_origen: contexto.sub_bloque_origen,
+      texto_previo: cbc.que_dice_actualmente,
+      descripcion_cambio: `Cross-block aprobado en auditoría: ${textoFinal.slice(0, 280)}${textoFinal.length > 280 ? '…' : ''}`,
+      impactos_detectados: [
+        `Reviewer detectó modificación implícita en turno ${cbc.turno_referencia}`,
+        `Severidad: ${cbc.severidad}`,
+      ],
+      confirmado_por_user: true,
+    }
+    plan.plan.warnings_retroactivos.push(warning)
+
+    aplicados++
+  }
+
+  return {
+    planActualizado: plan,
+    fieldsModificados,
+    warnings,
+    crossBlockAplicados: aplicados,
+    crossBlockNoEncontrados: noEncontrados,
+    warningsRetroactivosCreados: aplicados,  // 1:1 con aplicados
   }
 }
 

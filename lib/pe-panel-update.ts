@@ -130,7 +130,7 @@ function validateMovimientoItem(item: any, idx: number, prefix: string): string[
   if (typeof item.categoria !== 'string') errs.push(`${prefix}[${idx}].categoria debe ser string`)
   if (typeof item.nombre !== 'string') errs.push(`${prefix}[${idx}].nombre debe ser string`)
   if (typeof item.que_resuelve !== 'string') errs.push(`${prefix}[${idx}].que_resuelve debe ser string`)
-  if (typeof item.ataca_desvio !== 'string') errs.push(`${prefix}[${idx}].ataca_desvio debe ser string`)
+  if (item.ataca_desvio !== undefined && typeof item.ataca_desvio !== 'string') errs.push(`${prefix}[${idx}].ataca_desvio debe ser string o undefined`)
   if (!['baja', 'media', 'alta'].includes(item.costo_banda_ancha)) errs.push(`${prefix}[${idx}].costo_banda_ancha debe ser 'baja'|'media'|'alta'`)
   if (typeof item.costo_monetario !== 'object' || item.costo_monetario === null) {
     errs.push(`${prefix}[${idx}].costo_monetario debe ser objeto {rango_min_usd, rango_max_usd, nota?}`)
@@ -144,12 +144,90 @@ function validateMovimientoItem(item: any, idx: number, prefix: string): string[
     if (typeof item.ventana_temporal.arranca !== 'string') errs.push(`${prefix}[${idx}].ventana_temporal.arranca debe ser string YYYY-MM`)
     if (typeof item.ventana_temporal.termina !== 'string') errs.push(`${prefix}[${idx}].ventana_temporal.termina debe ser string YYYY-MM`)
   }
+  // arranca_override + razonamiento son opcionales; pueden ser string YYYY-MM,
+  // null (limpiado post-edit) o undefined (nunca seteado).
+  if (item.arranca_override !== undefined && item.arranca_override !== null) {
+    if (typeof item.arranca_override !== 'string' || !/^\d{4}-\d{2}$/.test(item.arranca_override)) {
+      errs.push(`${prefix}[${idx}].arranca_override debe ser string YYYY-MM, null o undefined`)
+    }
+  }
+  if (item.riesgo_ejecucion_razonamiento !== undefined && item.riesgo_ejecucion_razonamiento !== null && typeof item.riesgo_ejecucion_razonamiento !== 'string') {
+    errs.push(`${prefix}[${idx}].riesgo_ejecucion_razonamiento debe ser string, null o undefined`)
+  }
+  if (item.arranca_override_razonamiento !== undefined && item.arranca_override_razonamiento !== null && typeof item.arranca_override_razonamiento !== 'string') {
+    errs.push(`${prefix}[${idx}].arranca_override_razonamiento debe ser string, null o undefined`)
+  }
   if (!Array.isArray(item.precondiciones)) errs.push(`${prefix}[${idx}].precondiciones debe ser array de ids`)
   if (!Array.isArray(item.desbloquea)) errs.push(`${prefix}[${idx}].desbloquea debe ser array de ids`)
-  if (!['dura', 'blanda', 'ninguna'].includes(item.tipo_dependencia)) errs.push(`${prefix}[${idx}].tipo_dependencia debe ser 'dura'|'blanda'|'ninguna'`)
+  // tipo_dependencia: aceptamos los nuevos ('sugerida'|'ff'|'fs'|'continuo'|'ninguna')
+  // Y los legacy ('dura'|'blanda') por backward-compat con planes pre-migración.
+  // El normalizador convierte legacy → nuevo al leer; aceptarlos acá evita que
+  // un PANEL_UPDATE viejo (cacheado en historial) explote.
+  if (!['sugerida', 'ff', 'fs', 'continuo', 'ninguna', 'dura', 'blanda'].includes(item.tipo_dependencia)) {
+    errs.push(`${prefix}[${idx}].tipo_dependencia debe ser 'sugerida'|'ff'|'fs'|'continuo'|'ninguna'`)
+  }
   if (typeof item.dueno !== 'string') errs.push(`${prefix}[${idx}].dueno debe ser string`)
   if (typeof item.criterio_exito !== 'string') errs.push(`${prefix}[${idx}].criterio_exito debe ser string`)
   if (!['aceptado', 'editado', 'quitado', 'pendiente'].includes(item.estado_usuario)) errs.push(`${prefix}[${idx}].estado_usuario debe ser 'aceptado'|'editado'|'quitado'|'pendiente'`)
+  // brechas_atacadas es opcional para backward-compat con movs viejos
+  // (pre-feature). Si está presente, debe ser array de strings. No validamos
+  // que los nombres existan en proposito.metricas acá porque el validator es
+  // local al inventario; ese check vive en la UI/migración.
+  if (item.brechas_atacadas !== undefined) {
+    if (!Array.isArray(item.brechas_atacadas)) {
+      errs.push(`${prefix}[${idx}].brechas_atacadas debe ser array de strings (nombres de métricas del propósito) o undefined`)
+    } else if (item.brechas_atacadas.some((b: any) => typeof b !== 'string')) {
+      errs.push(`${prefix}[${idx}].brechas_atacadas debe contener solo strings`)
+    }
+  }
+  // fase_visual es opcional — asignación a fase en la vista de Secuenciación
+  // (3.A.6). Solo metadata cognitiva.
+  if (item.fase_visual !== undefined &&
+      !['sin_secuenciar', 'fase_1', 'fase_2', 'fase_3'].includes(item.fase_visual)) {
+    errs.push(`${prefix}[${idx}].fase_visual debe ser 'sin_secuenciar'|'fase_1'|'fase_2'|'fase_3' o undefined`)
+  }
+  // precondiciones_tipo opcional — map per-edge sugerida/ff/fs/continuo.
+  // Backward-compat: aceptamos los legacy 'dura'/'blanda'; el normalizador los
+  // traduce al leer. Si no está el map, se usa tipo_dependencia global del mov.
+  if (item.precondiciones_tipo !== undefined) {
+    if (typeof item.precondiciones_tipo !== 'object' || item.precondiciones_tipo === null || Array.isArray(item.precondiciones_tipo)) {
+      errs.push(`${prefix}[${idx}].precondiciones_tipo debe ser objeto {precond_id: 'sugerida'|'ff'|'fs'|'continuo'} o undefined`)
+    } else {
+      for (const [k, v] of Object.entries(item.precondiciones_tipo)) {
+        if (v !== 'sugerida' && v !== 'ff' && v !== 'fs' && v !== 'continuo' && v !== 'dura' && v !== 'blanda') {
+          errs.push(`${prefix}[${idx}].precondiciones_tipo[${k}] debe ser 'sugerida'|'ff'|'fs'|'continuo', got '${v}'`)
+        }
+      }
+    }
+  }
+  // precondiciones_lag_meses opcional — map per-edge de lag en meses (>= 0).
+  if (item.precondiciones_lag_meses !== undefined) {
+    if (typeof item.precondiciones_lag_meses !== 'object' || item.precondiciones_lag_meses === null || Array.isArray(item.precondiciones_lag_meses)) {
+      errs.push(`${prefix}[${idx}].precondiciones_lag_meses debe ser objeto {precond_id: number>=0} o undefined`)
+    } else {
+      for (const [k, v] of Object.entries(item.precondiciones_lag_meses)) {
+        if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) {
+          errs.push(`${prefix}[${idx}].precondiciones_lag_meses[${k}] debe ser number >= 0, got '${v}'`)
+        }
+      }
+    }
+  }
+  // precondiciones_razonamiento opcional — map per-edge string explicativo.
+  if (item.precondiciones_razonamiento !== undefined) {
+    if (typeof item.precondiciones_razonamiento !== 'object' || item.precondiciones_razonamiento === null || Array.isArray(item.precondiciones_razonamiento)) {
+      errs.push(`${prefix}[${idx}].precondiciones_razonamiento debe ser objeto {precond_id: string} o undefined`)
+    } else {
+      for (const [k, v] of Object.entries(item.precondiciones_razonamiento)) {
+        if (typeof v !== 'string') {
+          errs.push(`${prefix}[${idx}].precondiciones_razonamiento[${k}] debe ser string, got ${typeof v}`)
+        }
+      }
+    }
+  }
+  // deps_validadas opcional — flag de bookkeeping del usuario en 3.A.6.
+  if (item.deps_validadas !== undefined && typeof item.deps_validadas !== 'boolean') {
+    errs.push(`${prefix}[${idx}].deps_validadas debe ser boolean o undefined`)
+  }
   return errs
 }
 
@@ -180,13 +258,39 @@ function validateInventario(inv: any, prefix: string): string[] {
   if (!Array.isArray(inv.resumenes_categoria)) errs.push(`${prefix}.resumenes_categoria debe ser array`)
   else errs.push(...validateArrayItems(inv.resumenes_categoria, `${prefix}.resumenes_categoria`, validateResumenCategoriaItem))
   if (typeof inv.generado_en !== 'string') errs.push(`${prefix}.generado_en debe ser string ISO datetime`)
+  // dag es opcional — el DAG del plan en 3.A.6, un solo objeto.
+  if (inv.dag !== undefined) {
+    if (typeof inv.dag !== 'object' || inv.dag === null || Array.isArray(inv.dag)) {
+      errs.push(`${prefix}.dag debe ser objeto DAGPlanPE o undefined`)
+    } else {
+      if (!Array.isArray(inv.dag.movs)) {
+        errs.push(`${prefix}.dag.movs debe ser array`)
+      } else {
+        errs.push(...validateArrayItems(inv.dag.movs, `${prefix}.dag.movs`, validateDAGMovItem))
+      }
+      if (typeof inv.dag.generado_en !== 'string') {
+        errs.push(`${prefix}.dag.generado_en debe ser string ISO`)
+      }
+    }
+  }
+  return errs
+}
+
+function validateDAGMovItem(item: any, idx: number, prefix: string): string[] {
+  const errs: string[] = []
+  if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+    return [`${prefix}[${idx}] debe ser objeto DAGMovPE`]
+  }
+  if (typeof item.mov_id !== 'string') errs.push(`${prefix}[${idx}].mov_id debe ser string`)
+  if (typeof item.x !== 'number') errs.push(`${prefix}[${idx}].x debe ser number`)
+  if (typeof item.y !== 'number') errs.push(`${prefix}[${idx}].y debe ser number`)
   return errs
 }
 
 // ── Validadores de items del Paso 3 (Fase D — sub-bloque 3.B Palancas) ──
 
 const MODOS_INTERACCION = ['seleccion_unica', 'seleccion_multiple_ranked', 'agrupacion_pares', 'secuenciacion', 'marcado_simple'] as const
-const CAMPOS_FICHA = ['nombre', 'que_resuelve', 'ataca_desvio', 'dueno', 'banda_ancha', 'costo', 'ventana', 'cantidad_precondiciones', 'cantidad_desbloqueos', 'criterio_exito', 'estado_usuario'] as const
+const CAMPOS_FICHA = ['nombre', 'que_resuelve', 'ataca_desvio', 'dueno', 'banda_ancha', 'impacto', 'costo', 'ventana', 'cantidad_precondiciones', 'cantidad_desbloqueos', 'criterio_exito', 'estado_usuario'] as const
 
 function validateRespuestaEstructurada(re: any, prefix: string): string[] {
   const errs: string[] = []
@@ -469,6 +573,9 @@ export function parsePanelUpdate(fullResponse: string): ParseResult {
       if (p.alineacion_sr !== undefined && typeof p.alineacion_sr !== 'string') {
         errors.push(`proposito.alineacion_sr (si presente) must be string, got ${typeof p.alineacion_sr}`)
       }
+      if (p.alineacion_sr_comentario !== undefined && typeof p.alineacion_sr_comentario !== 'string') {
+        errors.push(`proposito.alineacion_sr_comentario (si presente) must be string, got ${typeof p.alineacion_sr_comentario}`)
+      }
     }
   }
 
@@ -711,6 +818,11 @@ export function mergeProposito(
   const cur = c.alineacion_sr
   if (!isEmpty(inc)) result.alineacion_sr = inc
   else if (!isEmpty(cur)) result.alineacion_sr = cur
+  // alineacion_sr_comentario (Plan Jr): mismo patrón.
+  const incCom = incoming.alineacion_sr_comentario
+  const curCom = c.alineacion_sr_comentario
+  if (!isEmpty(incCom)) result.alineacion_sr_comentario = incCom
+  else if (!isEmpty(curCom)) result.alineacion_sr_comentario = curCom
   return { value: result as PropositorPE, events }
 }
 

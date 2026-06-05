@@ -31,7 +31,13 @@ export interface CambioRetroactivoPayload {
 interface Props {
   cambio: CambioRetroactivoPayload
   onConfirmar: () => void  // padre maneja: POST endpoint + envío de mensaje al chat
+  // Decisión EXPLÍCITA del user de NO aplicar el cambio. Limpia el cambio
+  // pendiente del state — esto es irreversible (no se puede reabrir).
   onCancelar: () => void
+  // Cierre ACCIDENTAL (Escape, click fuera, botón ✕). El cambio queda pendiente
+  // en el state del padre; se muestra un banner que permite re-abrir el modal.
+  // Si no se pasa, Escape/click-fuera disparan onCancelar (back-compat).
+  onCerrarSinDecidir?: () => void
   saving?: boolean
   error?: string | null
 }
@@ -41,36 +47,52 @@ export function RetroactividadControlSuaveModal(props: Props) {
   return createPortal(<Contenido {...props} />, document.body)
 }
 
-function Contenido({ cambio, onConfirmar, onCancelar, saving, error }: Props) {
+function Contenido({ cambio, onConfirmar, onCancelar, onCerrarSinDecidir, saving, error }: Props) {
   const [mounted, setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
 
+  // Cierre "blando" (Escape/click-fuera/✕) usa onCerrarSinDecidir si existe;
+  // sino cae a onCancelar (back-compat). Cancelar explícito sigue siendo el
+  // botón del footer — esa es la decisión irreversible.
+  const cerrarBlando = onCerrarSinDecidir ?? onCancelar
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !saving) onCancelar()
+      if (e.key === 'Escape' && !saving) cerrarBlando()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onCancelar, saving])
+  }, [cerrarBlando, saving])
 
   if (!mounted) return null
 
   return (
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sans"
-      onClick={() => !saving && onCancelar()}
+      onClick={() => !saving && cerrarBlando()}
     >
       <div
         className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border-2 border-amber-700/70 bg-background shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
-        <header className="flex-shrink-0 border-b border-amber-700/40 bg-gradient-to-r from-amber-900/40 to-transparent px-6 py-4">
-          <p className="text-[12px] font-semibold uppercase tracking-wider text-amber-300/90">
-            Control de cambio retroactivo
-          </p>
-          <h2 className="mt-1 text-[17px] font-semibold text-foreground leading-snug">
-            El cambio toca material validado: <span className="text-amber-200">{cambio.bloque_afectado}</span>
-          </h2>
+        <header className="flex-shrink-0 border-b border-amber-700/40 bg-gradient-to-r from-amber-900/40 to-transparent px-6 py-4 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-[12px] font-semibold uppercase tracking-wider text-amber-300/90">
+              Control de cambio retroactivo
+            </p>
+            <h2 className="mt-1 text-[17px] font-semibold text-foreground leading-snug">
+              El cambio toca material validado: <span className="text-amber-200">{cambio.bloque_afectado}</span>
+            </h2>
+          </div>
+          <button
+            onClick={cerrarBlando}
+            disabled={saving}
+            aria-label="Cerrar (decidir más tarde)"
+            title="Cerrar el modal. El cambio queda pendiente — podés reabrirlo desde el chat."
+            className="flex-shrink-0 rounded-md text-amber-200/70 hover:text-amber-100 hover:bg-amber-900/30 px-2 py-1 text-[16px] leading-none disabled:opacity-40"
+          >
+            ✕
+          </button>
         </header>
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">

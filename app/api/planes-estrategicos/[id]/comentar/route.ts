@@ -13,6 +13,7 @@
 // Tracking: el costo de cada iteración se SUMA al campo Apply Changes Cost USD
 // del turno reviewer (la conversación de comentar es parte del apply ampliado).
 
+import { PE_MODEL } from '@/lib/llm-config'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import Anthropic from '@anthropic-ai/sdk'
@@ -126,7 +127,7 @@ Aplicá el comentario al resumen y devolvé el JSON actualizado completo.`
     // Streaming required (mismo patrón que /apply — SDK rechaza non-streaming
     // si max_tokens podría llevar runtime > 10 min).
     const stream = anthropic.messages.stream({
-      model: 'claude-opus-4-7',
+      model: PE_MODEL,
       // 32k necesario: Opus reescribe el resumen completo + reasoning interno.
       // 16k era insuficiente (descubierto en smoke real end-to-end del apply).
       max_tokens: 32000,
