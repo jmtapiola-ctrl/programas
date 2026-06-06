@@ -67,7 +67,7 @@ function Contenido({ metricasProposito, criterioActual, onEnviar, onCerrar, savi
   const [mostrarDoctrina, setMostrarDoctrina] = useState(false)
 
   useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape' && !saving) onCerrar() }
+    function onKey(e: KeyboardEvent) { /* Escape NO cierra el modal (evita perder lo escrito) */ }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onCerrar, saving])
@@ -89,7 +89,6 @@ function Contenido({ metricasProposito, criterioActual, onEnviar, onCerrar, savi
   return (
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sans"
-      onClick={() => !saving && onCerrar()}
     >
       <div
         className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-sidebar-border bg-background shadow-2xl"

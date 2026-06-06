@@ -35,7 +35,7 @@ function Contenido({ mov, planId, onSuccess, onCerrar }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape' && !aplicando) onCerrar() }
+    function onKey(e: KeyboardEvent) { /* Escape NO cierra el modal (evita perder lo escrito) */ }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onCerrar, aplicando])
@@ -71,7 +71,6 @@ function Contenido({ mov, planId, onSuccess, onCerrar }: Props) {
   return (
     <div
       className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sans"
-      onClick={() => !aplicando && onCerrar()}
     >
       <div
         className="w-full max-w-xl rounded-xl border border-sidebar-border bg-background shadow-2xl flex flex-col"

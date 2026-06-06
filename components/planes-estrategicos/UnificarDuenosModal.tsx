@@ -47,7 +47,7 @@ export function UnificarDuenosModal(props: Props) {
 function Contenido({ clusters, movimientos, onAplicar, onContinuar, onCerrar }: Props) {
   // Escape cierra el modal.
   useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onCerrar() }
+    function onKey(e: KeyboardEvent) { /* Escape NO cierra el modal (evita perder lo escrito) */ }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onCerrar])
@@ -193,7 +193,6 @@ function Contenido({ clusters, movimientos, onAplicar, onContinuar, onCerrar }: 
   return (
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 font-sans"
-      onClick={() => !aplicando && onCerrar()}
     >
       <div
         className="flex h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-sidebar-border bg-background shadow-2xl"

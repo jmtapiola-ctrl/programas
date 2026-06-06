@@ -38,7 +38,7 @@ function Contenido({ movimientos, planId, preguntaTexto, onInventarioUpdate, onC
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !movEditando) onCerrar()
+      /* Escape NO cierra el modal (evita perder lo escrito) */
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
@@ -103,7 +103,6 @@ function Contenido({ movimientos, planId, preguntaTexto, onInventarioUpdate, onC
   return (
     <div
       className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sans"
-      onClick={() => !movEditando && onCerrar()}
     >
       <div
         className="flex h-[95vh] w-full max-w-[1200px] flex-col overflow-hidden rounded-xl border border-sidebar-border bg-background shadow-2xl"
