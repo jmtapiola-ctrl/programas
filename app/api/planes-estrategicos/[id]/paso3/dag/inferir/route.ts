@@ -1,12 +1,12 @@
 // POST /api/planes-estrategicos/[id]/paso3/dag/inferir
 //
-// Pide a Opus que proponga TODAS las dependencias del inventario en una lista
-// plana — UN solo DAG por plan. NO persiste nada — devuelve solo la propuesta
-// para que el user revise en el PropuestaDAGModal.
+// Pide a la IA que proponga TODAS las dependencias del inventario en una lista
+// plana — UN solo DAG por plan. NO persiste nada — devuelve solo la propuesta.
 //
-// Aplicación: si el user acepta, se llama POST /paso3/dag/aceptar con la lista
-// de dependencias, que escribe las precondiciones globalmente + persiste el
-// DAG con posiciones dagre.
+// Aplicación: el cliente encadena POST /paso3/dag/aceptar con la lista de
+// dependencias (sin paso de preview), que escribe las precondiciones
+// globalmente + persiste el DAG con posiciones dagre. El user edita el
+// resultado directamente en el canvas de Secuenciación.
 
 import { PE_MODEL } from '@/lib/llm-config'
 import { NextRequest, NextResponse } from 'next/server'
@@ -137,7 +137,7 @@ export async function POST(
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !Array.isArray(parsed.dependencias)) {
     return NextResponse.json({
-      error: 'Opus devolvió output no parseable o sin campo "dependencias".',
+      error: 'La IA devolvió output no parseable o sin campo "dependencias".',
       opus_response_preview: text.slice(0, 500),
       apply_metrics: { costo_usd: costoUsd, latencia_ms: latenciaMs },
     }, { status: 500 })

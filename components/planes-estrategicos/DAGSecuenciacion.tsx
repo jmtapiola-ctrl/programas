@@ -27,6 +27,8 @@ import {
   EdgeLabelRenderer,
   MarkerType,
   getSmoothStepPath,
+  getBezierPath,
+  applyNodeChanges,
   useReactFlow,
   useViewport,
   type Node,
@@ -120,7 +122,7 @@ interface Props {
   //  - 'center' (default, 3.A.6): centra el nodo en pantalla.
   //  - 'top-left' (P-4): anchorea el nodo arriba-izquierda del viewport, para
   //    que el user pueda seguir las flechas saliendo hacia derecha y abajo.
-  posicionAlSeleccionar?: 'center' | 'top-left'
+  posicionAlSeleccionar?: 'center' | 'top-left' | 'left'
   // Modo preview/visualización: deshabilita interacciones (drag-to-connect,
   // mover nodos, drop, menú de edges editable). Solo lectura.
   readOnly?: boolean
@@ -510,6 +512,19 @@ function DAGInner({
         { x: PADDING_LEFT - cm.x * z, y: PADDING_TOP - cm.y * z, zoom: z },
         { duration: 400 },
       )
+    } else if (posicionAlSeleccionar === 'left') {
+      // Ancla el nodo a la IZQUIERDA y lo centra verticalmente. En el canvas de
+      // dependencias las flechas siempre van hacia la derecha, así que dejar el
+      // nodo señalado a la izquierda revela de una todos sus posteriores.
+      const W = wrapperRef.current?.clientWidth ?? 1000
+      const H = wrapperRef.current?.clientHeight ?? 600
+      // Si el nodo ya está cerca del borde derecho del DAG, no tiene sentido
+      // empujarlo a la izquierda dejando vacío a la derecha: clampeamos para no
+      // pasarnos del contenido. Aproximamos con un padding fijo a izquierda.
+      const PADDING_LEFT = Math.min(110, W * 0.18)
+      const vx = PADDING_LEFT - cm.x * z
+      const vy = H / 2 - (cm.y + NODE_H / 2) * z
+      reactFlow.setViewport({ x: vx, y: vy, zoom: z }, { duration: 400 })
     } else {
       reactFlow.setCenter(cm.x + NODE_W / 2, cm.y + NODE_H / 2, { zoom: z, duration: 400 })
     }
@@ -548,19 +563,29 @@ function DAGInner({
     return keys
   }, [xBandConfig, todosLosMovs])
 
-  // ─── Build nodes desde movsACanvas + lookup ──────────────────────────────
-  const nodes: Node<MovNodeData>[] = useMemo(() => {
-    const movsMap = new Map(todosLosMovs.map(m => [m.id, m]))
-    // Cuando hay un mov seleccionado, calculamos sus vecinos (movs conectados
-    // por una arista entrante o saliente). El nodo seleccionado se ilumina
-    // con borde amarillo intenso; los vecinos con borde amarillo sutil; los
-    // demás (no conectados) quedan atenuados (opacity baja).
-    const selMov = movSeleccionadoId ? movsMap.get(movSeleccionadoId) ?? null : null
-    const vecinos = new Set<string>()
-    if (selMov) {
-      for (const p of selMov.precondiciones ?? []) vecinos.add(p)
-      for (const d of selMov.desbloquea ?? []) vecinos.add(d)
+  // Vecinos DIRECTOS (a 1 salto) del seleccionado: sus predecesores inmediatos
+  // (precondiciones) y sus sucesores inmediatos (movs que lo tienen como
+  // precondición). Solo estos se iluminan — NO toda la cadena transitiva, que en
+  // un nodo central prendía casi todo el diagrama (M-5 conecta con 2 → 2 flechas).
+  // Los sucesores se derivan de `precondiciones` (no de `desbloquea`, que puede
+  // estar desincronizado), la misma fuente que las flechas.
+  const vecinosSet = useMemo(() => {
+    const set = new Set<string>()
+    if (!movSeleccionadoId) return set
+    const sel = todosLosMovs.find(m => m.id === movSeleccionadoId)
+    if (!sel) return set
+    for (const p of sel.precondiciones ?? []) set.add(p)          // predecesores directos
+    for (const m of todosLosMovs) {                               // sucesores directos
+      if ((m.precondiciones ?? []).includes(movSeleccionadoId)) set.add(m.id)
     }
+    return set
+  }, [movSeleccionadoId, todosLosMovs])
+
+  // ─── Build nodes desde movsACanvas + lookup ──────────────────────────────
+  const nodesComputed: Node<MovNodeData>[] = useMemo(() => {
+    const movsMap = new Map(todosLosMovs.map(m => [m.id, m]))
+    // El seleccionado se ilumina intenso; toda su cadena (ancestros +
+    // descendientes, vía chainSet) con el mismo amarillo; el resto atenuado.
     const hayFoco = movSeleccionadoId !== null
     return movsACanvas
       .map(cm => {
@@ -571,7 +596,7 @@ function DAGInner({
         // re-acepta el mov), pero visualmente desaparece.
         if (mov.estado_usuario === 'quitado') return null
         const esSel = cm.mov_id === movSeleccionadoId
-        const esVecino = vecinos.has(cm.mov_id)
+        const esVecino = vecinosSet.has(cm.mov_id)
         const esValidado = mov.deps_validadas === true
         return {
           id: cm.mov_id,
@@ -598,16 +623,55 @@ function DAGInner({
         } as Node<MovNodeData>
       })
       .filter((n): n is Node<MovNodeData> => n !== null)
-  }, [movsACanvas, todosLosMovs, movSeleccionadoId, onToggleValidado, warningPorMov, tooltipPorMov, onVerDetalle, hideCategoria])
+  }, [movsACanvas, todosLosMovs, movSeleccionadoId, vecinosSet, onToggleValidado, warningPorMov, tooltipPorMov, onVerDetalle, hideCategoria])
+
+  // Estado interno de nodos para xyflow. Se sincroniza desde nodesComputed
+  // (selección, warnings, posiciones que vienen del parent). Pero DURANTE un
+  // drag, xyflow muta este estado vía applyNodeChanges → el nodo sigue el cursor
+  // fluido (sin esto, los nodos controlados no se mueven hasta soltar = el lag
+  // que reportó el user). El snap a grilla + persistencia se hacen al soltar.
+  const [nodes, setNodes] = useState<Node<MovNodeData>[]>(nodesComputed)
+  useEffect(() => { setNodes(nodesComputed) }, [nodesComputed])
 
   // ─── Build edges desde mov.precondiciones (solo si AMBOS movs en canvas) ─
   const edges: Edge[] = useMemo(() => {
     const idsEnCanvas = new Set(movsACanvas.map(m => m.mov_id))
     const result: Edge[] = []
+    // Cajas (bounding boxes) de los nodos en canvas — para detectar cuándo una
+    // flecha pasa por encima de un nodo intermedio y arquearla (bow).
+    const boxById = new Map(movsACanvas.map(c => [c.mov_id, {
+      x: c.x, y: c.y, w: (c.width && c.width > NODE_W ? c.width : NODE_W),
+    }]))
+    // Offset vertical para esquivar nodos intermedios, o 0 si no choca con
+    // ninguno. incomingIdx escalona los arcos que llegan al mismo target para que
+    // no se solapen entre sí.
+    function computeBow(preId: string, movId: string, incomingIdx: number): number {
+      const s = boxById.get(preId), t = boxById.get(movId)
+      if (!s || !t) return 0
+      const sx = s.x + s.w, sy = s.y + NODE_H / 2
+      const tx = t.x, ty = t.y + NODE_H / 2
+      const MARGIN = 6
+      let hit = false
+      for (const [bid, n] of boxById) {
+        if (bid === preId || bid === movId) continue
+        const left = n.x - MARGIN, right = n.x + n.w + MARGIN
+        const top = n.y - MARGIN, bottom = n.y + NODE_H + MARGIN
+        if (Math.max(sx, tx) < left || Math.min(sx, tx) > right) continue
+        const cx = Math.max(Math.min(sx, tx), Math.min(Math.max(sx, tx), (left + right) / 2))
+        const tt = tx === sx ? 0 : (cx - sx) / (tx - sx)
+        const yAt = sy + (ty - sy) * tt
+        if (yAt >= top && yAt <= bottom) { hit = true; break }
+      }
+      if (!hit) return 0
+      // Arco hacia ARRIBA. Magnitud: despejar medio nodo + margen (la bezier
+      // levanta ~0.75 de la altura del control). Escalonado leve por incomingIdx
+      // para que varios arcos al mismo target no se pisen.
+      return -Math.round((NODE_H / 2 + 22) / 0.75) - incomingIdx * 8
+    }
     // Spotlight: si hay foco activo (edge hovered, edge pinned, o un nodo
     // seleccionado), los edges no involucrados se atenúan para que el recorrido
-    // activo destaque sobre el resto del DAG. Para un nodo seleccionado, todos
-    // sus edges entrantes (precondiciones) y salientes (desbloquea) se iluminan.
+    // activo destaque sobre el resto del DAG. Para un nodo seleccionado se
+    // resaltan SOLO sus flechas directas (las que lo tocan), no toda la cadena.
     const anyEdgeFocused = edgeHovered !== null || edgePinned !== null || movSeleccionadoId !== null
     for (const movId of idsEnCanvas) {
       const mov = todosLosMovs.find(m => m.id === movId)
@@ -615,11 +679,16 @@ function DAGInner({
       // Skip edges donde el target está quitado — el nodo no se renderea, las
       // flechas tampoco deberían aparecer.
       if (mov.estado_usuario === 'quitado') continue
-      for (const preId of mov.precondiciones ?? []) {
-        if (!idsEnCanvas.has(preId)) continue
-        // Skip si el source está quitado (defensive).
+      // Precondiciones válidas (ambos en canvas, source no quitado). Las usamos
+      // para escalonar verticalmente los labels cuando VARIAS flechas entran al
+      // mismo nodo: cada una en su renglón, todas legibles y clickeables.
+      const validPre = (mov.precondiciones ?? []).filter(preId => {
+        if (!idsEnCanvas.has(preId)) return false
+        const pm = todosLosMovs.find(m => m.id === preId)
+        return pm?.estado_usuario !== 'quitado'
+      })
+      validPre.forEach((preId, incomingIdx) => {
         const preMov = todosLosMovs.find(m => m.id === preId)
-        if (preMov?.estado_usuario === 'quitado') continue
         const edgeId = `${preId}->${movId}`
         const tipo = getTipoEdge(mov, preId)
         const lagMeses = getLagEdge(mov, preId)
@@ -635,16 +704,34 @@ function DAGInner({
         //  - 0.22: default (sin foco) — edges muy sutiles para que las fichas
         //    sean el visual principal cuando el user está asignando fases.
         const edgeOpacity = isHighlighted ? 1 : (anyEdgeFocused ? 0.15 : 0.22)
+        // Opacidad del BADGE (pill de tipo) — independiente de la línea. Cuando
+        // hay un nodo seleccionado, solo se prende el badge de las flechas
+        // DIRECTAMENTE conectadas a él (las que el user quiere verificar); el
+        // resto se apaga, aunque la línea de la cadena siga resaltada. Hover/pin
+        // de una flecha puntual también lo prende. Sin selección, sigue a la línea.
+        const isDirectToSel = movSeleccionadoId !== null && (preId === movSeleccionadoId || movId === movSeleccionadoId)
+        const labelOpacity = (isHovered || isPinned)
+          ? 1
+          : movSeleccionadoId !== null
+            ? (isDirectToSel ? 1 : 0.1)
+            : edgeOpacity
         // Marker end (flecha): color matching el tipo del edge.
         //   sugerida: tenue (lila claro)
         //   ff:       medio (lila medio)
         //   fs:       saturado (lila intenso), flecha más grande
         //   continuo: violáceo intermedio, distinto a FF/FS.
-        const arrowColor = tipo === 'fs'
-          ? 'oklch(0.78 0.22 280)'
-          : tipo === 'ff' ? 'oklch(0.72 0.20 280)'
-          : tipo === 'continuo' ? 'oklch(0.70 0.16 295)'
-          : 'oklch(0.65 0.12 280)'
+        // Color + alpha de la flecha (marker) SINCRONIZADOS con la línea: el
+        // marker SVG no hereda el opacity del path, así que horneamos edgeOpacity
+        // como alpha del color. Highlight → mismo brillo que el stroke; atenuado
+        // → se apaga junto con la línea (sin puntas sólidas sueltas sobre el
+        // canvas dimmeado, que era el "color inestable" que reportó el user).
+        const arrowHue = tipo === 'continuo' ? 295 : 280
+        let arrowL = 0.65, arrowC = 0.12
+        if (isHighlighted) { arrowL = 0.88; arrowC = 0.24 }
+        else if (tipo === 'fs') { arrowL = 0.78; arrowC = 0.22 }
+        else if (tipo === 'ff') { arrowL = 0.72; arrowC = 0.20 }
+        else if (tipo === 'continuo') { arrowL = 0.70; arrowC = 0.16 }
+        const arrowColor = `oklch(${arrowL} ${arrowC} ${isHighlighted ? 280 : arrowHue} / ${edgeOpacity})`
         const arrowSize = tipo === 'fs' ? 22 : 18
         result.push({
           id: edgeId,
@@ -671,6 +758,13 @@ function DAGInner({
             isHighlighted,
             dimmed,
             edgeOpacity,
+            // Escalonado del label: posición de esta flecha entre las que entran
+            // al mismo nodo (incomingIdx de validPre.length). Lo usa TipadaEdge
+            // para apilar verticalmente sin solapar.
+            labelIndex: incomingIdx,
+            labelTotal: validPre.length,
+            labelOpacity,
+            bow: computeBow(preId, movId, incomingIdx),
             onHoverEnter: () => setEdgeHovered(edgeId),
             onHoverLeave: () => setEdgeHovered(prev => prev === edgeId ? null : prev),
             onTogglePin: () => setEdgePinned(prev => prev === edgeId ? null : edgeId),
@@ -689,8 +783,13 @@ function DAGInner({
             readOnly: !!readOnly,
           },
         })
-      }
+      })
     }
+    // Orden de render: las flechas resaltadas van AL FINAL (= se dibujan encima)
+    // para que una flecha atenuada (oscura) que cruza o converge no las oscurezca
+    // — eso era el "dos colores" en una flecha highlighted que reportó el user.
+    result.sort((a, b) => (((a.data as TipadaEdgeData | undefined)?.isHighlighted ? 1 : 0)
+      - ((b.data as TipadaEdgeData | undefined)?.isHighlighted ? 1 : 0)))
     return result
   }, [movsACanvas, todosLosMovs, onQuitarPrecondicion, onCambiarTipoEdge, onEditarRazonamientoEdge, edgeMenuAbierto, edgeHovered, edgePinned, movSeleccionadoId, readOnly, razonamientosOverride])
 
@@ -712,6 +811,9 @@ function DAGInner({
   }, [onQuitarPrecondicion, readOnly])
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
+    // Reflejar TODOS los cambios (incl. el drag intermedio, dragging===true) en
+    // el estado interno — esto es lo que hace que el nodo siga el cursor sin lag.
+    setNodes(nds => applyNodeChanges(changes, nds) as Node<MovNodeData>[])
     if (readOnly) return
     for (const change of changes) {
       if (change.type === 'position' && change.position && change.dragging === false) {
@@ -983,6 +1085,16 @@ type TipadaEdgeData = {
   // Opacidad efectiva del edge (línea + chip): full (1) si highlighted,
   // 0.15 si hay foco en otro edge, 0.22 si no hay foco activo.
   edgeOpacity: number
+  // Escalonado del label cuando varias flechas entran al mismo nodo:
+  // labelIndex (0-based) dentro de labelTotal flechas entrantes.
+  labelIndex: number
+  labelTotal: number
+  // Opacidad del badge (pill de tipo), independiente de la línea: full solo en
+  // flechas directamente conectadas al nodo seleccionado (o hover/pin).
+  labelOpacity: number
+  // Offset vertical (px) para arquear la flecha y esquivar nodos intermedios.
+  // 0 = recta (smoothstep). != 0 = bezier arqueada. Calculado en el memo de edges.
+  bow: number
   onHoverEnter: () => void
   onHoverLeave: () => void
   onTogglePin: () => void
@@ -994,19 +1106,41 @@ type TipadaEdgeData = {
 }
 
 function TipadaEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, data }: EdgeProps) {
-  const [edgePath] = getSmoothStepPath({
-    sourceX, sourceY, sourcePosition,
-    targetX, targetY, targetPosition,
-  })
-  // Posicionamos el label DURA/BLANDA cerca de la punta de la flecha (target),
-  // un poco arriba de la línea de entrada. Razón: el midpoint del path cae
-  // frecuentemente dentro de un nodo intermedio o cerca de otros nodos,
-  // generando overlap visual y ambigüedad sobre a qué flecha pertenece el
-  // tipo. Pegado al target, queda inequívocamente asociado a la flecha que
-  // entra al nodo destino.
-  const labelX = targetX - 26
-  const labelY = targetY - 28
   const d = (data as unknown as TipadaEdgeData)
+  // Path: por defecto smoothstep (ortogonal). Si la flecha choca con un nodo
+  // intermedio (d.bow != 0, detectado en el memo de edges), la arqueamos con una
+  // bezier que sube/baja para esquivarlo — así no parece que conecta con ese nodo.
+  // Elección de path:
+  //  - choca con nodo intermedio (d.bow) → bezier arqueada con clearance vertical.
+  //  - cruza de banda / diagonal (Δy grande) → bezier: la curva sale clara del
+  //    source y no se "pega" a otros nodos (evita la ambigüedad de origen que
+  //    reportó el user con M-2→M-4 pasando bajo M-2).
+  //  - casi horizontal → smoothstep (ortogonal, limpio).
+  const dyAbs = Math.abs(targetY - sourceY)
+  let edgePath: string
+  if (d.bow) {
+    const cOff = Math.min(70, Math.abs(targetX - sourceX) * 0.28)
+    edgePath = `M${sourceX},${sourceY} C${sourceX + cOff},${sourceY + d.bow} ${targetX - cOff},${targetY + d.bow} ${targetX},${targetY}`
+  } else if (dyAbs > NODE_H * 0.6) {
+    const [bezierPath] = getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition })
+    edgePath = bezierPath
+  } else {
+    const [stepPath] = getSmoothStepPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition })
+    edgePath = stepPath
+  }
+  // Posicionamos el label cerca de la PUNTA de la flecha (target), un poco a la
+  // izquierda y arriba de la línea de entrada — ahí queda inequívocamente
+  // asociado a la flecha que entra al nodo destino. Cuando VARIAS flechas entran
+  // al mismo nodo, las apilamos verticalmente (labelIndex / labelTotal) para que
+  // no se solapen: cada tipo de vínculo queda en su renglón, visible y clickeable.
+  // Las flechas SALIENTES no colisionan porque van a destinos distintos.
+  // Badges apilados hacia ABAJO arrancando por debajo de la PUNTA de flecha (no
+  // solo de la línea): el offset base despeja la cabeza del marker (que mide
+  // hasta ~22px y es lo más bajo de la flecha) para que el primer badge no la
+  // pise. Los siguientes se alinean uno debajo del otro.
+  const STACK_GAP = 30
+  const labelX = targetX - 30
+  const labelY = targetY + 28 + d.labelIndex * STACK_GAP
   // Estilo del path según tipo + highlight:
   //   - sugerida: dashed delgado (2px), color tenue (lila claro).
   //   - ff:       solid mediano (3px), color medio (lila medio).
@@ -1050,9 +1184,10 @@ function TipadaEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, ta
           style={{
             position: 'absolute',
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-            zIndex: d.menuAbierto || d.isHighlighted ? 20 : 10,
-            opacity: d.edgeOpacity,
+            zIndex: d.menuAbierto || d.labelOpacity >= 1 ? 20 : 10,
+            opacity: d.labelOpacity,
             transition: 'opacity 150ms ease',
+            pointerEvents: d.labelOpacity < 0.5 ? 'none' : 'auto',
           }}
           onMouseDown={(e) => e.stopPropagation()}
           onMouseEnter={d.onHoverEnter}
@@ -1080,13 +1215,13 @@ function TipadaEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, ta
               const lagSuffix = d.tipo !== 'sugerida' && d.lagMeses > 0 ? `+${d.lagMeses}` : ''
               const lbl = `${baseLbl}${lagSuffix}`
               return d.readOnly ? (
-                <span className={`rounded-full px-1.5 py-0 text-[9px] font-bold uppercase shadow-md ${cls}`}>
+                <span className={`rounded-full px-3 py-0.5 text-[18px] font-bold uppercase shadow-md ${cls}`}>
                   {lbl}
                 </span>
               ) : (
                 <button
                   onClick={(e) => { e.stopPropagation(); d.onToggleMenu() }}
-                  className={`rounded-full px-1.5 py-0 text-[9px] font-bold uppercase shadow-md transition-colors ${cls} hover:brightness-110`}
+                  className={`rounded-full px-3 py-0.5 text-[18px] font-bold uppercase shadow-md transition-colors ${cls} hover:brightness-110`}
                 >
                   {lbl}
                 </button>
@@ -1333,16 +1468,22 @@ function MovCardNode({ data }: NodeProps) {
   // El amarillo (selección actual) gana sobre el verde (estado persistente)
   // porque el foco transitorio es la señal más urgente — el checkbox sigue
   // marcado por su cuenta, así que el user ve que sigue validado.
+  // Jerarquía del foco. El seleccionado tiene que ser EL MÁS BRILLANTE: borde
+  // amarillo más claro (yellow-300) + el doble de grosor (border-4) + glow. Le
+  // bajamos el relleno (/8) para que no se "lave" — un relleno amarillo fuerte
+  // resta contraste a la tipografía y al propio borde. Los vecinos
+  // (predecesores+posteriores) van uniformes y un escalón abajo: yellow-400
+  // fino. Así el nodo señalado domina sin ambigüedad.
   const bordeYFondo =
     seleccionado
-      ? 'border-yellow-400 bg-yellow-400/15 shadow-md shadow-yellow-700/40'
+      ? 'border-4 border-yellow-300 bg-yellow-400/8 shadow-md shadow-yellow-400/40'
       : validado
-        ? 'border-green-500 bg-green-500/8'
+        ? 'border-2 border-green-500 bg-green-500/8'
         : vecino
-          ? 'border-yellow-400/55 bg-yellow-400/5'
+          ? 'border-2 border-yellow-400/80 bg-yellow-400/6'
           : esLinchpinFuerte
-            ? 'border-amber-500/70 bg-background shadow-amber-900/30 shadow-md hover:bg-accent/40'
-            : 'border-sidebar-border bg-background hover:bg-accent/40'
+            ? 'border-2 border-amber-500/70 bg-background shadow-amber-900/30 shadow-md hover:bg-accent/40'
+            : 'border-2 border-sidebar-border bg-background hover:bg-accent/40'
   // Width dinámico: el ancho representa la duración del trabajo activo. Se
   // computa upstream (FasesCanvasP4) como dateToX(trabajoTermina) - dateToX(arranca),
   // con piso NODE_W para que el contenido (id, nombre, badges) entre siempre.
@@ -1379,7 +1520,7 @@ function MovCardNode({ data }: NodeProps) {
         trabajoTermina). No más tail separado — la duración se lee del ancho de
         la ficha misma. */}
     <div
-      className={`absolute rounded-lg border-2 px-3 py-2 transition-all ${bordeYFondo} ${atenuado ? 'opacity-30' : ''}`}
+      className={`absolute rounded-lg px-3 py-2 transition-all ${bordeYFondo} ${atenuado ? 'opacity-30' : ''}`}
       style={{ left: 0, right: 0, top: 0, bottom: 0 }}
       title={tooltipFinal}
     >
@@ -1460,7 +1601,7 @@ function MovCardNode({ data }: NodeProps) {
           <span className="text-[10px] uppercase text-muted-foreground/60 ml-auto truncate" title={m.categoria}>{m.categoria}</span>
         )}
       </div>
-      <p className={`text-[12px] font-medium text-foreground leading-snug ${d.hideCategoria ? 'line-clamp-3' : 'line-clamp-2'}`}>{m.nombre}</p>
+      <p className={`text-[12px] leading-snug ${seleccionado ? 'font-semibold text-white' : vecino ? 'font-medium text-white' : 'font-medium text-foreground'} ${d.hideCategoria ? 'line-clamp-3' : 'line-clamp-2'}`}>{m.nombre}</p>
       {/* Botón ✎ Editar — solo visible cuando el nodo está seleccionado.
           Anclado a la esquina inferior-derecha del nodo, desbordando un poco
           afuera (parecido a los badges) para no comer espacio del contenido. */}

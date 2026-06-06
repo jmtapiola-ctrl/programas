@@ -3,10 +3,9 @@
 // Wrapper read-only de DAGSecuenciacion para embeber en la vista de prestigio
 // del plan (/planes-estrategicos/[id]/vista).
 //
-// Toma el inventario activo (movs) y calcula posiciones x/y vía dagre layout
-// (mismo patrón que PropuestaDAGModal). Pasa todos los handlers de mutación
-// como no-op + readOnly=true → el componente renderea el DAG pero no permite
-// drag, edición de edges, ni selección persistente.
+// Toma el inventario activo (movs) y calcula posiciones x/y vía dagre layout.
+// Pasa todos los handlers de mutación como no-op + readOnly=true → el componente
+// renderea el DAG pero no permite drag, edición de edges, ni selección persistente.
 
 import { useMemo, useState } from 'react'
 import dagre from 'dagre'
@@ -14,7 +13,7 @@ import type { InventarioPE, DAGMovPE } from '@/lib/types'
 import { DAGSecuenciacion } from './DAGSecuenciacion'
 import { FullscreenWrapper } from './FullscreenWrapper'
 
-// Mismas constantes que DAGSecuenciacion.tsx / PropuestaDAGModal.tsx.
+// Mismas constantes que DAGSecuenciacion.tsx.
 const NODE_W = 240
 const NODE_H = 76
 

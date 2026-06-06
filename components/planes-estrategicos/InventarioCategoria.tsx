@@ -13,12 +13,49 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import type { InventarioPE, MovimientoPE, DAGPlanPE, PlanEstrategico, PropositorPE, PreparativosPE } from '@/lib/types'
-import { RenombrarBrechasModal } from './RenombrarBrechasModal'
+import type { InventarioPE, MovimientoPE, DAGPlanPE, DAGMovPE, PlanEstrategico, PropositorPE, PreparativosPE } from '@/lib/types'
+import { EditarBrechasModal } from './EditarBrechasModal'
 import { MovimientoFormModal } from './MovimientoFormModal'
-import { PropuestaDAGModal, type DependenciaPropuesta } from './PropuestaDAGModal'
 import { DAGSecuenciacion, computeLayers, computeBandLayout, BAND_WIDTH } from './DAGSecuenciacion'
 import { BTN_CTA, BTN_CTA_SM } from '@/components/ui/button-styles'
+
+// Grilla 2D para el DAG: X = capa topológica (longest-path según dependencias),
+// Y = banda de la categoría del mov + offset intra-celda. Cero overlap.
+// Compartido por "Auto-acomodar" (manual) y por el auto-layout que corre apenas
+// se propone el DAG (para que aparezca ordenado de una).
+function gridPositionsFor(dagMovs: DAGMovPE[], movsActivos: MovimientoPE[]): DAGMovPE[] {
+  const layers = computeLayers(movsActivos)
+  const layout = computeBandLayout(movsActivos)
+  const NODE_W_LOCAL = 240
+  const NODE_H_LOCAL = 76
+  const INTRA_GAP = 8
+  const PADDING = 12
+  // Agrupar por celda (cat + layer) para distribución intra-celda.
+  const grupoCelda = new Map<string, MovimientoPE[]>()
+  for (const m of movsActivos) {
+    const layer = layers.get(m.id) ?? 0
+    const key = `${m.categoria}||${layer}`
+    const arr = grupoCelda.get(key) ?? []
+    arr.push(m)
+    grupoCelda.set(key, arr)
+  }
+  for (const arr of grupoCelda.values()) arr.sort((a, b) => a.id.localeCompare(b.id))
+  const intraIdx = new Map<string, number>()
+  for (const arr of grupoCelda.values()) arr.forEach((m, i) => intraIdx.set(m.id, i))
+  return dagMovs.map(dm => {
+    const m = movsActivos.find(mm => mm.id === dm.mov_id)
+    if (!m) return dm  // mov no activo (raro) → no tocar
+    const layer = layers.get(dm.mov_id) ?? 0
+    const band = layout.bandPorCat.get(m.categoria)
+    if (!band) return dm
+    const snappedCenter = layer * BAND_WIDTH + BAND_WIDTH / 2
+    const snappedX = snappedCenter - NODE_W_LOCAL / 2
+    const idx = intraIdx.get(dm.mov_id) ?? 0
+    const intraOffset = idx * (NODE_H_LOCAL + INTRA_GAP)
+    const newY = band.yStart + PADDING + intraOffset
+    return { ...dm, x: snappedX, y: newY }
+  })
+}
 
 interface Props {
   planId: string
@@ -80,17 +117,42 @@ export function InventarioCategoria({ planId, plan, inventario, onInventarioUpda
     setCategoriasVacias(prev => [...prev, nombre])
   }
 
-  // Vista: 3 modos del modal de inventario.
-  //   'preview'    = pantalla inicial con índice de categorías + nombres de movs
-  //                  + renombrar/crear/mover categorías + DnD.
-  //   'review'     = revisión categoría-por-categoría (Aceptar/Editar/Quitar).
-  //   'validacion' = pantalla final pre-cierre: brechas (métricas del propósito)
-  //                  con los movs cross-categoría que las atacan + SI/NO por brecha.
-  //                  Habilita "Cerrar Inventario y avanzar a 3.B →" solo si TODAS
-  //                  las brechas validadas en SI.
+  // Vista: modos del modal de inventario.
+  //   'preview'    = índice de categorías + nombres de movs + renombrar/crear/
+  //                  mover categorías + DnD. NO se editan campos acá.
+  //   'review'     = REVISIÓN GUIADA: un movimiento a la vez, todos sus campos
+  //                  editables (reusa MovimientoFormModal con progreso). "Guardar
+  //                  y siguiente →" hasta repasarlos todos → pasa a 'validacion'.
+  //   'validacion' = pantalla final pre-cierre: cobertura de brechas (métricas
+  //                  del propósito) — SI/NO por brecha. Habilita el cierre solo
+  //                  si todas las brechas están cubiertas.
   // Default 'preview' salvo que el caller indique otra vista inicial (ej.
   // 'secuenciacion' para el botón retroactivo del header).
   const [vista, setVista] = useState<'preview' | 'review' | 'validacion' | 'secuenciacion'>(vistaInicial ?? 'preview')
+  // Revisión guiada (vista 'review'): orden FIJO de IDs a repasar (capturado al
+  // entrar) + índice actual. Fijo para que avanzar sea estable aunque se quiten
+  // movs en el camino. Nuevos movs agregados después se repasan al agregarse.
+  const [ordenRevision, setOrdenRevision] = useState<string[]>([])
+  const [revisionIdx, setRevisionIdx] = useState(0)
+
+  // Entra a la revisión guiada: captura los movs activos en orden y arranca en 0.
+  // Si no hay movs activos, salta directo a la cobertura de brechas.
+  function entrarRevisionGuiada() {
+    const ids = inventario.movimientos.filter(m => m.estado_usuario !== 'quitado').map(m => m.id)
+    if (ids.length === 0) { setVista('validacion'); return }
+    setOrdenRevision(ids)
+    setRevisionIdx(0)
+    setVista('review')
+  }
+
+  // Avanza al siguiente mov de la revisión; al pasar el último, va a 'validacion'.
+  function avanzarRevision() {
+    setRevisionIdx(i => {
+      const next = i + 1
+      if (next >= ordenRevision.length) { setVista('validacion'); return i }
+      return next
+    })
+  }
   // Validación SI/NO por brecha (modo validacion). In-memory. Se resetea cada
   // vez que se entra al modo validacion — semántica de "fresh look".
   const [brechasValidadas, setBrechasValidadas] = useState<Record<string, boolean>>({})
@@ -132,12 +194,12 @@ export function InventarioCategoria({ planId, plan, inventario, onInventarioUpda
   // necesario-suficiente sobre la brecha de la categoría).
   const [mostrandoConfirmacion, setMostrandoConfirmacion] = useState(false)
   // Vista 'secuenciacion' (sub-bloque 3.A.6) — estado del flow de propuesta
-  // del DAG completo por Opus. Opus devuelve una lista plana de dependencias;
-  // el user revisa el DAG visual en PropuestaDAGModal.
+  // del DAG completo por la IA. La IA devuelve una lista plana de dependencias
+  // que se APLICAN DIRECTO al inventario (sin paso de preview): el user edita el
+  // resultado en el canvas de Secuenciación. Este estado solo trackea el loading.
   const [propuestaDAG, setPropuestaDAG] = useState<
     | null
     | { status: 'inferring' }
-    | { status: 'ready'; dependencias: DependenciaPropuesta[]; costoUsd: number; latenciaMs: number }
   >(null)
   const [movSeleccionadoSecu, setMovSeleccionadoSecu] = useState<string | null>(null)
 
@@ -245,22 +307,65 @@ export function InventarioCategoria({ planId, plan, inventario, onInventarioUpda
 
   // Dispara Opus para que proponga el DAG completo (lista plana de deps).
   // Llamado desde "🧠 Proponer DAG completo con Opus".
+  // Propone las dependencias con la IA y las APLICA DIRECTO al inventario (sin
+  // preview): el user queda parado en el canvas, ya editable. Se conserva la
+  // única protección que importaba del viejo preview — el aviso de
+  // sobreescritura — pero solo cuando YA hay dependencias armadas (re-proponer).
   async function dispatchProponerDAG() {
+    const tieneDepsActuales = inventario.movimientos.some(m => (m.precondiciones?.length ?? 0) > 0)
+    if (tieneDepsActuales && !window.confirm(
+      'Proponer dependencias va a SOBREESCRIBIR todas las dependencias actuales del diagrama. ¿Continuar?'
+    )) return
+
     setPropuestaDAG({ status: 'inferring' })
     setError(null)
     try {
-      const res = await fetch(`/api/planes-estrategicos/${planId}/paso3/dag/inferir`, {
+      // 1) La IA infiere la propuesta (no escribe nada).
+      const resInf = await fetch(`/api/planes-estrategicos/${planId}/paso3/dag/inferir`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
-      setPropuestaDAG({
-        status: 'ready',
-        dependencias: data.dependencias,
-        costoUsd: data.costo_usd,
-        latenciaMs: data.latencia_ms,
+      const dataInf = await resInf.json()
+      if (!resInf.ok) throw new Error(dataInf?.error ?? `HTTP ${resInf.status}`)
+
+      // 2) Se aplica directo al inventario (mismo endpoint que usaba el preview).
+      const deps = (dataInf.dependencias ?? []).map((d: any) => ({
+        desde: d.desde,
+        hacia: d.hacia,
+        tipo: d.tipo,
+        razonamiento: d.razonamiento,
+        lag_meses: Math.max(0, Math.floor(d.lag_meses ?? 0)),
+      }))
+      const resAcc = await fetch(`/api/planes-estrategicos/${planId}/paso3/dag/aceptar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dependencias: deps }),
       })
+      const dataAcc = await resAcc.json().catch(() => null)
+      if (!resAcc.ok) throw new Error(dataAcc?.error ?? `HTTP ${resAcc.status}`)
+
+      // 3) Auto-acomodar inmediato: la propuesta llega con posiciones dagre
+      // desordenadas; aplicamos la grilla 2D (misma que "Auto-acomodar") y
+      // persistimos, para que el diagrama aparezca ordenado de una.
+      const invAcc: InventarioPE = dataAcc.inventario_actualizado
+      const dagMovs = invAcc.dag?.movs ?? []
+      if (dagMovs.length > 0) {
+        const movsActivos = invAcc.movimientos.filter(m => m.estado_usuario !== 'quitado')
+        const gridded = gridPositionsFor(dagMovs, movsActivos)
+        const resPos = await fetch(`/api/planes-estrategicos/${planId}/paso3/dag/posiciones`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ movs: gridded }),
+        })
+        const dataPos = await resPos.json().catch(() => null)
+        if (resPos.ok && dataPos?.inventario_actualizado) {
+          onInventarioUpdate(dataPos.inventario_actualizado)
+          setPropuestaDAG(null)
+          return
+        }
+      }
+      onInventarioUpdate(invAcc)
+      setPropuestaDAG(null)
     } catch (e) {
       setError(`Falló la propuesta del DAG: ${e instanceof Error ? e.message : String(e)}`)
       setPropuestaDAG(null)
@@ -370,44 +475,7 @@ export function InventarioCategoria({ planId, plan, inventario, onInventarioUpda
     if (!dagLocal) return
     if (!window.confirm('Esto reorganiza los nodos del diagrama en la grilla (X = fases según dependencias, Y = categorías del inventario). Tus posiciones manuales se pierden. ¿Continuar?')) return
     const movsActivos = inventario.movimientos.filter(m => m.estado_usuario !== 'quitado')
-    const layers = computeLayers(movsActivos)
-    const layout = computeBandLayout(movsActivos)
-    const NODE_W_LOCAL = 240
-    const NODE_H_LOCAL = 76
-    const INTRA_GAP = 8
-    const PADDING = 12
-    // Agrupar por celda (cat + layer) para distribución intra-celda.
-    const grupoCelda = new Map<string, MovimientoPE[]>()
-    for (const m of movsActivos) {
-      const layer = layers.get(m.id) ?? 0
-      const key = `${m.categoria}||${layer}`
-      const arr = grupoCelda.get(key) ?? []
-      arr.push(m)
-      grupoCelda.set(key, arr)
-    }
-    // Sort intra-celda por id para estabilidad.
-    for (const arr of grupoCelda.values()) arr.sort((a, b) => a.id.localeCompare(b.id))
-    // Lookup: movId → posición en la celda.
-    const intraIdx = new Map<string, number>()
-    for (const arr of grupoCelda.values()) {
-      arr.forEach((m, i) => intraIdx.set(m.id, i))
-    }
-    const newMovs = dagLocal.movs.map(dm => {
-      const m = movsActivos.find(mm => mm.id === dm.mov_id)
-      if (!m) return dm  // mov no activo (raro) → no tocar
-      const layer = layers.get(dm.mov_id) ?? 0
-      const band = layout.bandPorCat.get(m.categoria)
-      if (!band) return dm
-      // X: centro de la franja layer.
-      const snappedCenter = layer * BAND_WIDTH + BAND_WIDTH / 2
-      const snappedX = snappedCenter - NODE_W_LOCAL / 2
-      // Y: yStart de la banda + padding + offset por posición en celda.
-      const idx = intraIdx.get(dm.mov_id) ?? 0
-      const intraOffset = idx * (NODE_H_LOCAL + INTRA_GAP)
-      const newY = band.yStart + PADDING + intraOffset
-      return { ...dm, x: snappedX, y: newY }
-    })
-    setDagLocal({ ...dagLocal, movs: newMovs })
+    setDagLocal({ ...dagLocal, movs: gridPositionsFor(dagLocal.movs, movsActivos) })
     setDagDirty(true)
   }
 
@@ -602,8 +670,9 @@ export function InventarioCategoria({ planId, plan, inventario, onInventarioUpda
   }, [hayBrechas, yaRevisado, planId])
 
   const modalRenombrar = renombrarAbierto && plan.proposito ? (
-    <RenombrarBrechasModal
+    <EditarBrechasModal
       brechas={plan.proposito.metricas}
+      movimientos={inventario.movimientos}
       planId={planId}
       onSuccess={({ proposito_actualizado, inventario_actualizado }) => {
         if (inventario_actualizado) onInventarioUpdate(inventario_actualizado)
@@ -622,9 +691,7 @@ export function InventarioCategoria({ planId, plan, inventario, onInventarioUpda
   // outputs downstream ya generados (borrador iteraciones o curado versiones).
   // Si sí, el botón "Eliminar" muestra warning extra en el confirm. Defensive
   // chequeo de existencia — el plan puede no tener borrador/curado todavía.
-  const referenciadoEnDownstream = (() => {
-    if (!movFormModal || movFormModal.mode !== 'editar') return false
-    const movId = movFormModal.movimiento.id
+  function estaReferenciadoDownstream(movId: string): boolean {
     const planoP3 = plan.plan
     if (!planoP3) return false
     // Borrador: cada iteración tiene secuencia_movimientos[].movimientos: string[]
@@ -647,7 +714,10 @@ export function InventarioCategoria({ planId, plan, inventario, onInventarioUpda
       }
     }
     return false
-  })()
+  }
+  const referenciadoEnDownstream = movFormModal?.mode === 'editar'
+    ? estaReferenciadoDownstream(movFormModal.movimiento.id)
+    : false
 
   const movFormModalJsx = movFormModal ? (
     <MovimientoFormModal
@@ -672,20 +742,6 @@ export function InventarioCategoria({ planId, plan, inventario, onInventarioUpda
   const propuestaDAGJsx = (
     <>
       {propuestaDAG?.status === 'inferring' && <PropuestaDAGLoadingOverlay />}
-      {propuestaDAG?.status === 'ready' && (
-        <PropuestaDAGModal
-          dependencias={propuestaDAG.dependencias}
-          inventario={inventario}
-          planId={planId}
-          costoUsd={propuestaDAG.costoUsd}
-          latenciaMs={propuestaDAG.latenciaMs}
-          onSuccess={(invActualizado) => {
-            onInventarioUpdate(invActualizado)
-            setPropuestaDAG(null)
-          }}
-          onCerrar={() => setPropuestaDAG(null)}
-        />
-      )}
     </>
   )
 
@@ -709,9 +765,9 @@ export function InventarioCategoria({ planId, plan, inventario, onInventarioUpda
             <button
               onClick={() => setRenombrarAbierto(true)}
               className="mt-2 text-[13px] font-medium text-primary hover:underline"
-              title="Reabrir el editor de nombres de las métricas/brechas del propósito"
+              title="Editar las métricas/brechas del propósito: renombrar, editar valores, agregar o borrar"
             >
-              ✎ Renombrar métricas / brechas
+              ✎ Editar métricas / brechas
             </button>
           )}
         </header>
@@ -736,9 +792,6 @@ export function InventarioCategoria({ planId, plan, inventario, onInventarioUpda
                 metricasBrecha={metricasBrecha.map((m: any) => m.metrica)}
                 movsSinBrecha={movsSinBrecha}
                 onMover={intentarMover}
-                onEditar={(m) => setMovFormModal({ mode: 'editar', movimiento: m })}
-                onDecision={(movId, estado) => aplicarDecision(movId, estado)}
-                savingId={savingId}
                 onRenombrar={async (nueva) => {
                   if (!nueva || nueva === cat) return
                   try {
@@ -788,11 +841,11 @@ export function InventarioCategoria({ planId, plan, inventario, onInventarioUpda
 
         <footer className="flex-shrink-0 border-t border-sidebar-border px-6 py-3 flex items-center justify-end gap-3">
           <button
-            onClick={() => setVista('review')}
+            onClick={entrarRevisionGuiada}
             className={BTN_CTA}
           >
             {inventario.movimientos.every(m => m.estado_usuario === 'pendiente')
-              ? 'Empezar revisión →'
+              ? 'Revisar movimientos uno por uno →'
               : 'Continuar revisión →'}
           </button>
         </footer>
@@ -829,6 +882,16 @@ export function InventarioCategoria({ planId, plan, inventario, onInventarioUpda
           <p className="mt-2 text-[13px] text-muted-foreground">
             <strong className="text-foreground">{totalValidadas} de {totalBrechas}</strong> brechas validadas
           </p>
+          <p className="mt-1.5 text-[13px] text-muted-foreground">
+            ¿Las brechas en sí no te cierran?{' '}
+            <button
+              onClick={() => setRenombrarAbierto(true)}
+              className="font-medium text-primary hover:underline"
+              title="Editar las brechas del propósito: renombrar, editar valores, agregar o borrar"
+            >
+              ✎ Editar brechas (agregar / borrar / valores)
+            </button>
+          </p>
         </header>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
@@ -860,10 +923,10 @@ export function InventarioCategoria({ planId, plan, inventario, onInventarioUpda
 
         <footer className="flex-shrink-0 border-t border-sidebar-border px-6 py-3 flex items-center justify-between gap-3">
           <button
-            onClick={() => setVista('review')}
+            onClick={() => setVista('preview')}
             className="rounded-lg border border-sidebar-border px-3 py-2 text-[13px] font-medium text-muted-foreground hover:bg-accent/60 hover:text-foreground transition-colors"
           >
-            ← Volver a categorías
+            ← Volver a la vista general
           </button>
           <button
             onClick={() => setVista('secuenciacion')}
@@ -942,6 +1005,22 @@ export function InventarioCategoria({ planId, plan, inventario, onInventarioUpda
             </button>
             <button
               onClick={() => {
+                // Gate de cierre: todos los movimientos activos tienen que estar
+                // validados (✓ arriba-izquierda de cada nodo) antes de avanzar.
+                // No aplica en modo retroactivo (re-entrada post-cierre).
+                if (!modoRetroactivo) {
+                  const sinValidar = movsActivos.filter(m => m.deps_validadas !== true)
+                  if (sinValidar.length > 0) {
+                    window.alert(
+                      `Antes de cerrar, confirmá las dependencias de cada movimiento con el ✓ ` +
+                      `(arriba a la izquierda de cada nodo).\n\n` +
+                      `Faltan ${sinValidar.length} de ${movsActivos.length}:\n` +
+                      sinValidar.slice(0, 12).map(m => `· ${m.id} ${m.nombre}`).join('\n') +
+                      (sinValidar.length > 12 ? `\n… y ${sinValidar.length - 12} más` : ''),
+                    )
+                    return
+                  }
+                }
                 if (dagDirty && !window.confirm('Tenés cambios sin guardar. ¿Cerrar igual?')) return
                 onCerrarInventario()
               }}
@@ -963,6 +1042,7 @@ export function InventarioCategoria({ planId, plan, inventario, onInventarioUpda
                 todosLosMovs={inventario.movimientos}
                 movSeleccionadoId={movSeleccionadoSecu}
                 onSeleccionar={(id) => setMovSeleccionadoSecu(id)}
+                posicionAlSeleccionar="left"
                 onAgregarMov={() => {}}
                 onMoverNodo={moverNodoEnDAG}
                 onCrearPrecondicion={(desde, hacia) => void aplicarCrearPrecondicion(desde, hacia)}
@@ -1014,272 +1094,44 @@ export function InventarioCategoria({ planId, plan, inventario, onInventarioUpda
     )
   }
 
+  // vista === review: REVISIÓN GUIADA — un movimiento a la vez, todos sus
+  // campos editables (reusa MovimientoFormModal con progreso). "Guardar y
+  // siguiente →" hasta repasarlos todos → pasa a la cobertura de brechas.
+  const movRevision = inventario.movimientos.find(m => m.id === ordenRevision[revisionIdx]) ?? null
+
+  if (!movRevision) {
+    return (
+      <>
+      <ModalShell onClose={() => {}} onSalir={onSalir}>
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
+          <p className="text-[15px] text-muted-foreground">No hay movimientos para revisar.</p>
+          <button onClick={() => setVista('validacion')} className={BTN_CTA}>Pasar a validar brechas →</button>
+        </div>
+      </ModalShell>
+      {propuestaDAGJsx}
+      </>
+    )
+  }
+
   return (
     <>
-    <ModalShell onClose={() => {}} onSalir={onSalir}>
-      <header className="flex-shrink-0 border-b border-sidebar-border px-6 py-4">
-        <div className="flex items-center gap-3 flex-wrap">
-          {vinoDeValidacion && (
-            <button
-              onClick={() => { setVinoDeValidacion(false); setVista('validacion') }}
-              className="text-[12px] font-medium text-amber-400 hover:underline"
-              title="Volver a la pantalla de validación por brecha"
-            >
-              ← Volver a validación
-            </button>
-          )}
-          <button
-            onClick={() => setVista('preview')}
-            className="text-[12px] font-medium text-primary hover:underline"
-            title="Volver a la vista general de categorías"
-          >
-            ← Vista general
-          </button>
-          <p className="text-[15px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-            Sub-bloque 3.A · Inventario · Categoría {categoriaIdx + 1} de {categorias.length}
-          </p>
-          {haySinProcesar && (
-            <span
-              className="inline-block h-2 w-2 rounded-full bg-red-500"
-              title="Hay categorías con movimientos sin procesar — no podés cerrar el inventario hasta resolverlas todas"
-            />
-          )}
-        </div>
-        {/* Strip de dots de progreso — uno por categoría, color según estado.
-            Click en un dot navega directamente a esa categoría. */}
-        <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-          {estadoPorCategoria.map((e, i) => {
-            const colorClase =
-              e.estado === 'completa' ? 'bg-green-600' :
-              e.estado === 'parcial' ? 'bg-yellow-500' :
-              'bg-muted-foreground/30'
-            const esActual = i === categoriaIdx
-            return (
-              <button
-                key={e.cat}
-                type="button"
-                onClick={() => setCategoriaIdx(i)}
-                title={`${e.cat} — ${e.estado} (${e.procesados}/${e.total} procesados)`}
-                className={`h-3 w-3 rounded-full transition-all ${colorClase} ${esActual ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : 'hover:scale-110'}`}
-              />
-            )
-          })}
-        </div>
-        {renombre.editando ? (
-          <div className="mt-1 flex items-center gap-2">
-            <input
-              type="text"
-              value={renombre.draft}
-              onChange={e => setRenombre(r => ({ ...r, draft: e.target.value }))}
-              onKeyDown={e => {
-                if (e.key === 'Enter') handleRenombrarCategoria()
-                if (e.key === 'Escape') setRenombre({ editando: false, draft: '', saving: false })
-              }}
-              autoFocus
-              disabled={renombre.saving}
-              className="flex-1 rounded-md border border-blue-700 bg-blue-950/30 px-2 py-1 text-[22px] font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-40"
-            />
-            <button
-              onClick={handleRenombrarCategoria}
-              disabled={renombre.saving || !renombre.draft.trim() || renombre.draft.trim() === categoriaActual}
-              className="rounded-md bg-blue-700 px-3 py-1.5 text-[13px] font-semibold text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {renombre.saving ? 'Guardando…' : 'Guardar'}
-            </button>
-            <button
-              onClick={() => setRenombre({ editando: false, draft: '', saving: false })}
-              disabled={renombre.saving}
-              className="rounded-md border border-sidebar-border px-3 py-1.5 text-[13px] hover:bg-accent/50 disabled:opacity-40"
-            >
-              Cancelar
-            </button>
-          </div>
-        ) : (
-          <div className="mt-1 flex items-baseline gap-3">
-            <h2 className="text-[25px] font-semibold text-foreground">{categoriaActual}</h2>
-            <button
-              onClick={() => setRenombre({ editando: true, draft: categoriaActual, saving: false })}
-              className="text-[12px] font-medium text-primary hover:underline"
-              title={`Renombrar categoría (afecta a los ${totalCat} movimientos de esta categoría)`}
-            >
-              ✎ Renombrar
-            </button>
-          </div>
-        )}
-        <p className="mt-1 text-[16px] text-muted-foreground">
-          {procesados} de {totalCat} movimientos procesados
-        </p>
-        <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-sidebar-border">
-          <div
-            className="h-full bg-primary transition-all"
-            style={{ width: `${totalCat > 0 ? (procesados / totalCat) * 100 : 0}%` }}
-          />
-        </div>
-      </header>
-
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-        {/* Brecha de la categoría — sección Brecha mencionada en el cuestionario 3.A */}
-        {propMetricas.length > 0 && (
-          <BrechaCategoria proposito={plan.proposito} situacion={plan.situacion} movimientosCategoria={movsCategoria} />
-        )}
-
-        {/* Movimientos */}
-        <section>
-          <h3 className="text-[17px] font-semibold uppercase tracking-wide text-muted-foreground/80 mb-2">
-            Movimientos propuestos ({totalCat})
-          </h3>
-          <div className="space-y-3">
-            {movsCategoria.map(m => (
-              <MovimientoCard
-                key={m.id}
-                movimiento={m}
-                saving={savingId === m.id}
-                onAceptar={() => aplicarDecision(m.id, 'aceptado')}
-                onAbrirModal={() => setMovFormModal({ mode: 'editar', movimiento: m })}
-                onQuitar={() => aplicarDecision(m.id, 'quitado')}
-              />
-            ))}
-
-            {/* Agregar movimiento custom — abre MovimientoFormModal en modo
-                agregar con la categoría actual pre-seleccionada. */}
-            <div className="space-y-2">
-              <button
-                onClick={() => setMovFormModal({ mode: 'agregar', categoriaInicial: categoriaActual })}
-                className="w-full rounded-lg border-2 border-dashed border-red-700 bg-red-950/20 px-4 pt-4 pb-2 text-[18px] font-semibold text-red-300 hover:bg-red-900/40 hover:border-red-500 hover:text-red-100 transition-colors flex flex-col items-center gap-1"
-              >
-                <span>+ AGREGAR MOVIMIENTO</span>
-                <span className="text-[12px] font-normal opacity-80">(Nuevo movimiento que achica la brecha)</span>
-              </button>
-              <p className="text-[15px] text-foreground text-center px-4 leading-relaxed">
-                Agregá tantos movimientos como creas necesarios hasta que sientas que son SUFICIENTES para eliminar la brecha enunciada arriba.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {error && (
-          <div className="rounded-lg border border-red-700 bg-red-950/50 px-4 py-3 text-[17px] text-red-200">
-            <p className="font-semibold mb-1">Error</p>
-            <p>{error}</p>
-          </div>
-        )}
-
-        {/* Footer no-sticky: aparece recién cuando el user llega al final de
-            la lista de movimientos. Antes era sticky (flex-shrink-0 fuera del
-            scroll) pero eso tapaba contenido y daba sensación de presión para
-            avanzar. Ahora el botón "Cerrar categoría y avanzar" es la última
-            cosa que ve después de revisar todos los movs. */}
-        <footer className="border-t border-sidebar-border pt-3 mt-2 flex items-center justify-between gap-3 flex-wrap">
-          <p className="text-[15px] text-muted-foreground">
-            {todosProcesados
-              ? '✓ Todos aceptados o quitados'
-              : `Faltan decidir ${totalCat - procesados} movimiento${(totalCat - procesados) === 1 ? '' : 's'} (aceptar o quitar)`}
-          </p>
-          <div className="flex items-center gap-2">
-            {/* Volver a categoría anterior — solo visible si no es la primera. */}
-            {categoriaIdx > 0 && (
-              <button
-                onClick={() => setCategoriaIdx(idx => Math.max(0, idx - 1))}
-                className="rounded-lg border border-sidebar-border px-3 py-2 text-[13px] font-medium text-muted-foreground hover:bg-accent/60 hover:text-foreground transition-colors"
-                title={`Volver a la categoría anterior (${categorias[categoriaIdx - 1] ?? ''})`}
-              >
-                ← Volver
-              </button>
-            )}
-            {/* Siguiente categoría — solo habilitado si la próxima ya está toda
-                procesada. Permite navegar entre categorías ya cerradas sin
-                re-procesar. Si la próxima tiene movs pendientes, el usuario debe
-                usar "Cerrar categoría y avanzar" (que valida todos procesados). */}
-            {!esUltimaCategoria && siguienteProcesada && (
-              <button
-                onClick={() => setCategoriaIdx(idx => Math.min(categorias.length - 1, idx + 1))}
-                className="rounded-lg border border-sidebar-border px-3 py-2 text-[13px] font-medium text-muted-foreground hover:bg-accent/60 hover:text-foreground transition-colors"
-                title={`Avanzar a la siguiente categoría ya procesada (${categorias[categoriaIdx + 1] ?? ''})`}
-              >
-                Siguiente →
-              </button>
-            )}
-            <button
-              onClick={() => setMostrandoConfirmacion(true)}
-              disabled={!todosProcesados}
-              className={BTN_CTA}
-            >
-              {esUltimaCategoria ? 'Validar brechas →' : 'Cerrar categoría y avanzar →'}
-            </button>
-          </div>
-        </footer>
-      </div>
-
-      {/* Confirmación de vaciado al mover el último mov de una categoría.
-          Como las categorías se derivan, vaciar = eliminar. Pedimos OK explícito. */}
-      {confirmacionVaciado && (
-        <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sans"
-          onClick={() => setConfirmacionVaciado(null)}
-        >
-          <div
-            className="flex w-full max-w-md flex-col overflow-hidden rounded-xl border border-amber-700/60 bg-background shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          >
-            <header className="border-b border-sidebar-border px-5 py-4">
-              <p className="text-[12px] font-semibold uppercase tracking-wider text-amber-400/90">Eliminar categoría</p>
-              <h3 className="mt-2 text-[16px] font-semibold text-foreground leading-snug">
-                "{confirmacionVaciado.categoriaOrigen}" va a quedar vacía y se eliminará del listado.
-              </h3>
-              <p className="mt-2 text-[13px] text-muted-foreground leading-relaxed">
-                Estás moviendo "{confirmacionVaciado.movNombre}" (el único movimiento de la categoría) a "{confirmacionVaciado.categoriaDestino}". ¿Continuar?
-              </p>
-            </header>
-            <footer className="flex items-center justify-end gap-2 border-t border-sidebar-border px-5 py-3 bg-sidebar/30">
-              <button
-                onClick={() => setConfirmacionVaciado(null)}
-                className="rounded-md border border-sidebar-border px-3 py-2 text-[13px] hover:bg-accent/50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={async () => {
-                  const c = confirmacionVaciado
-                  setConfirmacionVaciado(null)
-                  await aplicarMover(c.movId, c.categoriaDestino)
-                }}
-                className="rounded-lg bg-amber-600 px-4 py-2 text-[13px] font-bold text-white hover:bg-amber-500 transition-colors"
-              >
-                Sí, mover y eliminar categoría
-              </button>
-            </footer>
-          </div>
-        </div>
-      )}
-
-      {/* Confirmación necesario/suficiente — fuerza al usuario a parar y
-          chequear que los movs aceptados de esta categoría son SUFICIENTES
-          para cerrar la brecha enunciada arriba. Es el último gate antes de
-          avanzar (o cerrar el inventario entero si es la última categoría). */}
-      {mostrandoConfirmacion && (() => {
-        const movsKeep = movsCategoria.filter(m => m.estado_usuario !== 'quitado')
-        const brechasSet = new Set(brechasDeCategoria(movsKeep))
-        const brechas = (plan.proposito?.metricas ?? [])
-          .filter((m: any) => brechasSet.has(m.metrica))
-          .map((m: any) => m.metrica as string)
-        return (
-          <ConfirmacionCerrarCategoria
-            categoria={categoriaActual}
-            esUltimaCategoria={esUltimaCategoria}
-            movsKeep={movsKeep}
-            brechas={brechas}
-            onSiSeguir={async () => {
-              setMostrandoConfirmacion(false)
-              await cerrarCategoriaYAvanzar()
-            }}
-            onRevisar={() => setMostrandoConfirmacion(false)}
-          />
-        )
-      })()}
-    </ModalShell>
-    {modalRenombrar}
-    {movFormModalJsx}
-    {propuestaDAGJsx}
+      <MovimientoFormModal
+        key={movRevision.id}
+        mode="editar"
+        movimiento={movRevision}
+        planId={planId}
+        categorias={categorias}
+        metricasProposito={plan.proposito?.metricas ?? []}
+        allMovimientos={inventario.movimientos}
+        duenosExistentes={inventario.movimientos.filter(m => m.estado_usuario !== 'quitado').map(m => m.dueno)}
+        referenciadoEnDownstream={estaReferenciadoDownstream(movRevision.id)}
+        submitLabel="Guardar y siguiente →"
+        progreso={{ actual: revisionIdx + 1, total: ordenRevision.length }}
+        onVolver={() => setRevisionIdx(i => Math.max(0, i - 1))}
+        onSuccess={(inv) => { onInventarioUpdate(inv); avanzarRevision() }}
+        onCerrar={() => setVista('preview')}
+      />
+      {propuestaDAGJsx}
     </>
   )
 }
@@ -1293,9 +1145,6 @@ function PreviewCategoria({
   movsSinBrecha,
   onRenombrar,
   onMover,
-  onEditar,
-  onDecision,
-  savingId,
 }: {
   categoria: string
   movimientos: MovimientoPE[]
@@ -1311,10 +1160,6 @@ function PreviewCategoria({
   // verifica que la categoría origen sea distinta + maneja el warning
   // de "último mov de la categoría origen".
   onMover: (movId: string, categoriaDestino: string) => void
-  // Acciones por movimiento desde la vista general (edición no escondida):
-  onEditar: (mov: MovimientoPE) => void
-  onDecision: (movId: string, estado: 'aceptado' | 'quitado') => void
-  savingId: string | null
 }) {
   const [editando, setEditando] = useState(false)
   const [draft, setDraft] = useState(categoria)
@@ -1419,58 +1264,26 @@ function PreviewCategoria({
       <ul className="space-y-1.5 pl-2">
         {movimientos.map(m => {
           const colorImpacto = colorImpactoClass(m.impacto)
-          const saving = savingId === m.id
           const quitado = m.estado_usuario === 'quitado'
           const decidido = m.estado_usuario === 'aceptado' || m.estado_usuario === 'editado'
           return (
             <li
               key={m.id}
-              draggable={!saving}
+              draggable
               onDragStart={(e) => {
                 e.dataTransfer.setData('text/plain', m.id)
                 e.dataTransfer.effectAllowed = 'move'
               }}
-              className={`group/mov flex items-center gap-2 text-[14px] cursor-grab active:cursor-grabbing rounded-md px-1.5 py-1 -mx-1.5 hover:bg-foreground/5 ${quitado ? 'opacity-45' : ''}`}
+              className={`flex items-center gap-2 text-[14px] cursor-grab active:cursor-grabbing rounded-md px-1.5 py-0.5 -mx-1.5 hover:bg-foreground/5 ${quitado ? 'opacity-45' : ''}`}
               title="Arrastrar a otra categoría para mover"
             >
               <span className="text-muted-foreground/50 select-none text-[14px]" aria-hidden>⠿</span>
               <span className={`inline-block h-2 w-2 rounded-full flex-shrink-0 ${colorImpacto}`} title={`Impacto: ${m.impacto ?? '(sin declarar)'}`} />
               <span className="font-mono text-[13px] text-muted-foreground/70">{m.id}</span>
               <span className={`flex-1 min-w-0 truncate text-foreground/95 ${quitado ? 'line-through' : ''}`}>{m.nombre}</span>
-              {/* Estado + acciones por movimiento (edición no escondida) */}
+              {/* Indicador de estado (la edición se hace en la revisión guiada) */}
               {decidido && <span className="flex-shrink-0 text-[12px] font-semibold text-emerald-400" title={m.estado_usuario === 'editado' ? 'Editado' : 'Aceptado'}>✓</span>}
               {quitado && <span className="flex-shrink-0 text-[12px] text-muted-foreground">quitado</span>}
-              <div className="flex-shrink-0 flex items-center gap-1 opacity-0 group-hover/mov:opacity-100 focus-within:opacity-100 transition-opacity">
-                <button
-                  type="button"
-                  onClick={() => onEditar(m)}
-                  disabled={saving}
-                  title="Editar todos los campos de este movimiento"
-                  className="rounded border border-sidebar-border px-1.5 py-0.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-accent/50 disabled:opacity-40"
-                >
-                  ✎ Editar
-                </button>
-                {!decidido && !quitado && (
-                  <button
-                    type="button"
-                    onClick={() => onDecision(m.id, 'aceptado')}
-                    disabled={saving}
-                    title="Aceptar este movimiento tal cual"
-                    className="rounded border border-emerald-700/50 bg-emerald-950/30 px-1.5 py-0.5 text-[12px] text-emerald-300 hover:bg-emerald-950/60 disabled:opacity-40"
-                  >
-                    ✓ Aceptar
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => onDecision(m.id, quitado ? 'aceptado' : 'quitado')}
-                  disabled={saving}
-                  title={quitado ? 'Reincorporar este movimiento' : 'Quitar este movimiento del plan'}
-                  className="rounded border border-red-900/40 px-1.5 py-0.5 text-[12px] text-red-400/80 hover:text-red-300 hover:bg-red-950/30 disabled:opacity-40"
-                >
-                  {quitado ? '↩ Reincorporar' : '✕ Quitar'}
-                </button>
-              </div>
             </li>
           )
         })}
@@ -1572,17 +1385,8 @@ function BrechaSeccion({
   )
 }
 
-// Modal de confirmación previa al cierre de categoría / inventario. Fuerza
-// al usuario a chequear que los movimientos aceptados son necesarios y
-// suficientes para eliminar la brecha de la categoría.
-function ConfirmacionCerrarCategoria({
-  categoria,
-  esUltimaCategoria,
-  movsKeep,
-  brechas,
-  onSiSeguir,
-  onRevisar,
-}: {
+// (sin uso desde el rediseño de revisión guiada — se conserva por ahora)
+function ConfirmacionCerrarCategoria({ categoria, esUltimaCategoria, movsKeep, brechas, onSiSeguir, onRevisar }: {
   categoria: string
   esUltimaCategoria: boolean
   // Movs que quedaron en la categoría (aceptados + editados, excluye quitados).
@@ -1684,7 +1488,7 @@ function PropuestaDAGLoadingOverlay() {
         </div>
         <p className="text-[15px] font-semibold text-foreground">Analizando dependencias del plan completo…</p>
         <p className="text-[12px] text-muted-foreground max-w-xs">
-          Opus está identificando todas las dependencias entre los movimientos del inventario. Tarda 60-120s.
+          La IA está identificando todas las dependencias entre los movimientos del inventario. Tarda 60-120s.
         </p>
       </div>
     </div>,
@@ -1827,6 +1631,7 @@ export function BrechasMultiSelect({ metricas, seleccionadas, onToggle, error }:
   )
 }
 
+// (sin uso desde el rediseño de revisión guiada — se conserva por ahora)
 function BrechaCategoria({ proposito, situacion, movimientosCategoria }: { proposito?: any; situacion?: any; movimientosCategoria: MovimientoPE[] }) {
   if (!proposito?.metricas?.length) return null
   // Brechas declaradas por los movs (campo brechas_atacadas). Filtramos las
@@ -1880,17 +1685,8 @@ function BrechaCategoria({ proposito, situacion, movimientosCategoria }: { propo
   )
 }
 
-// Card display-only de un movimiento dentro de una categoría (review view).
-// El edit inline fue reemplazado por MovimientoFormModal: cualquier click en el
-// cuerpo de la card (o en el botón ✎) abre el modal. Aceptar/Quitar siguen
-// como botones inline (operaciones rápidas sin editar el form completo).
-function MovimientoCard({
-  movimiento,
-  saving,
-  onAceptar,
-  onAbrirModal,
-  onQuitar,
-}: {
+// (sin uso desde el rediseño de revisión guiada — se conserva por ahora)
+function MovimientoCard({ movimiento, saving, onAceptar, onAbrirModal, onQuitar }: {
   movimiento: MovimientoPE
   saving: boolean
   onAceptar: () => void
