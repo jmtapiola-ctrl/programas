@@ -82,7 +82,15 @@ export async function POST(req: NextRequest) {
   // oculta del rendering visual (ChatInterface.tsx).
   const historial = entrevista.historial
   const messages: Anthropic.MessageParam[] = historial.map(t => {
-    if (t.rol === 'model') return { role: 'assistant', content: t.contenido }
+    if (t.rol === 'model') {
+      // Stub anti-mirroring (CLAUDE.md "PANEL_UPDATE se silencia si turnos previos
+      // no lo emitieron"): el bloque se strippea del texto guardado (route:320), así
+      // que el modelo ve sus propios turnos SIN bloque y los imita → deja de
+      // emitirlo / de sumar la pregunta nueva a preguntas_principal. Dejamos una
+      // marca de que SÍ lo emitió para que mantenga el patrón. La marca es system-
+      // framed para que el modelo no la reproduzca en su prosa.
+      return { role: 'assistant', content: `${t.contenido}\n\n[sistema: en este turno emitiste el bloque PANEL_UPDATE; fue procesado y removido del texto visible]` }
+    }
     if (t.rol === 'reviewer') {
       return {
         role: 'user',
@@ -125,12 +133,26 @@ export async function POST(req: NextRequest) {
   // Pasar entrevista al system prompt para que el modelo sepa en qué paso/
   // sub-bloque está. Sin esto, el modelo asume Paso 0 cuando arranca sin
   // historial — bug confirmado en checkpoint del Paso 3 (3 mayo 2026).
-  const systemPrompt = buildSystemPrompt(plan, planSr, {
+  let systemPrompt = buildSystemPrompt(plan, planSr, {
     paso_actual: entrevista.paso_actual,
     sub_bloque_actual: entrevista.sub_bloque_actual,
     sub_estado_paso: entrevista.sub_estado_paso,
     historial: entrevista.historial,
   })
+
+  // RECORDATORIO DE RECENCIA (3.B / 3.D). El contrato del PANEL_UPDATE instruye
+  // sumar cada pregunta nueva al array, pero está sepultado en un prompt enorme y
+  // el modelo lo ignora: ve sus turnos previos (con el bloque ya stripeado) sin
+  // PANEL_UPDATE y los imita, dejando de estructurar las preguntas. Resultado: el
+  // panel queda clavado en la primera pregunta (bug confirmado: solo P-1 persiste).
+  // Reponer la instrucción AL FINAL (máxima recencia) mejora mucho la adherencia.
+  if (entrevista.sub_bloque_actual === '3.B') {
+    systemPrompt += `\n\n## ⚠️ RECORDATORIO FINAL — 3.B (leé esto antes de responder)
+Si en esta respuesta hacés una pregunta PRINCIPAL nueva de palanca (P-2, P-3, P-4 o P-5), es OBLIGATORIO sumarla a \`plan.palancas.preguntas_principal\` dentro de tu bloque PANEL_UPDATE: un objeto nuevo con \`id\` ("P-2".."P-5"), \`origen:"principal"\`, \`pregunta\`, \`respuesta:""\`, \`observacion_modelo:""\`, y el panel metadata (\`modo_interaccion\`, \`campos_a_mostrar\`, \`instruccion_panel\`, restricciones). El array es ACUMULATIVO: incluí TODAS las preguntas previas (P-1…) + la nueva. Si solo la narrás en la prosa pero NO la agregás al array, el panel del usuario queda clavado en la pregunta anterior. NO importa que tus turnos previos en el historial no muestren el bloque (el sistema lo strippea) — emitilo IGUAL, siempre, con la pregunta nueva incluida.`
+  } else if (entrevista.sub_bloque_actual === '3.D') {
+    systemPrompt += `\n\n## ⚠️ RECORDATORIO FINAL — 3.D (leé esto antes de responder)
+Si en esta respuesta hacés una pregunta de estrés nueva, es OBLIGATORIO sumarla a \`plan.estres.preguntas\` dentro de tu bloque PANEL_UPDATE (objeto nuevo con \`id\`, \`pregunta\`, \`respuesta:""\`, y el panel metadata si aplica). El array es ACUMULATIVO: incluí todas las previas + la nueva. Si solo la narrás en la prosa, el panel queda clavado en la pregunta anterior. Emití el bloque SIEMPRE, con la pregunta nueva incluida.`
+  }
 
   // Stream SSE
   const encoder = new TextEncoder()
