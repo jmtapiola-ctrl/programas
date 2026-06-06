@@ -430,9 +430,10 @@ export default function EntrevistaPage() {
   // y P-5 (marcado_simple) tienen flow inline. En 3.D las preguntas E-N pueden
   // usar los mismos modos pero el panel lateral derecho clásico — no inline.
   const preguntaActiva = preguntaActualParaPanel()
-  const esModoConRazonInline =
-    (preguntaActiva?.modo_interaccion === 'secuenciacion' && preguntaActiva?.id === 'P-4')
-    || (preguntaActiva?.modo_interaccion === 'marcado_simple' && preguntaActiva?.id === 'P-5')
+  const esModoConRazonInline = subBloqueActual === '3.B' && (
+    preguntaActiva?.modo_interaccion === 'secuenciacion'
+    || preguntaActiva?.modo_interaccion === 'marcado_simple'
+  )
   const minChars = esModoConRazonInline ? undefined : meta?.caracteres_minimos
   const minWords = esModoConRazonInline ? undefined : meta?.palabras_minimas
   const placeholderModel = esModoConRazonInline ? undefined : meta?.placeholder_textarea
@@ -1413,7 +1414,7 @@ export default function EntrevistaPage() {
             {(() => {
               const preguntaP4 = preguntaActiva
               if (preguntaP4?.modo_interaccion !== 'secuenciacion') return null
-              if (preguntaP4.id !== 'P-4') return null  // solo P-4 de 3.B, no E-N de 3.D
+              if (subBloqueActual !== '3.B') return null  // inline solo en 3.B (3.D usa panel clásico); por MODO, no por id, porque el modelo numera las preguntas libremente
               if (preguntaP4.respuesta_estructurada) return null
               if (!plan.plan?.inventario?.movimientos) return null
               return (
@@ -1438,7 +1439,7 @@ export default function EntrevistaPage() {
             {(() => {
               const preguntaP5 = preguntaActiva
               if (preguntaP5?.modo_interaccion !== 'marcado_simple') return null
-              if (preguntaP5.id !== 'P-5') return null  // solo P-5 de 3.B, no E-N de 3.D
+              if (subBloqueActual !== '3.B') return null  // inline solo en 3.B (3.D usa panel clásico); por MODO, no por id
               if (preguntaP5.respuesta_estructurada) return null
               if (!plan.plan?.inventario?.movimientos) return null
               return (
@@ -1832,9 +1833,10 @@ export default function EntrevistaPage() {
           const preguntaPanel = preguntaActualParaPanel()
           // SOLO P-4 y P-5 de 3.B tienen inline flow. En 3.D las preguntas E-N
           // que usen los mismos modos van al panel derecho clásico.
-          const esInline =
-            (preguntaPanel?.modo_interaccion === 'secuenciacion' && preguntaPanel?.id === 'P-4')
-            || (preguntaPanel?.modo_interaccion === 'marcado_simple' && preguntaPanel?.id === 'P-5')
+          const esInline = subBloqueActual === '3.B' && (
+            preguntaPanel?.modo_interaccion === 'secuenciacion'
+            || preguntaPanel?.modo_interaccion === 'marcado_simple'
+          )
           if (esInline) return null
           if (preguntaPanel && plan.plan?.inventario?.movimientos) {
             return (

@@ -23,7 +23,8 @@ import {
   mergeSubBloque,
   type ParseResult,
 } from '@/lib/pe-panel-update'
-import type { TurnoPE, PanelUpdatePE } from '@/lib/types'
+import type { TurnoPE, PanelUpdatePE, PalancaQAPE } from '@/lib/types'
+import { sintetizarPreguntaPalanca } from '@/lib/palanca-sintesis'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -245,6 +246,38 @@ Si en esta respuesta hacés una pregunta de estrés nueva, es OBLIGATORIO sumarl
               // modelo TUVO intención de emitir block (lo emitió, mal) y
               // sintetizar enmascararía bugs reales del modelo.
             }
+          }
+        }
+
+        // ─── Síntesis determinística de la pregunta de palanca (3.B) ─────────
+        // Si el modelo narró "PREGUNTA P-N" en la prosa pero no la agregó a
+        // plan.palancas.preguntas_principal, la sintetizamos e inyectamos al
+        // panelUpdate ANTES del merge, para que el panel avance sin depender de
+        // la adherencia del modelo. Construimos el array final completo y ordenado
+        // (current + incoming + la nueva al final) para que la última pregunta
+        // del array sea la sintetizada (el frontend muestra la última).
+        if (panelUpdate && entrevista.sub_bloque_actual === '3.B') {
+          const prosa = fullResponse.replace(PANEL_UPDATE_RE, '')
+          const current = plan.plan?.palancas?.preguntas_principal ?? []
+          const incoming = ((panelUpdate.plan as any)?.palancas?.preguntas_principal ?? []) as PalancaQAPE[]
+          const idsExistentes = new Set<string>([...current.map(q => q.id), ...incoming.map(q => q.id)])
+          const sintetizada = sintetizarPreguntaPalanca(prosa, idsExistentes)
+          if (sintetizada) {
+            // Orden: current primero (preservando sus objetos completos), luego
+            // incoming nuevas, luego la sintetizada al final.
+            const byId = new Map<string, PalancaQAPE>()
+            for (const q of current) byId.set(q.id, q)
+            for (const q of incoming) byId.set(q.id, q)
+            const ordered = [...byId.values(), sintetizada]
+            const pu = panelUpdate as any
+            pu.plan = pu.plan ?? {}
+            pu.plan.palancas = pu.plan.palancas ?? {}
+            pu.plan.palancas.preguntas_principal = ordered
+            console.warn(
+              `[PE chat] Pregunta de palanca ${sintetizada.id} sintetizada server-side ` +
+              `(modo=${sintetizada.modo_interaccion ?? 'texto'}) — el modelo la narró en prosa ` +
+              `pero no la emitió en preguntas_principal.`,
+            )
           }
         }
 
