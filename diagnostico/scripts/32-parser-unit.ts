@@ -290,6 +290,39 @@ const propCurrent: PropositorPE = {
   assertOk('4.4.b evento updated emitido', !!ev)
 }
 
+// ─── Caso 5: respuesta_estructurada mal formada NO debe rechazar el bloque ──
+// Regresión del bug del panel atascado en 3.B: el modelo re-emitía palancas con
+// una respuesta_estructurada mal formada (modo undefined) y el parser rechazaba
+// TODO el PANEL_UPDATE (invalid_shape) → nada se persistía. Ahora se strippea.
+{
+  const bloque = `<!--PANEL_UPDATE-->
+${JSON.stringify({
+    paso_actual: 3,
+    sub_bloque_actual: '3.B',
+    cierre_sugerido: false,
+    plan: {
+      palancas: {
+        preguntas_principal: [
+          { id: 'P-1', origen: 'principal', pregunta: '¿Palanca?', respuesta: 'porque X',
+            modo_interaccion: 'seleccion_unica',
+            respuesta_estructurada: { movimiento_id: 'M-1' } }, // <-- sin .modo (mal formada)
+          { id: 'P-2', origen: 'principal', pregunta: '¿Top 3?', respuesta: '',
+            modo_interaccion: 'seleccion_multiple_ranked' },
+        ],
+      },
+    },
+  })}
+<!--/PANEL_UPDATE-->`
+  const res = parsePanelUpdate(bloque)
+  assertOk('5.1 bloque con resp_estructurada mal formada parsea OK (no invalid_shape)', res.ok,
+    res.ok ? undefined : `reason=${(res as any).reason} errs=${JSON.stringify((res as any).errors)}`)
+  if (res.ok) {
+    const pp = (res.data.plan as any)?.palancas?.preguntas_principal ?? []
+    assertEq('5.2 conserva las 2 preguntas', pp.length, 2)
+    assertOk('5.3 respuesta_estructurada fue strippeada de P-1', pp[0]?.respuesta_estructurada === undefined)
+  }
+}
+
 // ─── Resumen final ────────────────────────────────────────────────────────
 console.log('\n' + '═'.repeat(72))
 console.log(`Total: ${pasados}/${total} assertions pasaron`)

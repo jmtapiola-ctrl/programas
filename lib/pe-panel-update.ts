@@ -542,6 +542,27 @@ export function parsePanelUpdate(fullResponse: string): ParseResult {
     }
   }
 
+  // ─── Normalización: strippear respuesta_estructurada que el modelo NO debe emitir ─
+  // respuesta_estructurada (la elección de fichas del usuario) se persiste SOLO
+  // vía el endpoint dedicado del cliente; el modelo no la conoce ni debe
+  // regenerarla, y el merge preserva la del cliente. En la práctica el modelo a
+  // veces la re-emite MAL FORMADA (p.ej. respuesta_estructurada.modo undefined),
+  // lo que hacía que la validación rechazara el PANEL_UPDATE ENTERO como
+  // invalid_shape → no se persistía nada y el panel quedaba congelado en la
+  // pregunta anterior (bug del panel atascado en 3.B). La strippeamos SIEMPRE
+  // antes de validar: queda undefined en el incoming y mergeArr conserva la
+  // versión real del cliente.
+  const stripRespEstr = (arr: any) => {
+    if (Array.isArray(arr)) {
+      for (const it of arr) {
+        if (it && typeof it === 'object') delete it.respuesta_estructurada
+      }
+    }
+  }
+  stripRespEstr(parsed?.plan?.palancas?.preguntas_principal)
+  stripRespEstr(parsed?.plan?.palancas?.preguntas_validador)
+  stripRespEstr(parsed?.plan?.estres?.preguntas)
+
   const errors: string[] = []
 
   // Top-level
