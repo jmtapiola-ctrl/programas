@@ -15,6 +15,11 @@ function mov(id: string, costoMax: number, dur = 2) {
   return { id, costo_monetario: { rango_min_usd: 0, rango_max_usd: costoMax }, duracion_meses_ejecucion: dur }
 }
 
+// mov con ventana_temporal (para el cap temporal — Opción B).
+function movV(id: string, termina: string, costoMax = 100) {
+  return { ...mov(id, costoMax), ventana_temporal: { arranca: '2026-06', termina } }
+}
+
 function planJr(opts: { curadoMovs: any[]; baseline: any[]; criterios?: string; metricas?: string }) {
   return {
     tipo: 'Jr',
@@ -95,6 +100,32 @@ const NOW = '2026-06-01T00:00:00.000Z'
   console.log('Caso 5 — sin baseline:')
   check('no rompe', Array.isArray(divergencias))
   check('costo baseline=0', capSnapshot.costo_baseline_sr_usd === 0)
+}
+
+// Caso 6: atraso temporal (Jr cierra 2027-02 vs Sr 2026-08 = 6 meses) → cap-tiempo-atraso CRITICA.
+// Costo y cobertura en paridad (3 movs x100 ambos lados) para aislar el temporal.
+{
+  const p = planJr({
+    curadoMovs: [movV('A', '2026-10'), movV('B', '2027-02'), movV('C', '2026-09')],
+    baseline: [movV('X', '2026-06'), movV('Y', '2026-08'), movV('Z', '2026-07')],
+  })
+  const { divergencias, capSnapshot } = generarDivergenciasCapJr(p, NOW)
+  console.log('Caso 6 — atraso temporal:')
+  check('hay cap-tiempo-atraso', divergencias.some(d => d.id === 'cap-tiempo-atraso'), divergencias.map(d => d.id).join(','))
+  check('es CRITICA', divergencias.find(d => d.id === 'cap-tiempo-atraso')?.categoria === 'CRITICA')
+  check('cierre_jr=2027-02', capSnapshot.cierre_jr_ym === '2027-02', `es ${capSnapshot.cierre_jr_ym}`)
+  check('cierre_sr=2026-08', capSnapshot.cierre_esperado_sr_ym === '2026-08', `es ${capSnapshot.cierre_esperado_sr_ym}`)
+}
+
+// Caso 7: dentro del horizonte (Jr cierra 1 mes después = bajo umbral) → SIN cap-tiempo-atraso.
+{
+  const p = planJr({
+    curadoMovs: [movV('A', '2026-09'), movV('B', '2026-08'), movV('C', '2026-07')],
+    baseline: [movV('X', '2026-08'), movV('Y', '2026-08'), movV('Z', '2026-07')],
+  })
+  const { divergencias } = generarDivergenciasCapJr(p, NOW)
+  console.log('Caso 7 — dentro del horizonte:')
+  check('no hay cap-tiempo-atraso', !divergencias.some(d => d.id === 'cap-tiempo-atraso'), divergencias.map(d => d.id).join(','))
 }
 
 console.log(`\n${pass}/${pass + fail} checks verde.`)

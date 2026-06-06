@@ -42,8 +42,28 @@ function contarLineas(md?: string): number {
   return md.split('\n').map(l => l.trim()).filter(l => l.length > 0 && l !== '-').length
 }
 
+// Máxima fecha de cierre (ventana_temporal.termina, "YYYY-MM") de un set de movs.
+// Las "YYYY-MM" comparan lexicográficamente, así que el max string ES el más tardío.
+// null si ningún mov está secuenciado (sin ventana_temporal).
+function maxTermina(movs: MovimientoPE[]): string | null {
+  let max: string | null = null
+  for (const m of movs) {
+    const t = m?.ventana_temporal?.termina
+    if (typeof t === 'string' && /^\d{4}-\d{2}$/.test(t) && (max === null || t > max)) max = t
+  }
+  return max
+}
+
+// Diferencia en meses entre dos "YYYY-MM" (b - a). Positivo si b es posterior.
+function mesesEntre(a: string, b: string): number {
+  const [ay, am] = a.split('-').map(Number)
+  const [by, bm] = b.split('-').map(Number)
+  return (by * 12 + bm) - (ay * 12 + am)
+}
+
 const UMBRAL_SOBRECOSTO = 1.3   // Jr > 130% del baseline Sr
 const UMBRAL_SUBCOSTO = 0.7     // Jr < 70% del baseline Sr (posible shortfall de alcance)
+const UMBRAL_ATRASO_MESES = 2   // Jr cierra ≥2 meses después de lo que el Sr esperaba
 
 export function generarDivergenciasCapJr(
   plan: PlanEstrategico,
@@ -84,6 +104,28 @@ export function generarDivergenciasCapJr(
     }
   }
 
+  // Divergencia TEMPORAL (Opción B): el cronograma del Jr cierra más tarde de lo
+  // que el Sr esperaba para esta línea. Compara la fecha de cierre del curado Jr
+  // (max ventana_temporal.termina) contra el cierre del snapshot del Sr. Como esta
+  // línea suele ser prerequisite del resto del Sr, un atraso acá puede propagarse
+  // al plan superior. Solo dispara si AMBOS están secuenciados (sino no hay nada
+  // determinístico que comparar — el reviewer semántico igual lo puede levantar).
+  const cierreJr = maxTermina(movsJr)
+  const cierreSr = maxTermina(baseline)
+  if (cierreJr && cierreSr) {
+    const atrasoMeses = mesesEntre(cierreSr, cierreJr)
+    if (atrasoMeses >= UMBRAL_ATRASO_MESES) {
+      divergencias.push({
+        id: 'cap-tiempo-atraso',
+        categoria: 'CRITICA',
+        pregunta: `Tu cronograma cierra esta línea en ${cierreJr}, ${atrasoMeses} ${atrasoMeses === 1 ? 'mes' : 'meses'} después de lo que el Sr esperaba (${cierreSr}). Como esta línea suele ser base para el resto del Plan Sr, ese atraso puede arrastrar al plan superior. ¿Cómo lo resolvés — replanificás la secuencia, recortás duraciones, o acotás alcance?`,
+        por_que_importa: 'El horizonte/ventana de esta línea es un DADO heredado del Sr, no una elección del Jr. Un atraso en una línea prerequisite se amplifica aguas abajo y puede anular el cronograma del Plan Sr.',
+        relacion_con_plan: 'Fecha de cierre del cronograma curado del Jr vs cierre esperado por el Sr (snapshot heredado).',
+        placeholder_ejemplo_respuesta: 'Adelanto X poniéndolo en paralelo / Recorto la duración de M-Y / Acepto el atraso porque el Sr tiene holgura en esta línea, lo confirmo.',
+      })
+    }
+  }
+
   // Divergencia de cobertura de movimientos (el Jr planifica muchos menos que el baseline).
   if (aggSr.count >= 3 && aggJr.count > 0 && aggJr.count < aggSr.count * 0.6) {
     divergencias.push({
@@ -106,6 +148,8 @@ export function generarDivergenciasCapJr(
       contarLineas(plan.contexto_curado?.criterios_exito) +
       contarLineas(plan.contexto_curado?.metricas),
     divergencias_detectadas: divergencias.length,
+    cierre_jr_ym: cierreJr ?? undefined,
+    cierre_esperado_sr_ym: cierreSr ?? undefined,
   }
 
   return { divergencias, capSnapshot }

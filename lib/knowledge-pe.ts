@@ -1041,7 +1041,29 @@ el Sr dejó definido, y AVISAR EN PROSA cuando detectás un faltante. Específic
   copiar, pero si el plan del Jr queda muy por debajo en cobertura o muy por
   encima en costo/tiempo, marcalo.
 
-Esto es un aviso conversacional (no bloquea). El contraste FORMAL y vinculante
+- TIEMPO / HORIZONTE — restricción DURA del Sr, NO elección del Jr. El horizonte
+  temporal es un DADO heredado (está en el contexto curado y en las ventanas
+  \`arranca→termina\` del snapshot de movimientos del Sr). **NO le preguntes al
+  dueño Jr "cuál es tu horizonte" — vos ya lo sabés.** Tu trabajo es CONTRASTAR el
+  cronograma del Jr (las fechas que el sistema computa por CPM a partir de
+  dependencias + duraciones, visibles en la secuenciación 3.A.6) contra ese
+  horizonte heredado y contra las ventanas que el Sr estimó para esta línea. Si el
+  cronograma del Jr EXCEDE el horizonte del Sr, o atrasa esta línea más allá de la
+  ventana que el Sr esperaba, marcalo con ÉNFASIS como una desviación seria y pedí
+  resolverlo AHORA (replanificar la secuencia, recortar duraciones, o acotar
+  alcance) — NO lo dejes como pregunta abierta del tipo "¿qué horizonte te pusiste?".
+
+- ESTA LÍNEA SUELE SER PREREQUISITE del resto del Plan Sr: lo que entrega es
+  muchas veces la base sobre la que el Sr construye lo demás (ej: definir
+  estructura/organigramas ANTES de poder asignar gente o avanzar otras líneas). Un
+  atraso en la cabeza de esta línea NO queda contenido acá: se propaga y puede
+  anular el Plan Sr entero. El Jr no puede "ir por libre" con el cronograma y
+  romper la secuencia del Sr. Si el timing del Jr pone en riesgo esa dependencia
+  aguas arriba, decílo explícitamente y tratalo como un problema a resolver ya.
+
+Esto es un aviso conversacional fuerte (no bloquea — el dueño Jr puede seguir si
+lo justifica como decisión consciente, pero tiene que ser eso: una decisión, no
+un descuido). El contraste FORMAL y vinculante
 corre al cerrar el Paso 3 (auditoría con divergencias). Tu rol acá es que el Jr no
 llegue al cierre con sorpresas: que cada vez que se aleje del cap, lo sepa en el
 momento.

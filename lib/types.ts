@@ -922,6 +922,11 @@ export interface CapAuditoriaJrSnapshot {
   duracion_baseline_sr_meses: number  // ídem del snapshot Sr
   criterios_evaluados: number         // nº de criterios/métricas heredados chequeados
   divergencias_detectadas: number     // nº de ReviewerQuestion de divergencia emitidas
+  // Cap temporal (Opción B): fecha de cierre del cronograma Jr (max ventana_temporal.termina
+  // del curado) vs cierre que el Sr esperaba para esta línea (max del snapshot). YYYY-MM o
+  // undefined si alguno de los dos no está secuenciado.
+  cierre_jr_ym?: string
+  cierre_esperado_sr_ym?: string
 }
 
 // Rol del turno. Extendido en Fase 1 del feat/audit-reviewer:
