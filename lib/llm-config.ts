@@ -12,8 +12,8 @@
 //
 //   2. Cambiando el DEFAULT de una línea acá abajo (DEFAULT_MODELO).
 //
-// Default actual: HAIKU (etapa de pruebas). Volver a Opus = setear la env o
-// cambiar DEFAULT_MODELO a MODELOS_ANTHROPIC.opus.
+// Default actual: SONNET. Cambiar = setear la env PE_WIZARD_MODEL (haiku/opus/
+// id completo) o cambiar DEFAULT_MODELO acá abajo.
 //
 // CAVEAT de costos: los endpoints loguean costo estimado con constantes de
 // precio de Opus ($15/$75 por M tokens). Bajo Haiku el costo REAL es mucho menor
@@ -29,7 +29,7 @@ export const MODELOS_ANTHROPIC = {
   opus: 'claude-opus-4-7',
 } as const
 
-const DEFAULT_MODELO: string = MODELOS_ANTHROPIC.haiku
+const DEFAULT_MODELO: string = MODELOS_ANTHROPIC.sonnet
 
 function resolverModelo(): string {
   const raw = (process.env.PE_WIZARD_MODEL || '').trim().toLowerCase()

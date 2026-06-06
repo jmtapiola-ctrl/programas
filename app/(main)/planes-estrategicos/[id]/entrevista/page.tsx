@@ -25,6 +25,16 @@ import { getCuradoActivo } from '@/lib/types'
 
 const PANEL_UPDATE_RE = /<!--PANEL_UPDATE-->[\s\S]*?<!--\/PANEL_UPDATE-->/g
 
+// Label legible del model id de Anthropic (PE_MODEL) para el header.
+function modeloLabel(id: string | null): string | null {
+  if (!id) return null
+  if (id.includes('haiku')) return 'Haiku 4.5'
+  if (id.includes('sonnet')) return 'Sonnet 4.6'
+  if (id.includes('opus-4-8')) return 'Opus 4.8'
+  if (id.includes('opus')) return 'Opus 4.7'
+  return id // id completo si no es un alias conocido
+}
+
 export default function EntrevistaPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
@@ -42,6 +52,15 @@ export default function EntrevistaPage() {
   const [streamingContent, setStreamingContent] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saveFailed, setSaveFailed] = useState(false)
+  // Modelo Anthropic activo en el server (PE_MODEL). Se muestra en el header para
+  // confirmar a simple vista qué modelo quedó activo tras reiniciar/deployar.
+  const [peModel, setPeModel] = useState<string | null>(null)
+  useEffect(() => {
+    fetch('/api/pe-model')
+      .then(r => r.json())
+      .then(d => { if (typeof d?.model === 'string') setPeModel(d.model) })
+      .catch(() => {/* si falla, no mostramos la nota */})
+  }, [])
   const [panelUnhealthy, setPanelUnhealthy] = useState<{ reason: string; detail: string } | null>(null)
   const [pendingMessage, setPendingMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -687,11 +706,11 @@ export default function EntrevistaPage() {
       }
       if (!res.ok) {
         const msg = data?.error
-          ?? (raw ? `HTTP ${res.status}: ${raw.slice(0, 200)}` : `HTTP ${res.status} sin body — posible timeout del servidor (la llamada a Opus puede demorar 60-180s; si esto se repite, hay un timeout en el deploy).`)
+          ?? (raw ? `HTTP ${res.status}: ${raw.slice(0, 200)}` : `HTTP ${res.status} sin body — posible timeout del servidor (la llamada a la IA puede demorar 60-180s; si esto se repite, hay un timeout en el deploy).`)
         throw new Error(msg)
       }
       if (!data) {
-        throw new Error('El servidor devolvió respuesta vacía. Probablemente timeout durante la llamada a Opus (60-180s). Probá de nuevo — si persiste, hay un timeout configurado abajo de esa duración en el deploy.')
+        throw new Error('El servidor devolvió respuesta vacía. Probablemente timeout durante la llamada a la IA (60-180s). Probá de nuevo — si persiste, hay un timeout configurado abajo de esa duración en el deploy.')
       }
       // Refrescar plan local con el plan_actualizado del endpoint.
       if (data.plan_actualizado) {
@@ -800,7 +819,7 @@ export default function EntrevistaPage() {
         throw new Error(msg)
       }
       if (!data) {
-        throw new Error('El servidor devolvió respuesta vacía. Probablemente timeout durante la llamada a Opus (60-180s). Probá de nuevo.')
+        throw new Error('El servidor devolvió respuesta vacía. Probablemente timeout durante la llamada a la IA (60-180s). Probá de nuevo.')
       }
       if (data.plan_actualizado) {
         setPlan(prev => prev ? { ...prev, plan: data.plan_actualizado } : prev)
@@ -920,14 +939,14 @@ export default function EntrevistaPage() {
       if (!res.ok) {
         // Si el endpoint devolvió preview del output de Opus (parse failure),
         // mostramoslo al user para que vea qué Opus emitió.
-        const previewInicio = data?.output_preview_inicio ? `\n\n[Inicio del output de Opus]: ${data.output_preview_inicio.slice(0, 300)}...` : ''
+        const previewInicio = data?.output_preview_inicio ? `\n\n[Inicio del output de la IA]: ${data.output_preview_inicio.slice(0, 300)}...` : ''
         const previewFinal = data?.output_preview_final ? `\n\n${data.output_preview_final.slice(0, 200)}` : ''
         const msg = data?.error
           ?? (raw ? `HTTP ${res.status}: ${raw.slice(0, 200)}` : `HTTP ${res.status} sin body — posible timeout.`)
         throw new Error(`${msg}${previewInicio}${previewFinal}`)
       }
       if (!data) {
-        throw new Error('El servidor devolvió respuesta vacía. Probablemente timeout durante la llamada a Opus (60-180s). Probá de nuevo.')
+        throw new Error('El servidor devolvió respuesta vacía. Probablemente timeout durante la llamada a la IA (60-180s). Probá de nuevo.')
       }
       if (data.plan_actualizado) {
         setPlan(prev => prev ? { ...prev, plan: data.plan_actualizado } : prev)
@@ -1329,6 +1348,11 @@ export default function EntrevistaPage() {
           />
           <p className="text-[12px] text-muted-foreground">
             Plan {plan.tipo}{plan.plan_sr_nombre ? ` · alineado a: ${plan.plan_sr_nombre}` : ''}
+            {peModel && (
+              <span className="ml-2 text-muted-foreground/70">
+                · Modelo: <span className="font-medium text-foreground/80">{modeloLabel(peModel)}</span>
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
