@@ -63,6 +63,17 @@ type Props = (EditarProps | AgregarProps) & {
   // por el server al nuevo movimiento.
   onSuccess: (inv: InventarioPE, idNuevo?: string) => void
   onCerrar: () => void
+  // ─── Modo "revisión guiada" (Sub-bloque 3.A) ──────────────────────────────
+  // Cuando se reusa este modal como la pantalla de revisión guiada (un mov a la
+  // vez), el parent pasa estos opcionales. Sin ellos el modal se comporta como
+  // siempre (back-compat).
+  // Etiqueta del botón de guardar (ej: "Guardar y siguiente →").
+  submitLabel?: string
+  // Progreso de la revisión (ej: {actual: 2, total: 6}) → barra + "Movimiento 2 de 6".
+  progreso?: { actual: number; total: number }
+  // Vuelve al movimiento anterior de la revisión (sin guardar). Reemplaza al
+  // botón de salir en el footer cuando hay un anterior.
+  onVolver?: () => void
 }
 
 // Edge "en draft" dentro del form: nos olvidamos del array crudo del schema
@@ -82,7 +93,7 @@ export function MovimientoFormModal(props: Props) {
 }
 
 function Contenido(props: Props) {
-  const { planId, categorias, metricasProposito, onCerrar, mostrarDeps, allMovimientos, referenciadoEnDownstream } = props
+  const { planId, categorias, metricasProposito, onCerrar, mostrarDeps, allMovimientos, referenciadoEnDownstream, submitLabel, progreso, onVolver } = props
   const esEditar = props.mode === 'editar'
   const movInicial = esEditar ? props.movimiento : undefined
   // Sección de deps SOLO se habilita en editar + mostrarDeps=true + inventario disponible.
@@ -174,11 +185,10 @@ function Contenido(props: Props) {
   // Se limpia al próximo cambio exitoso.
   const [depsError, setDepsError] = useState<string | null>(null)
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape' && !saving) onCerrar() }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onCerrar, saving])
+  // NOTA: el modal NO se cierra con Escape ni clickeando el fondo (backdrop) a
+  // propósito — la edición tiene mucho texto y un click/tecla accidental hacía
+  // perder todo. La ÚNICA forma de cerrar es el botón ✕ (o los botones del
+  // footer: Guardar / Salir / Cancelar).
 
   // Mapa desbloqueaByMov reflejando el estado actual (form working + inventario)
   // — usado para cycle-check al agregar un edge. Para el mov actual usamos el
@@ -260,6 +270,7 @@ function Contenido(props: Props) {
   const camposOk = Boolean(
     nombre.trim() &&
     categoriaFinal &&
+    descripcion.trim() &&
     // Brecha obligatoria SOLO si hay métricas del propósito disponibles. En un
     // Plan Jr las métricas se heredan (no estructuradas) y metricasProposito
     // viene vacío → no se exige brecha (la cobertura la valida el cap).
@@ -403,7 +414,9 @@ function Contenido(props: Props) {
           }
         }
         props.onSuccess(inventarioActual)
-        onCerrar()
+        // En revisión guiada (progreso), NO cerramos: el parent avanza al
+        // siguiente movimiento vía onSuccess. Fuera de la revisión, cerrar.
+        if (!progreso) onCerrar()
       } else {
         const semanasParsedAgregar = parseInt(duenoSemanasCobertura, 10)
         const nuevoMov: Omit<MovimientoPE, 'id' | 'estado_usuario'> = {
@@ -552,21 +565,29 @@ function Contenido(props: Props) {
   return (
     <div
       className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sans"
-      onClick={() => !saving && onCerrar()}
     >
       <div
         className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-sidebar-border bg-background shadow-2xl"
-        onClick={e => e.stopPropagation()}
       >
         <header className="flex-shrink-0 border-b border-sidebar-border px-6 py-4 flex items-start justify-between gap-4">
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-              Sub-bloque 3.A · Inventario
+              {progreso ? `Sub-bloque 3.A · Revisión · Movimiento ${progreso.actual} de ${progreso.total}` : 'Sub-bloque 3.A · Inventario'}
             </p>
-            <h2 className="mt-1 text-[18px] font-semibold text-foreground">{titulo}</h2>
-            {esEditar && (
+            {progreso && (
+              <div className="mt-1.5 h-1.5 w-full max-w-xs rounded-full bg-sidebar overflow-hidden">
+                <div className="h-full bg-primary transition-all" style={{ width: `${(progreso.actual / progreso.total) * 100}%` }} />
+              </div>
+            )}
+            <h2 className="mt-1.5 text-[18px] font-semibold text-foreground">{titulo}</h2>
+            {esEditar && !progreso && (
               <p className="mt-1 text-[12px] text-muted-foreground">
                 Cambios persisten inmediatamente al guardar. Estado pasa a "editado".
+              </p>
+            )}
+            {progreso && (
+              <p className="mt-1 text-[12px] text-muted-foreground">
+                Revisá cada campo, corregí lo que haga falta y guardá para pasar al siguiente.
               </p>
             )}
           </div>
@@ -581,6 +602,24 @@ function Contenido(props: Props) {
         </header>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+          {/* Heads-up de campos flojos/faltantes del mov original (solo en
+              revisión guiada). Llama la atención sobre lo que conviene corregir
+              — los movimientos generados por el modelo suelen venir incompletos. */}
+          {progreso && movInicial && (() => {
+            const flojos: string[] = []
+            if (!movInicial.descripcion?.trim()) flojos.push('sin descripción')
+            if (!movInicial.impacto) flojos.push('impacto sin definir')
+            if (!movInicial.que_resuelve?.trim()) flojos.push("sin 'qué resuelve'")
+            if (!movInicial.criterio_exito?.trim()) flojos.push('sin criterio de éxito')
+            if (!movInicial.dueno?.trim()) flojos.push('sin dueño')
+            if ((movInicial.costo_monetario?.rango_max_usd ?? 0) === 0) flojos.push('sin costo estimado')
+            if (flojos.length === 0) return null
+            return (
+              <div className="rounded-lg border border-amber-700/50 bg-amber-950/20 px-3 py-2 text-[13px] text-amber-200/90">
+                <span className="font-semibold">Revisá con atención:</span> este movimiento viene {flojos.join(' · ')}.
+              </div>
+            )
+          })()}
           {/* 1. Nombre */}
           <Field label="Nombre *" value={nombre} onChange={setNombre} />
 
@@ -657,7 +696,7 @@ function Contenido(props: Props) {
           />
 
           {/* 4. Descripción */}
-          <Field label="Descripción" value={descripcion} onChange={setDescripcion} multiline />
+          <Field label="Descripción *" value={descripcion} onChange={setDescripcion} multiline rows={5} />
 
           {/* 5. Qué resuelve */}
           <Field label={esEditar ? 'Qué resuelve' : 'Qué resuelve *'} value={queResuelve} onChange={setQueResuelve} multiline />
@@ -867,23 +906,40 @@ function Contenido(props: Props) {
                 <span className="text-red-300">⚠ {errorServer}</span>
               ) : !camposOk ? (
                 <span className="text-yellow-400">
-                  {brechas.length === 0
-                    ? 'Falta declarar al menos 1 brecha'
-                    : !categoriaFinal
-                      ? 'Falta elegir o crear la categoría'
-                      : 'Completá todos los campos requeridos (*)'}
+                  {!descripcion.trim()
+                    ? 'Falta la descripción'
+                    : brechas.length === 0
+                      ? 'Falta declarar al menos 1 brecha'
+                      : !categoriaFinal
+                        ? 'Falta elegir o crear la categoría'
+                        : 'Completá todos los campos requeridos (*)'}
                 </span>
               ) : null}
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={onCerrar}
-              disabled={saving}
-              className="rounded-md px-3 py-2 text-[13px] text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors disabled:opacity-40"
-            >
-              Cancelar
-            </button>
+            {progreso ? (
+              // Revisión guiada: "← Volver" al mov anterior (no hay "salir" — el
+              // paso no se saltea; para cerrar está el ✕). En el primer mov no
+              // hay anterior, no se muestra.
+              progreso.actual > 1 && onVolver ? (
+                <button
+                  onClick={onVolver}
+                  disabled={saving}
+                  className="rounded-md border border-sidebar-border px-3 py-2 text-[13px] font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors disabled:opacity-40"
+                >
+                  ← Volver al anterior
+                </button>
+              ) : null
+            ) : (
+              <button
+                onClick={onCerrar}
+                disabled={saving}
+                className="rounded-md px-3 py-2 text-[13px] text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors disabled:opacity-40"
+              >
+                Cancelar
+              </button>
+            )}
             <button
               onClick={handleGuardar}
               disabled={!camposOk || saving}
@@ -891,7 +947,7 @@ function Contenido(props: Props) {
             >
               {saving
                 ? 'Guardando…'
-                : esEditar ? 'Guardar cambios' : 'Agregar movimiento'}
+                : submitLabel ?? (esEditar ? 'Guardar cambios' : 'Agregar movimiento')}
             </button>
           </div>
         </footer>
@@ -902,11 +958,12 @@ function Contenido(props: Props) {
 
 // ─── Field component (mismo shape que el de InventarioCategoria) ─────────────
 
-function Field({ label, value, onChange, multiline }: {
+function Field({ label, value, onChange, multiline, rows }: {
   label: string
   value: string
   onChange: (v: string) => void
   multiline?: boolean
+  rows?: number
 }) {
   return (
     <div className="space-y-1">
@@ -915,7 +972,7 @@ function Field({ label, value, onChange, multiline }: {
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          rows={3}
+          rows={rows ?? 3}
           className="w-full rounded-md border border-sidebar-border bg-background px-3 py-2 text-[14px] text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
         />
       ) : (
