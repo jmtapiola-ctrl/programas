@@ -129,7 +129,7 @@ export default function DesplegarJrPage() {
   }
 
   async function regenerarTodo() {
-    if (!confirm('Esto descarta TODO lo editado y vuelve a pedir los 5 campos a Opus. ¿Continuar?')) return
+    if (!confirm('Esto descarta TODO lo editado y vuelve a pedir los 5 campos a la IA. ¿Continuar?')) return
     await pedirPropuestaContexto()
   }
 
@@ -220,7 +220,7 @@ export default function DesplegarJrPage() {
   }
 
   if (subPaso === 'proponiendo') {
-    return <Loader titulo="Opus está escribiendo el contexto curado…" detalle="El modelo lee propósito + situación + movs heredados y genera los 5 campos que va a ver el dueño Jr. Tarda 60-90s." />
+    return <Loader titulo="La IA está escribiendo el contexto curado…" detalle="El modelo lee propósito + situación + movs heredados y genera los 5 campos que va a ver el dueño Jr. Tarda 60-90s." />
   }
 
   if (subPaso === 'confirmando') {
@@ -264,7 +264,7 @@ export default function DesplegarJrPage() {
             </Link>
           </div>
           <p className="text-[13px] text-muted-foreground leading-relaxed">
-            Paso 1 de 2: revisá los datos del Jr y los movimientos heredados. Si todo está OK, pedile a Opus que proponga el contexto curado que va a leer el dueño Jr.
+            Paso 1 de 2: revisá los datos del Jr y los movimientos heredados. Si todo está OK, pedile a la IA que proponga el contexto curado que va a leer el dueño Jr.
           </p>
         </header>
 
@@ -311,7 +311,7 @@ export default function DesplegarJrPage() {
             onClick={pedirPropuestaContexto}
             className={BTN_CTA}
           >
-            Proponer contexto con Opus →
+            Proponer contexto con La IA →
           </button>
         </div>
       </div>
@@ -329,7 +329,7 @@ export default function DesplegarJrPage() {
           </Link>
         </div>
         <p className="text-[13px] text-muted-foreground leading-relaxed">
-          Paso 2 de 2: Opus propuso el contexto que va a ver el dueño Jr, dividido en 5 campos. Revisá y editá cada uno, regenerá los que no te cierren, y <span className="font-semibold text-foreground">aprobá los 5</span> para poder confirmar el despliegue.
+          Paso 2 de 2: La IA propuso el contexto que va a ver el dueño Jr, dividido en 5 campos. Revisá y editá cada uno, regenerá los que no te cierren, y <span className="font-semibold text-foreground">aprobá los 5</span> para poder confirmar el despliegue.
         </p>
       </header>
 

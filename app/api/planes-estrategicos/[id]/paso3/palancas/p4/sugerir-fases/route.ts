@@ -155,7 +155,7 @@ export async function POST(
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || typeof parsed.sugerencias !== 'object') {
     return NextResponse.json({
-      error: 'Opus devolvió output no parseable o sin campo "sugerencias".',
+      error: 'La IA devolvió output no parseable o sin campo "sugerencias".',
       opus_response_preview: text.slice(0, 500),
       apply_metrics: { costo_usd: costoUsd, latencia_ms: latenciaMs },
     }, { status: 500 })

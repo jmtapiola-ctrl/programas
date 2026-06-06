@@ -184,7 +184,7 @@ export async function POST(
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     console.error('[paso3/inventario/generar] Opus output no parseable como JSON object')
     return NextResponse.json({
-      error: 'Opus devolvió output no parseable como JSON object.',
+      error: 'La IA devolvió output no parseable como JSON object.',
       opus_response_preview: text.slice(0, 500),
       apply_metrics: { costo_usd: costoUsd, latencia_ms: latenciaMs },
     }, { status: 500 })

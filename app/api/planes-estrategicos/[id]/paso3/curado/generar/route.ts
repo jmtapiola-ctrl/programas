@@ -206,7 +206,7 @@ async function handlePOST(
     console.error('[paso3/curado/generar] PARSE FAILED. Output completo de Opus:')
     console.error(text)
     return NextResponse.json({
-      error: 'Opus output no parseable como JSON object.',
+      error: 'Output de la IA no parseable como JSON object.',
       output_chars: text.length,
       output_preview_inicio: text.slice(0, 600),
       output_preview_final: text.length > 600 ? `[...última parte (puede revelar truncado)] ${text.slice(-400)}` : '(output corto, ver preview de inicio)',

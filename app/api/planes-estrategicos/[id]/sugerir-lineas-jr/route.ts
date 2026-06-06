@@ -134,7 +134,7 @@ export async function POST(
     if (!parsed || !Array.isArray(parsed.lineas)) {
       console.error('[sugerir-lineas-jr] PARSE FAILED:', text.slice(0, 500))
       return NextResponse.json({
-        error: 'Opus output no parseable como { lineas: [] }',
+        error: 'Output de la IA no parseable como { lineas: [] }',
         output_preview: text.slice(0, 600),
       }, { status: 500 })
     }

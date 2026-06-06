@@ -155,7 +155,7 @@ Aplicá el comentario al resumen y devolvé el JSON actualizado completo.`
 
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return NextResponse.json({
-        error: 'Opus devolvió output no parseable como objeto JSON.',
+        error: 'La IA devolvió output no parseable como objeto JSON.',
         opus_response_preview: text.slice(0, 500),
         apply_metrics: { costo_usd: cost, latencia_ms: latency },
       }, { status: 500 })

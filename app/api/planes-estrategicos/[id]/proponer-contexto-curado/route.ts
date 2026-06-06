@@ -187,7 +187,7 @@ export async function POST(
     } catch (e) {
       console.error('[proponer-contexto-curado] JSON parse falló:', (e as any)?.message, '· raw:', rawOutput.slice(0, 300))
       return NextResponse.json({
-        error: 'Opus devolvió un formato inesperado (no es JSON válido). Re-intentá.',
+        error: 'La IA devolvió un formato inesperado (no es JSON válido). Re-intentá.',
       }, { status: 500 })
     }
 
@@ -198,7 +198,7 @@ export async function POST(
       const valor = parsed[campoParam]
       if (typeof valor !== 'string' || valor.trim().length === 0) {
         return NextResponse.json({
-          error: `Opus no devolvió contenido para el campo "${campoParam}". Re-intentá.`,
+          error: `La IA no devolvió contenido para el campo "${campoParam}". Re-intentá.`,
         }, { status: 500 })
       }
       console.log('[proponer-contexto-curado] done campo', JSON.stringify({ plan_jr_id: planJrId, campo: campoParam, chars: valor.length, ...metricas }))
@@ -220,7 +220,7 @@ export async function POST(
     }
     if (faltantes.length === CAMPO_KEYS.length) {
       return NextResponse.json({
-        error: 'Opus no devolvió ninguno de los campos esperados. Re-intentá.',
+        error: 'La IA no devolvió ninguno de los campos esperados. Re-intentá.',
       }, { status: 500 })
     }
     if (faltantes.length > 0) {

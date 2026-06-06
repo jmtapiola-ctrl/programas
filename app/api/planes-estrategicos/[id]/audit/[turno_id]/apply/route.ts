@@ -183,7 +183,7 @@ export async function POST(
         // Rollback: el output de Opus fue inválido, no actualizamos el plan.
         await updateSubEstadoPaso(entrevista.id, 'aplicando_cambios', 'auditoria_completa').catch(() => undefined)
         return NextResponse.json({
-          error: 'Opus devolvió output no parseable como objeto JSON.',
+          error: 'La IA devolvió output no parseable como objeto JSON.',
           opus_response_preview: text.slice(0, 500),
           apply_metrics: { costo_usd: opusCost, latencia_ms: opusLatency },
         }, { status: 500 })
