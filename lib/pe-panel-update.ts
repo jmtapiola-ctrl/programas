@@ -1031,8 +1031,28 @@ function mergeInventario(
       movMerged.push(cur)  // preservar decisión usuario
       events.push({ type: 'preserved_empty', field: `plan.inventario.movimientos[${inc.id}].estado_usuario` })
     } else {
-      // incoming gana (puede ser nueva decisión del usuario, o cambio del modelo)
-      movMerged.push(inc)
+      // incoming gana para el CONTENIDO (nombre, que_resuelve, costo, etc.), pero
+      // PRESERVAMOS de current los campos que se manejan por el CANVAS de
+      // secuenciación (3.A.6) y endpoints dedicados — NO por la emisión de chat
+      // del modelo: dependencias, schedule y overrides del usuario. Sin esto, si
+      // el modelo re-emite el inventario en 3.B+ con deps inconsistentes/vacías,
+      // clobberea el trabajo de secuenciación (bug: precondiciones desincronizadas
+      // de precondiciones_tipo → el canvas/Gantt perdían las flechas). Estos
+      // campos solo cambian vía /dag/aceptar, /inventario/decision y P-4/P-5.
+      movMerged.push({
+        ...inc,
+        precondiciones: cur.precondiciones ?? inc.precondiciones,
+        desbloquea: cur.desbloquea ?? inc.desbloquea,
+        precondiciones_tipo: cur.precondiciones_tipo ?? inc.precondiciones_tipo,
+        precondiciones_lag_meses: cur.precondiciones_lag_meses ?? inc.precondiciones_lag_meses,
+        precondiciones_razonamiento: cur.precondiciones_razonamiento ?? inc.precondiciones_razonamiento,
+        tipo_dependencia: cur.tipo_dependencia ?? inc.tipo_dependencia,
+        deps_validadas: cur.deps_validadas ?? inc.deps_validadas,
+        arranca_override: cur.arranca_override ?? inc.arranca_override,
+        arranca_override_razonamiento: cur.arranca_override_razonamiento ?? inc.arranca_override_razonamiento,
+        ventana_temporal: cur.ventana_temporal ?? inc.ventana_temporal,
+        riesgo_ejecucion_razonamiento: cur.riesgo_ejecucion_razonamiento ?? inc.riesgo_ejecucion_razonamiento,
+      })
     }
     curById.delete(inc.id)
   }

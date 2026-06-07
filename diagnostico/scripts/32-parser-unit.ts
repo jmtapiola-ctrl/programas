@@ -9,7 +9,7 @@
 //
 // Criterio: 100% de los assertions pasan. Si cualquiera falla → NO-GO sobre el merge.
 
-import { parsePanelUpdate, mergeProposito } from '@/lib/pe-panel-update'
+import { parsePanelUpdate, mergeProposito, mergePlan } from '@/lib/pe-panel-update'
 import type { PropositorPE } from '@/lib/types'
 
 let total = 0
@@ -321,6 +321,26 @@ ${JSON.stringify({
     assertEq('5.2 conserva las 2 preguntas', pp.length, 2)
     assertOk('5.3 respuesta_estructurada fue strippeada de P-1', pp[0]?.respuesta_estructurada === undefined)
   }
+}
+
+// ─── Caso 6: mergeInventario preserva las dependencias del current ──────────
+// Regresión del bug de dependencias desincronizadas: el modelo re-emitía el
+// inventario en 3.B con precondiciones vacías/inconsistentes y clobbereaba el
+// trabajo de secuenciación del canvas. Ahora el merge preserva los campos de
+// deps/schedule del current (los maneja el canvas, no el chat del modelo).
+{
+  const cur: any = { inventario: { movimientos: [
+    { id: 'M-1', nombre: 'A', precondiciones: ['M-2'], desbloquea: [], precondiciones_tipo: { 'M-2': 'fs' }, deps_validadas: true, estado_usuario: 'aceptado' },
+  ] } }
+  const inc: any = { inventario: { movimientos: [
+    { id: 'M-1', nombre: 'A editado por el modelo', precondiciones: [], desbloquea: [], estado_usuario: 'aceptado' },
+  ] } }
+  const res = mergePlan(cur, inc)
+  const m: any = res.value.inventario!.movimientos[0]
+  assertEq('6.1 contenido (nombre) del incoming gana', m.nombre, 'A editado por el modelo')
+  assertEq('6.2 precondiciones preservadas del current', m.precondiciones, ['M-2'])
+  assertEq('6.3 precondiciones_tipo preservado del current', m.precondiciones_tipo, { 'M-2': 'fs' })
+  assertEq('6.4 deps_validadas preservado del current', m.deps_validadas, true)
 }
 
 // ─── Resumen final ────────────────────────────────────────────────────────
