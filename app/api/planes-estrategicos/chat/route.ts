@@ -30,6 +30,11 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const PANEL_UPDATE_RE = /<!--PANEL_UPDATE-->([\s\S]*?)<!--\/PANEL_UPDATE-->/
 
+// Limpieza defensiva: un "stub anti-mirroring" que se probó antes se filtró a
+// algunos turnos guardados (el modelo lo copiaba). Lo removemos del historial que
+// se le manda al modelo (para que no lo vuelva a copiar) y del texto que se guarda.
+const STUB_LEGACY_RE = /\n*\[sistema: en este turno emitiste el bloque PANEL_UPDATE[^\]]*\]/g
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
@@ -83,15 +88,11 @@ export async function POST(req: NextRequest) {
   // oculta del rendering visual (ChatInterface.tsx).
   const historial = entrevista.historial
   const messages: Anthropic.MessageParam[] = historial.map(t => {
-    if (t.rol === 'model') {
-      // Stub anti-mirroring (CLAUDE.md "PANEL_UPDATE se silencia si turnos previos
-      // no lo emitieron"): el bloque se strippea del texto guardado (route:320), así
-      // que el modelo ve sus propios turnos SIN bloque y los imita → deja de
-      // emitirlo / de sumar la pregunta nueva a preguntas_principal. Dejamos una
-      // marca de que SÍ lo emitió para que mantenga el patrón. La marca es system-
-      // framed para que el modelo no la reproduzca en su prosa.
-      return { role: 'assistant', content: `${t.contenido}\n\n[sistema: en este turno emitiste el bloque PANEL_UPDATE; fue procesado y removido del texto visible]` }
-    }
+    // NOTA: NO agregar stubs/marcas al contenido del assistant en el historial.
+    // Se probó un "stub anti-mirroring" y el modelo lo COPIABA literal en su prosa
+    // (se filtraba al chat visible). El panel se mantiene robusto vía la síntesis
+    // determinística (route, 3.B) + el strip de respuesta_estructurada del parser.
+    if (t.rol === 'model') return { role: 'assistant', content: t.contenido.replace(STUB_LEGACY_RE, '').trimEnd() }
     if (t.rol === 'reviewer') {
       return {
         role: 'user',
@@ -372,7 +373,7 @@ Si en esta respuesta hacés una pregunta de estrés nueva, es OBLIGATORIO sumarl
         }
 
         // Texto limpio (sin el bloque PANEL_UPDATE)
-        const textoLimpio = fullResponse.replace(PANEL_UPDATE_RE, '').trim()
+        const textoLimpio = fullResponse.replace(PANEL_UPDATE_RE, '').replace(STUB_LEGACY_RE, '').trim()
 
         // Persistir turno en Airtable.
         // Cambio de diseño (2026-05): los turnos se guardan en la tabla Turnos_PE
