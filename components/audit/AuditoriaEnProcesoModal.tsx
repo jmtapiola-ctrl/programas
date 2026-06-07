@@ -93,7 +93,7 @@ function ProcesandoPanel({ paso, elapsedSeconds }: { paso: number; elapsedSecond
         <h2 className="text-lg font-semibold text-white mb-1">
           Un revisor estratégico independiente está analizando tu Paso {paso}
         </h2>
-        <p className="text-sm text-gray-400">Esto puede tardar 3 a 5 minutos.</p>
+        <p className="text-sm text-gray-400">Esto puede tardar varios minutos — normalmente 3 a 8, y a veces hasta 15. Es esperable; dejá la ventana abierta.</p>
       </div>
       <div className="bg-gray-900/60 rounded px-4 py-3 font-mono text-sm text-gray-300">
         Tiempo: <span className="text-white font-semibold">{formatElapsed(elapsedSeconds)}</span> · esperando reviewer...
