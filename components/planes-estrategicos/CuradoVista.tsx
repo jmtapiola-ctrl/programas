@@ -145,14 +145,14 @@ function Contenido({ curado, onCerrar, onPedirAjuste, onAprobar, saving, totalVe
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
           <Seccion titulo="Contexto">
-            <p className="text-[14px] text-foreground/95 leading-relaxed whitespace-pre-wrap">{curado.contexto}</p>
+            <p className="text-[16px] text-foreground/95 leading-relaxed whitespace-pre-wrap">{curado.contexto}</p>
           </Seccion>
 
           <Seccion titulo={`Decisiones de priorización (${curado.decisiones_priorizacion.length})`}>
             <ol className="space-y-3 list-decimal pl-5">
               {curado.decisiones_priorizacion.map((d, i) => (
                 <li key={i} className="rounded-lg border border-sidebar-border bg-sidebar/30 px-4 py-3 marker:text-muted-foreground/60">
-                  <p className="text-[13px] font-semibold text-foreground leading-snug">{d.decision}</p>
+                  <p className="text-[15px] font-semibold text-foreground leading-snug">{d.decision}</p>
                   <p className="mt-1.5 text-[12px] text-muted-foreground leading-relaxed">{d.razon}</p>
                 </li>
               ))}
@@ -164,7 +164,7 @@ function Contenido({ curado, onCerrar, onPedirAjuste, onAprobar, saving, totalVe
               {curado.secuencia_movimientos.map((f, i) => (
                 <div key={i} className="rounded-lg border border-sidebar-border bg-sidebar/30 px-4 py-3">
                   <div className="flex items-baseline justify-between gap-2 mb-2">
-                    <p className="text-[13px] font-semibold text-foreground">
+                    <p className="text-[15px] font-semibold text-foreground">
                       <span className="text-[12px] font-mono uppercase tracking-wider text-muted-foreground/70 mr-2">F{i + 1}</span>
                       {f.fase}
                     </p>
@@ -176,7 +176,7 @@ function Contenido({ curado, onCerrar, onPedirAjuste, onAprobar, saving, totalVe
                       <div key={m.id} className="rounded-md border border-sidebar-border/60 bg-background/40 px-3 py-1.5">
                         <div className="flex items-baseline gap-2">
                           <span className="font-mono text-[12px] font-semibold text-muted-foreground/80">{m.id}</span>
-                          <span className="text-[12px] font-semibold text-foreground leading-snug">{m.nombre}</span>
+                          <span className="text-[14px] font-semibold text-foreground leading-snug">{m.nombre}</span>
                         </div>
                         <p className="mt-0.5 text-[12px] text-muted-foreground/90 leading-snug">{m.que_resuelve}</p>
                         <p className="mt-0.5 text-[12px] text-muted-foreground/70 italic flex items-center gap-1.5 flex-wrap">
@@ -204,7 +204,7 @@ function Contenido({ curado, onCerrar, onPedirAjuste, onAprobar, saving, totalVe
                 {vacanciasAgrupadas.map((grupo, i) => (
                   <li key={i} className="rounded-lg border border-amber-700/40 bg-amber-950/20 px-4 py-2.5">
                     <div className="flex items-baseline justify-between gap-2 flex-wrap">
-                      <p className="text-[13px] font-semibold text-amber-50 leading-snug">
+                      <p className="text-[15px] font-semibold text-amber-50 leading-snug">
                         ⏳ {grupo.dueno}
                       </p>
                       <div className="text-[11px] text-amber-200/80 flex items-center gap-2 flex-wrap">
@@ -217,7 +217,7 @@ function Contenido({ curado, onCerrar, onPedirAjuste, onAprobar, saving, totalVe
                     </div>
                     <ul className="mt-2 space-y-1 pl-1">
                       {grupo.movs.map(({ mov, fase }) => (
-                        <li key={mov.id} className="text-[12px] text-amber-100/85 leading-snug flex items-baseline gap-2 flex-wrap">
+                        <li key={mov.id} className="text-[14px] text-amber-100/85 leading-snug flex items-baseline gap-2 flex-wrap">
                           <span className="font-mono text-[12px] text-amber-200/70">{mov.id}</span>
                           <span>{mov.nombre}</span>
                           <span className="text-[11px] text-amber-200/60 italic whitespace-nowrap">
@@ -236,7 +236,7 @@ function Contenido({ curado, onCerrar, onPedirAjuste, onAprobar, saving, totalVe
             <ul className="space-y-2">
               {curado.supuestos_criticos.map((s, i) => (
                 <li key={i} className="rounded-lg border border-amber-700/40 bg-amber-950/20 px-4 py-2.5">
-                  <p className="text-[13px] text-amber-100 leading-snug">
+                  <p className="text-[15px] text-amber-100 leading-snug">
                     <span className="font-semibold text-amber-200">⚠</span> {s.descripcion}
                   </p>
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-amber-200/70">
@@ -262,7 +262,7 @@ function Contenido({ curado, onCerrar, onPedirAjuste, onAprobar, saving, totalVe
             <ul className="space-y-2">
               {curado.alternativas_descartadas.map((a, i) => (
                 <li key={i} className="rounded-lg border border-sidebar-border bg-sidebar/20 px-4 py-2.5">
-                  <p className="text-[13px] font-semibold text-foreground/90 leading-snug">✗ {a.decision}</p>
+                  <p className="text-[15px] font-semibold text-foreground/90 leading-snug">✗ {a.decision}</p>
                   <p className="mt-1 text-[12px] text-muted-foreground leading-relaxed">{a.razon}</p>
                 </li>
               ))}
@@ -388,7 +388,7 @@ function esMovVacante(m: MovimientoPE): boolean {
 function Seccion({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <section>
-      <h3 className="text-[15px] font-semibold text-foreground mb-2.5">{titulo}</h3>
+      <h3 className="text-[17px] font-semibold text-foreground mb-2.5">{titulo}</h3>
       {children}
     </section>
   )
@@ -402,7 +402,7 @@ function CriterioRow({ label, valor, color }: { label: string; valor: string; co
   return (
     <div className={`rounded-lg border ${c} px-4 py-2.5`}>
       <p className="text-[12px] font-semibold uppercase tracking-wider opacity-80">{label}</p>
-      <p className="mt-1 text-[13px] leading-snug">{valor}</p>
+      <p className="mt-1 text-[15px] leading-snug">{valor}</p>
     </div>
   )
 }
