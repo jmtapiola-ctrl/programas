@@ -72,5 +72,26 @@ const NONE = new Set<string>()
   check('id P-4', q?.id === 'P-4', q?.id)
 }
 
+// 10. header SIN "PREGUNTA" (el caso P-5 real que fallaba) → debe detectarse
+{
+  const q = sintetizarPreguntaPalanca('P-5 — RIESGO DE EJECUCIÓN\n\n¿Cuáles son los movimientos donde más temés que la ejecución salga mal? Usá el editor de riesgos.', NONE)
+  console.log('10 — header sin "PREGUNTA":')
+  check('id P-5', q?.id === 'P-5', q?.id)
+  check('modo marcado_simple', q?.modo_interaccion === 'marcado_simple', q?.modo_interaccion)
+}
+// 11. header con markdown bold → debe detectarse y no incluir los **
+{
+  const q = sintetizarPreguntaPalanca('**P-2 — TOP 3 POR IMPACTO**\n\n¿Cuáles 3? Marcalos en orden de prioridad.', NONE)
+  console.log('11 — header markdown bold:')
+  check('id P-2', q?.id === 'P-2', q?.id)
+  check('modo ranked', q?.modo_interaccion === 'seleccion_multiple_ranked', q?.modo_interaccion)
+}
+// 12. mención suelta de "P-1" en prosa (no a inicio de línea, sin guión) → NO matchea
+{
+  const q = sintetizarPreguntaPalanca('Como dijiste en la P-1, la palanca es M-1. Avancemos.', NONE)
+  console.log('12 — mención suelta (falso positivo):')
+  check('devuelve null', q === null, JSON.stringify(q))
+}
+
 console.log(`\n${pass}/${pass + fail} checks verde.`)
 process.exit(fail === 0 ? 0 : 1)

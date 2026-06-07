@@ -14,7 +14,15 @@
 import type { PalancaQAPE, ModoInteraccion, CampoFichaMovimiento } from './types'
 
 export function sintetizarPreguntaPalanca(prosa: string, idsExistentes: Set<string>): PalancaQAPE | null {
-  const matches = [...prosa.matchAll(/PREGUNTA\s+P-?\s*(\d+)\s*[—–:\-]*\s*([^\n]*)/gi)]
+  // Header de pregunta de palanca. Anclado a inicio de línea (^...m) para no
+  // agarrar menciones sueltas en la prosa ("la P-1 fue..."). Tolera:
+  //   - markdown opcional al inicio (### o **),
+  //   - prefijo "PREGUNTA " OPCIONAL (el modelo a veces lo omite: "P-5 — RIESGO"),
+  //   - "P-N",
+  //   - un separador (— – : -),
+  //   - el título.
+  // Requiere el separador para distinguir un header real de un "P-5" suelto.
+  const matches = [...prosa.matchAll(/^[ \t]*(?:#{1,6}[ \t]*)?(?:\*\*)?(?:PREGUNTA[ \t]+)?P-(\d+)[ \t]*[—–:\-]+[ \t]*([^\n*]+)/gim)]
   if (matches.length === 0) return null
   const m = matches[matches.length - 1] // la última = la pregunta de este turno
   const n = parseInt(m[1], 10)
