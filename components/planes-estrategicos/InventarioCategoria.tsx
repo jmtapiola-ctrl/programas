@@ -415,12 +415,17 @@ export function InventarioCategoria({ planId, plan, inventario, onInventarioUpda
     const target = inventario.movimientos.find(m => m.id === hacia)
     if (!target) return
     const nuevasPrecond = (target.precondiciones ?? []).filter(p => p !== desde)
-    // También limpiamos precondiciones_tipo[desde] si existía.
-    const nuevoTipo = { ...(target.precondiciones_tipo ?? {}) }
-    delete nuevoTipo[desde]
+    // Limpiamos tipo/lag/razonamiento del edge borrado. Mandamos los mapas
+    // SIEMPRE (no undefined): JSON.stringify dropea undefined y el server no
+    // limpiaría la entry.
+    const nuevoTipo = { ...(target.precondiciones_tipo ?? {}) }; delete nuevoTipo[desde]
+    const nuevoLag = { ...(target.precondiciones_lag_meses ?? {}) }; delete nuevoLag[desde]
+    const nuevoRaz = { ...(target.precondiciones_razonamiento ?? {}) }; delete nuevoRaz[desde]
     await aplicarDecision(hacia, 'editado', {
       precondiciones: nuevasPrecond,
-      precondiciones_tipo: Object.keys(nuevoTipo).length > 0 ? nuevoTipo : undefined,
+      precondiciones_tipo: nuevoTipo,
+      precondiciones_lag_meses: nuevoLag,
+      precondiciones_razonamiento: nuevoRaz,
     })
   }
 

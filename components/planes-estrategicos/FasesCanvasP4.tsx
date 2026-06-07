@@ -946,6 +946,42 @@ function FasesModalContenido({
     setOverrideError(null)
   }
 
+  // Borrar una dependencia desde el editor del canvas de fases. Antes era no-op
+  // acá → "Borrar dependencia" cerraba el menú y no pasaba nada. Filtra `desde`
+  // de precondiciones + limpia su tipo/lag/razonamiento. El /decision hace el
+  // auto-mirror del lado desbloquea. Persiste directo (no por el chat).
+  async function aplicarQuitarPrecondicion(desde: string, hacia: string) {
+    const target = movimientos.find(m => m.id === hacia)
+    if (!target) return
+    const nuevasPrecond = (target.precondiciones ?? []).filter(p => p !== desde)
+    const nuevoTipo = { ...(target.precondiciones_tipo ?? {}) }; delete nuevoTipo[desde]
+    const nuevoLag = { ...(target.precondiciones_lag_meses ?? {}) }; delete nuevoLag[desde]
+    const nuevoRaz = { ...(target.precondiciones_razonamiento ?? {}) }; delete nuevoRaz[desde]
+    try {
+      const res = await fetch(`/api/planes-estrategicos/${planId}/paso3/inventario/decision`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          movimiento_id: hacia,
+          estado: 'editado',
+          // Mapas SIEMPRE (no undefined): JSON.stringify dropea undefined y el
+          // server no limpiaría la entry del edge borrado.
+          patch: {
+            precondiciones: nuevasPrecond,
+            precondiciones_tipo: nuevoTipo,
+            precondiciones_lag_meses: nuevoLag,
+            precondiciones_razonamiento: nuevoRaz,
+          },
+        }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      onInventarioUpdate?.(data.inventario_actualizado)
+    } catch (e) {
+      setOverrideError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   // Editar tipo/lag de una dependencia EXISTENTE desde el canvas de fases.
   // Antes era no-op acá (solo en 3.A.6) → el editor abría, "Aplicar" cerraba y no
   // pasaba nada. Como el lag/tipo afecta el CPM (y por ende el Gantt que el user
@@ -1115,7 +1151,7 @@ function FasesModalContenido({
               onAgregarMov={() => {}}
               onMoverNodo={() => {}}
               onCrearPrecondicion={() => {}}
-              onQuitarPrecondicion={() => {}}
+              onQuitarPrecondicion={(desde, hacia) => void aplicarQuitarPrecondicion(desde, hacia)}
               onCambiarTipoEdge={(desde, hacia, tipo, lagMeses) => void aplicarCambiarTipoEdge(desde, hacia, tipo, lagMeses)}
               onVerDetalle={onVerDetalleMov}
               bandConfig={bandConfigPorDueno}
