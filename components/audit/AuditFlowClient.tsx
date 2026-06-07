@@ -16,6 +16,7 @@ import type { ReviewerReport, DecisionUsuario, SubEstadoPaso } from '@/lib/types
 import { useAuditSSE } from './hooks/useAuditSSE'
 import { AuditoriaEnProcesoModal } from './AuditoriaEnProcesoModal'
 import { ReporteHallazgosModal } from './ReporteHallazgosModal'
+import { AplicandoCambiosModal } from './AplicandoCambiosModal'
 
 type FlowState = 'idle' | 'auditando' | 'reporte' | 'procesando'
 
@@ -214,6 +215,11 @@ export function AuditFlowClient(props: Props) {
           onCerrarReadOnly={() => router.push(`/planes-estrategicos/${props.planId}/entrevista`)}
         />
       )}
+
+      {/* Overlay mientras corre /apply (puede tardar minutos — Opus reescribe el
+          plan curado). Sin esto, 'procesando' no renderizaba nada y la pantalla
+          quedaba en blanco. */}
+      {flow === 'procesando' && <AplicandoCambiosModal paso={props.paso} />}
     </>
   )
 }
