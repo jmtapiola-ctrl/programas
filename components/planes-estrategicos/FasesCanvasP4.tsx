@@ -1086,6 +1086,13 @@ function FasesModalContenido({
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
+              onClick={() => setDragResetCounter(c => c + 1)}
+              title="Re-distribuir las fichas según el cronograma calculado (dependencias, lags y duraciones actuales). Descarta arrastres manuales visuales."
+              className="rounded-md border border-sidebar-border px-3 py-1.5 text-[12px] font-medium text-muted-foreground hover:bg-accent/60 hover:text-foreground transition-colors"
+            >
+              🔄 Re-distribuir
+            </button>
+            <button
               onClick={onCerrar}
               className={BTN_CTA_SM}
             >
