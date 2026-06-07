@@ -946,6 +946,41 @@ function FasesModalContenido({
     setOverrideError(null)
   }
 
+  // Editar tipo/lag de una dependencia EXISTENTE desde el canvas de fases.
+  // Antes era no-op acá (solo en 3.A.6) → el editor abría, "Aplicar" cerraba y no
+  // pasaba nada. Como el lag/tipo afecta el CPM (y por ende el Gantt que el user
+  // está mirando), tiene sentido editarlo acá. Persiste DIRECTO vía /decision (no
+  // por el chat → no lo toca el merge-protector). La edge ya existe; solo cambia
+  // su tipo/lag. onInventarioUpdate refresca → schedule + Gantt se recomputan.
+  async function aplicarCambiarTipoEdge(desde: string, hacia: string, tipo: 'sugerida' | 'ff' | 'fs' | 'continuo', lagMeses: number) {
+    const target = movimientos.find(m => m.id === hacia)
+    if (!target) return
+    const nuevoTipo = { ...(target.precondiciones_tipo ?? {}), [desde]: tipo }
+    const nuevoLag = { ...(target.precondiciones_lag_meses ?? {}) }
+    const lag = Math.max(0, Math.floor(lagMeses ?? 0))
+    if (tipo !== 'sugerida' && lag > 0) nuevoLag[desde] = lag
+    else delete nuevoLag[desde]
+    try {
+      const res = await fetch(`/api/planes-estrategicos/${planId}/paso3/inventario/decision`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          movimiento_id: hacia,
+          estado: 'editado',
+          patch: {
+            precondiciones_tipo: nuevoTipo,
+            precondiciones_lag_meses: Object.keys(nuevoLag).length > 0 ? nuevoLag : undefined,
+          },
+        }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      onInventarioUpdate?.(data.inventario_actualizado)
+    } catch (e) {
+      setOverrideError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   async function aplicarOverride(razonamiento: string) {
     if (!overrideEdit || overrideEdit.invalido) return
     setOverrideAplicando(true)
@@ -1071,11 +1106,12 @@ function FasesModalContenido({
               onMoverNodo={() => {}}
               onCrearPrecondicion={() => {}}
               onQuitarPrecondicion={() => {}}
-              onCambiarTipoEdge={() => {}}
+              onCambiarTipoEdge={(desde, hacia, tipo, lagMeses) => void aplicarCambiarTipoEdge(desde, hacia, tipo, lagMeses)}
               onVerDetalle={onVerDetalleMov}
               bandConfig={bandConfigPorDueno}
               xBandConfig={xBandConfig}
               xBandWidth={XBAND_WIDTH_P4}
+              lineaHoyX={dateToX(new Date(), faseKeysActivos, XBAND_WIDTH_P4)}
               // V2 layout: cada mov en su propia fila vertical (positioning
               // proporcional por fecha). nodosPorFila=9999 fuerza baseRows=1
               // en el computeBandLayout interno; el row-count real viene de

@@ -123,6 +123,9 @@ interface Props {
   //  - 'top-left' (P-4): anchorea el nodo arriba-izquierda del viewport, para
   //    que el user pueda seguir las flechas saliendo hacia derecha y abajo.
   posicionAlSeleccionar?: 'center' | 'top-left' | 'left'
+  // Si se pasa, dibuja una línea vertical "HOY" en esa X del canvas (coordenadas
+  // del canvas, se mueve con pan/zoom). La calcula el caller con dateToX(today).
+  lineaHoyX?: number
   // Modo preview/visualización: deshabilita interacciones (drag-to-connect,
   // mover nodos, drop, menú de edges editable). Solo lectura.
   readOnly?: boolean
@@ -435,6 +438,7 @@ function DAGInner({
   onArrancaOverrideDrag,
   bandHeaderExtra,
   posicionAlSeleccionar,
+  lineaHoyX,
   readOnly,
   hideCategoria,
 }: Props) {
@@ -1024,6 +1028,42 @@ function DAGInner({
                 }}
               />
             ))}
+          </ViewportPortal>
+        )}
+        {/* Línea vertical "HOY" — en coordenadas del canvas (se mueve con pan/zoom).
+            La X la calcula el caller con dateToX(today). Útil en el Gantt de fases. */}
+        {lineaHoyX !== undefined && (
+          <ViewportPortal>
+            <div
+              style={{
+                position: 'absolute',
+                left: lineaHoyX,
+                top: -5000,
+                width: 0,
+                height: 10000,
+                borderLeft: '2px dashed oklch(0.72 0.19 35 / 0.85)',
+                pointerEvents: 'none',
+                zIndex: 1,
+              }}
+            >
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 6,
+                  left: 4,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: '0.05em',
+                  color: 'oklch(0.78 0.19 35)',
+                  background: 'oklch(0.18 0.01 35 / 0.85)',
+                  padding: '1px 5px',
+                  borderRadius: 4,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                HOY
+              </span>
+            </div>
           </ViewportPortal>
         )}
         {/* Labels sticky de categorías en el corner izquierdo del canvas. Tracking
