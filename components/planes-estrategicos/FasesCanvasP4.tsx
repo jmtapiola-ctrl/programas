@@ -969,7 +969,10 @@ function FasesModalContenido({
           estado: 'editado',
           patch: {
             precondiciones_tipo: nuevoTipo,
-            precondiciones_lag_meses: Object.keys(nuevoLag).length > 0 ? nuevoLag : undefined,
+            // Mandar el mapa SIEMPRE (incluso {} vacío). Si mandáramos undefined
+            // cuando el lag baja a 0, JSON.stringify lo DESCARTA y el server nunca
+            // recibe la key → el lag viejo no se borra. Con {} el server lo pisa.
+            precondiciones_lag_meses: nuevoLag,
           },
         }),
       })

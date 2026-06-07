@@ -439,7 +439,9 @@ export function InventarioCategoria({ planId, plan, inventario, onInventarioUpda
     }
     await aplicarDecision(hacia, 'editado', {
       precondiciones_tipo: nuevoTipo,
-      precondiciones_lag_meses: Object.keys(nuevoLag).length > 0 ? nuevoLag : undefined,
+      // Mandar el mapa SIEMPRE (incluso {} vacío). undefined lo descarta
+      // JSON.stringify → el server nunca recibe la key y el lag viejo no se borra.
+      precondiciones_lag_meses: nuevoLag,
     })
   }
 
@@ -456,7 +458,9 @@ export function InventarioCategoria({ planId, plan, inventario, onInventarioUpda
       delete nuevoRaz[desde]
     }
     await aplicarDecision(hacia, 'editado', {
-      precondiciones_razonamiento: Object.keys(nuevoRaz).length > 0 ? nuevoRaz : undefined,
+      // Mandar el mapa SIEMPRE (incluso {}). undefined lo descarta JSON.stringify
+      // → el server no recibe la key y el razonamiento viejo no se borra.
+      precondiciones_razonamiento: nuevoRaz,
     })
   }
 
