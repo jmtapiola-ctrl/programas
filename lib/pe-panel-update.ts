@@ -985,13 +985,34 @@ export function mergePlan(
     result.estres = c.estres
   }
 
-  // Sub-bloques posteriores: pick top-level (sin merge interno hasta su Fase).
+  // borrador y curado son ENDPOINT-OWNED: los generan endpoints dedicados
+  // (/paso3/borrador/generar, /paso3/curado/generar, /paso3/curado/version) con
+  // shape estructurado/versionado. El chat (PANEL_UPDATE) NUNCA debe escribirlos:
+  // el modelo a veces NARRA un objeto (ej: { aprobado, ajustes_estres_aplicados })
+  // que, con un pick top-level, PISA el curado versionado real y lo destruye
+  // (bug real: plan recZD3ch4YgMyFuVz perdió todas las versiones del curado al
+  // cerrar 3.E). Por eso SIEMPRE preservamos el current. Solo aceptamos el
+  // incoming si el current está vacío Y el incoming tiene el shape esperado
+  // (versiones[] para curado, iteraciones[] para borrador) — seeding inocuo.
   for (const key of ['borrador', 'curado'] as const) {
-    const inc = incoming[key]
+    const inc = incoming[key] as any
     const cur = c[key]
-    const { value, event } = pickField(`plan.${key}`, cur as any, inc as any)
-    if (value !== undefined) (result as any)[key] = value
-    if (event) events.push(event)
+    if (isEmpty(cur) && !isEmpty(inc)) {
+      const shapeOk = key === 'curado'
+        ? Array.isArray(inc.versiones)
+        : Array.isArray(inc.iteraciones)
+      if (shapeOk) {
+        ;(result as any)[key] = inc
+        events.push({ type: 'updated', field: `plan.${key}`, from: '(vacío)', to: previewValue(inc) })
+        continue
+      }
+    }
+    // Preservar el current (endpoint-owned). Si el incoming traía algo, descartarlo
+    // explícitamente para trazabilidad.
+    if (cur !== undefined) (result as any)[key] = cur
+    if (!isEmpty(inc) && JSON.stringify(inc) !== JSON.stringify(cur)) {
+      events.push({ type: 'preserved_empty', field: `plan.${key}` })
+    }
   }
 
   return { value: result, events }
