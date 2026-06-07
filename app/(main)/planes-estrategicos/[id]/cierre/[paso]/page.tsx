@@ -21,6 +21,7 @@ import {
   getReviewerTurnos,
 } from '@/lib/airtable'
 import { AuditFlowClient } from '@/components/audit/AuditFlowClient'
+import { buildMovNombres } from '@/lib/expandir-codigos-mov'
 import type { ReviewerReport, DecisionUsuario } from '@/lib/types'
 import '../../vista/vista.css'
 
@@ -145,6 +146,7 @@ export default async function CierrePasoPage({
             decisionesIniciales={decisionesIniciales}
             readOnlyInicial={readOnlyInicial}
             autoCorregido={autoCorregido}
+            movNombres={buildMovNombres(plan.plan?.inventario?.movimientos)}
           />
         </div>
       </div>

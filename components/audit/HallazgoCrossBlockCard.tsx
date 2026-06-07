@@ -9,11 +9,13 @@
 import { useState } from 'react'
 import type { ReviewerCrossBlock } from '@/lib/types'
 import type { DecisionLocal } from './hooks/useAuditDecisiones'
+import { expandirCodigosMov } from '@/lib/expandir-codigos-mov'
 
 interface Props {
   hallazgo: ReviewerCrossBlock
   decision: DecisionLocal
   onChange: (update: Partial<DecisionLocal>) => void
+  movNombres?: Record<string, string>
 }
 
 const SEVERIDAD_BG: Record<string, string> = {
@@ -22,7 +24,8 @@ const SEVERIDAD_BG: Record<string, string> = {
   Baja: 'bg-blue-900/40 border-blue-700 text-blue-200',
 }
 
-export function HallazgoCrossBlockCard({ hallazgo, decision, onChange }: Props) {
+export function HallazgoCrossBlockCard({ hallazgo, decision, onChange, movNombres }: Props) {
+  const exp = (t: string) => expandirCodigosMov(t, movNombres ?? {})
   // Arrancar en modo NO editando: si la decisión ya tiene texto_editado, el
   // render del párrafo muestra esa versión (con label "editado por vos") y los
   // botones de re-edit permiten reabrir la edición a demanda. Antes este state
@@ -68,7 +71,7 @@ export function HallazgoCrossBlockCard({ hallazgo, decision, onChange }: Props) 
         <div>
           <p className="text-[12px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">Qué dice actualmente el Bloque {hallazgo.bloque_afectado}</p>
           <blockquote className="text-[13px] text-gray-100 leading-relaxed bg-gray-900/60 border-l-2 border-gray-500 rounded-r pl-3 pr-3 py-2">
-            {hallazgo.que_dice_actualmente}
+            {exp(hallazgo.que_dice_actualmente)}
           </blockquote>
         </div>
         <div>
@@ -76,7 +79,7 @@ export function HallazgoCrossBlockCard({ hallazgo, decision, onChange }: Props) 
             Qué se declaró que lo modifica <span className="text-gray-400 normal-case">(turno {hallazgo.turno_referencia})</span>
           </p>
           <blockquote className="text-sm text-gray-100 leading-relaxed italic bg-gray-900/60 border-l-2 border-amber-600/60 rounded-r pl-3 pr-3 py-2">
-            {hallazgo.que_se_declaro_que_lo_modifica}
+            {exp(hallazgo.que_se_declaro_que_lo_modifica)}
           </blockquote>
         </div>
         <div>
@@ -92,7 +95,7 @@ export function HallazgoCrossBlockCard({ hallazgo, decision, onChange }: Props) 
                   del reviewer. Antes este render siempre mostraba el original y
                   parecía que la edición se perdía (era solo visual: la decisión
                   guardada con texto_editado sí se persiste correctamente). */}
-              {decision.texto_editado ?? hallazgo.cambio_propuesto}
+              {exp(decision.texto_editado ?? hallazgo.cambio_propuesto)}
             </p>
           ) : (
             <textarea

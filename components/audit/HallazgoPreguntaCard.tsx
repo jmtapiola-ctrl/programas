@@ -9,14 +9,17 @@
 import { useState } from 'react'
 import type { ReviewerQuestion } from '@/lib/types'
 import type { DecisionLocal } from './hooks/useAuditDecisiones'
+import { expandirCodigosMov } from '@/lib/expandir-codigos-mov'
 
 interface Props {
   hallazgo: ReviewerQuestion
   decision: DecisionLocal
   onChange: (update: Partial<DecisionLocal>) => void
+  movNombres?: Record<string, string>
 }
 
-export function HallazgoPreguntaCard({ hallazgo, decision, onChange }: Props) {
+export function HallazgoPreguntaCard({ hallazgo, decision, onChange, movNombres }: Props) {
+  const exp = (t: string) => expandirCodigosMov(t, movNombres ?? {})
   const [respuesta, setRespuesta] = useState(decision.respuesta_usuario ?? '')
   // Modo "editando respuesta": cuando ya respondiste y querés ajustar.
   const [editandoRespuesta, setEditandoRespuesta] = useState(false)
@@ -53,15 +56,15 @@ export function HallazgoPreguntaCard({ hallazgo, decision, onChange }: Props) {
       </div>
 
       <div className="space-y-2.5">
-        <p className="text-[14px] text-white font-medium leading-relaxed">{hallazgo.pregunta}</p>
+        <p className="text-[14px] text-white font-medium leading-relaxed">{exp(hallazgo.pregunta)}</p>
         <div className="space-y-1">
           <p className="text-[12px] text-gray-200 leading-relaxed">
             <span className="font-semibold text-white uppercase tracking-wide text-[12px]">Por qué importa: </span>
-            <span className="text-gray-100">{hallazgo.por_que_importa}</span>
+            <span className="text-gray-100">{exp(hallazgo.por_que_importa)}</span>
           </p>
           <p className="text-[12px] text-gray-300 leading-relaxed">
             <span className="font-semibold text-gray-100 uppercase tracking-wide text-[12px]">Relación con el plan: </span>
-            {hallazgo.relacion_con_plan}
+            {exp(hallazgo.relacion_con_plan)}
           </p>
         </div>
       </div>

@@ -10,11 +10,13 @@
 import { useState } from 'react'
 import type { ReviewerError } from '@/lib/types'
 import type { DecisionLocal } from './hooks/useAuditDecisiones'
+import { expandirCodigosMov } from '@/lib/expandir-codigos-mov'
 
 interface Props {
   hallazgo: ReviewerError
   decision: DecisionLocal
   onChange: (update: Partial<DecisionLocal>) => void
+  movNombres?: Record<string, string>
 }
 
 const SEVERIDAD_BG: Record<string, string> = {
@@ -30,7 +32,8 @@ const TIPO_LABEL: Record<number, string> = {
   4: 'INCONSISTENCIA',
 }
 
-export function HallazgoErrorCard({ hallazgo, decision, onChange }: Props) {
+export function HallazgoErrorCard({ hallazgo, decision, onChange, movNombres }: Props) {
+  const exp = (t: string) => expandirCodigosMov(t, movNombres ?? {})
   // Mismo patrón que HallazgoCrossBlockCard: arrancar en NO editando incluso
   // cuando ya hay una decision aprobada_con_cambios — el render del párrafo
   // muestra el texto editado y los botones de re-edit permiten reabrir.
@@ -71,7 +74,7 @@ export function HallazgoErrorCard({ hallazgo, decision, onChange }: Props) {
         <div>
           <p className="text-[12px] text-gray-200 uppercase tracking-wide font-medium mb-1.5">Qué dice el resumen</p>
           <blockquote className="text-[13px] text-gray-100 leading-relaxed bg-gray-900/60 border-l-2 border-gray-500 rounded-r pl-3 pr-3 py-2">
-            {hallazgo.que_dice_resumen}
+            {exp(hallazgo.que_dice_resumen)}
           </blockquote>
         </div>
         <div>
@@ -79,7 +82,7 @@ export function HallazgoErrorCard({ hallazgo, decision, onChange }: Props) {
             Qué se dijo en la conversación <span className="text-gray-400 normal-case">(turno {hallazgo.turno_referencia})</span>
           </p>
           <blockquote className="text-sm text-gray-100 leading-relaxed italic bg-gray-900/60 border-l-2 border-amber-600/60 rounded-r pl-3 pr-3 py-2">
-            {hallazgo.que_se_dijo_en_conversacion}
+            {exp(hallazgo.que_se_dijo_en_conversacion)}
           </blockquote>
         </div>
         <div>
@@ -91,7 +94,7 @@ export function HallazgoErrorCard({ hallazgo, decision, onChange }: Props) {
           </p>
           {!editando ? (
             <p className="text-[13px] text-blue-100 leading-relaxed bg-blue-950/40 border-l-2 border-blue-500 rounded-r pl-3 pr-3 py-2 whitespace-pre-wrap">
-              {decision.texto_editado ?? hallazgo.cambio_propuesto}
+              {exp(decision.texto_editado ?? hallazgo.cambio_propuesto)}
             </p>
           ) : (
             <textarea

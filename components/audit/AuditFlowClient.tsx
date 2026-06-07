@@ -32,6 +32,9 @@ interface Props {
   // "Procesar todos los cambios y avanzar".
   readOnlyInicial?: boolean
   autoCorregido?: boolean
+  // Glosario id→nombre de los movimientos del plan, para expandir los códigos
+  // (M-9 → "M-9 (Nombre)") que el reviewer cita en sus hallazgos.
+  movNombres?: Record<string, string>
 }
 
 export function AuditFlowClient(props: Props) {
@@ -206,6 +209,7 @@ export function AuditFlowClient(props: Props) {
           decisionesIniciales={props.decisionesIniciales}
           paso={props.paso}
           readOnly={props.readOnlyInicial === true}
+          movNombres={props.movNombres}
           onProcesarTodos={handleProcesarTodos}
           onCerrarReadOnly={() => router.push(`/planes-estrategicos/${props.planId}/entrevista`)}
         />

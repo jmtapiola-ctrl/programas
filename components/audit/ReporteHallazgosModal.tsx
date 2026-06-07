@@ -37,11 +37,14 @@ interface Props {
   // de "Procesar todos los cambios y avanzar" se muestra "Cerrar — los hallazgos
   // quedan registrados", que NO modifica el plan curado.
   readOnly?: boolean
+  // Glosario id→nombre de los movimientos, para expandir los códigos (M-9 →
+  // "M-9 (Nombre)") en el texto de los hallazgos. Ver lib/expandir-codigos-mov.
+  movNombres?: Record<string, string>
   onProcesarTodos: (decisiones: DecisionUsuario[]) => void  // dispara apply en Fase 4
   onCerrarReadOnly?: () => void  // callback para el botón Cerrar en modo read-only
 }
 
-export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisionesIniciales, paso, readOnly, onProcesarTodos, onCerrarReadOnly }: Props) {
+export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisionesIniciales, paso, readOnly, movNombres, onProcesarTodos, onCerrarReadOnly }: Props) {
   const dec = useAuditDecisiones({ planId, reviewerTurnoId, report, decisionesIniciales })
   const [verIgnoradosError, setVerIgnoradosError] = useState(false)
   const [verIgnoradosPregCrit, setVerIgnoradosPregCrit] = useState(false)
@@ -125,6 +128,7 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
                 <HallazgoErrorCard
                   key={e.id}
                   hallazgo={e}
+                  movNombres={movNombres}
                   decision={dec.decisiones[e.id]}
                   onChange={(u) => dec.setDecision(e.id, u)}
                 />
@@ -133,6 +137,7 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
                 <HallazgoErrorCard
                   key={e.id}
                   hallazgo={e}
+                  movNombres={movNombres}
                   decision={dec.decisiones[e.id]}
                   onChange={(u) => dec.setDecision(e.id, u)}
                 />
@@ -151,6 +156,7 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
                 <HallazgoPreguntaCard
                   key={q.id}
                   hallazgo={q}
+                  movNombres={movNombres}
                   decision={dec.decisiones[q.id]}
                   onChange={(u) => dec.setDecision(q.id, u)}
                 />
@@ -159,6 +165,7 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
                 <HallazgoPreguntaCard
                   key={q.id}
                   hallazgo={q}
+                  movNombres={movNombres}
                   decision={dec.decisiones[q.id]}
                   onChange={(u) => dec.setDecision(q.id, u)}
                 />
@@ -177,6 +184,7 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
                 <HallazgoPreguntaCard
                   key={q.id}
                   hallazgo={q}
+                  movNombres={movNombres}
                   decision={dec.decisiones[q.id]}
                   onChange={(u) => dec.setDecision(q.id, u)}
                 />
@@ -185,6 +193,7 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
                 <HallazgoPreguntaCard
                   key={q.id}
                   hallazgo={q}
+                  movNombres={movNombres}
                   decision={dec.decisiones[q.id]}
                   onChange={(u) => dec.setDecision(q.id, u)}
                 />
@@ -208,6 +217,7 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
                 <HallazgoCrossBlockCard
                   key={c.id}
                   hallazgo={c}
+                  movNombres={movNombres}
                   decision={dec.decisiones[c.id]}
                   onChange={(u) => dec.setDecision(c.id, u)}
                 />
@@ -216,6 +226,7 @@ export function ReporteHallazgosModal({ planId, reviewerTurnoId, report, decisio
                 <HallazgoCrossBlockCard
                   key={c.id}
                   hallazgo={c}
+                  movNombres={movNombres}
                   decision={dec.decisiones[c.id]}
                   onChange={(u) => dec.setDecision(c.id, u)}
                 />
