@@ -1800,7 +1800,7 @@ export default function EntrevistaPage() {
               </button>
             </div>
             <div className="mt-1.5 flex items-center justify-between gap-3">
-              <p className="text-[12px] text-muted-foreground/50">Cmd+Enter para enviar</p>
+              <p className="text-[12px] text-muted-foreground/50">Ctrl+Enter para enviar</p>
               {!cumpleMinimos && inputValue.trim().length > 0 && (
                 <div className="flex items-center gap-2">
                   <p className="text-[12px] text-yellow-400/80 italic">{mensajeFaltanteMinimo()}</p>
