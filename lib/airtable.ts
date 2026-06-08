@@ -19,6 +19,7 @@ import type {
   ContextoCuradoJr,
   PlanVersion,
   PlanVersionSnapshot,
+  PlanNarrativa,
 } from './types'
 import { CONTEXTO_CURADO_CAMPOS, contextoCuradoTieneContenido } from './types'
 import { denormalizarCurado, hidratarCurado } from './curado-persistence'
@@ -895,6 +896,23 @@ export async function createPlanVersion(input: {
     'Snapshot JSON': snapshotJson,
   }, { typecast: true })
   return mapPlanVersion(r)
+}
+
+// ─── Narrativa del plan (feature edición de planes cerrados) ──────────────────
+
+// Lee la capa narrativa (scratchpad de prosa) de un plan. null si no existe.
+export async function getPlanNarrativa(planId: string): Promise<PlanNarrativa | null> {
+  const r = await fetchOne(TABLA_PLANES_PE, planId)
+  return safeParseJson(r.fields?.['Plan Narrativa JSON'], null)
+}
+
+// Persiste la capa narrativa. Valida el límite de Airtable Long Text.
+export async function updatePlanNarrativa(planId: string, narrativa: PlanNarrativa): Promise<void> {
+  const json = JSON.stringify(narrativa)
+  if (json.length > AIRTABLE_LONG_TEXT_LIMIT) {
+    throw new Error(`Plan Narrativa JSON excede el límite de Airtable Long Text (${json.length} > ${AIRTABLE_LONG_TEXT_LIMIT}).`)
+  }
+  await updateRecord(TABLA_PLANES_PE, planId, { 'Plan Narrativa JSON': json })
 }
 
 // Cascade delete del plan estratégico: borra todos los turnos de la entrevista

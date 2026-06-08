@@ -12,6 +12,7 @@ import type { MovimientoPE } from '@/lib/types'
 import { GlosarioVista } from '@/components/planes-estrategicos/GlosarioVista'
 import { DAGSecuenciacionReadOnly } from '@/components/planes-estrategicos/DAGSecuenciacionReadOnly'
 import { FasesCanvasReadOnly } from '@/components/planes-estrategicos/FasesCanvasReadOnly'
+import { EditorPlanCerrado } from '@/components/planes-estrategicos/EditorPlanCerrado'
 import './vista.css'
 
 const serif = Source_Serif_4({
@@ -168,6 +169,13 @@ export default async function VistaPlanPage({ params }: { params: Promise<{ id: 
           </p>
           {ultimaActualizacion && (
             <p className="meta">Última actualización: {ultimaActualizacion}</p>
+          )}
+          {/* Editor de plan cerrado (feature edición). Solo si el plan tiene una
+              versión baseline registrada (= está cerrado). */}
+          {plan.version_activa_label && (
+            <div style={{ marginTop: 12 }}>
+              <EditorPlanCerrado planId={id} editableInicial={plan.editable === true} />
+            </div>
           )}
         </header>
 
