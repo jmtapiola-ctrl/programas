@@ -19,7 +19,7 @@ import type {
   ContextoCuradoJr,
   PlanVersion,
   PlanVersionSnapshot,
-  PlanNarrativa,
+  PlanDraft,
 } from './types'
 import { CONTEXTO_CURADO_CAMPOS, contextoCuradoTieneContenido } from './types'
 import { denormalizarCurado, hidratarCurado } from './curado-persistence'
@@ -898,21 +898,26 @@ export async function createPlanVersion(input: {
   return mapPlanVersion(r)
 }
 
-// ─── Narrativa del plan (feature edición de planes cerrados) ──────────────────
+// ─── Borrador de edición (feature edición de planes cerrados) ─────────────────
 
-// Lee la capa narrativa (scratchpad de prosa) de un plan. null si no existe.
-export async function getPlanNarrativa(planId: string): Promise<PlanNarrativa | null> {
+// Lee el borrador (copia de trabajo) de un plan. null si no hay edición en curso.
+export async function getPlanDraft(planId: string): Promise<PlanDraft | null> {
   const r = await fetchOne(TABLA_PLANES_PE, planId)
-  return safeParseJson(r.fields?.['Plan Narrativa JSON'], null)
+  return safeParseJson(r.fields?.['Plan Draft JSON'], null)
 }
 
-// Persiste la capa narrativa. Valida el límite de Airtable Long Text.
-export async function updatePlanNarrativa(planId: string, narrativa: PlanNarrativa): Promise<void> {
-  const json = JSON.stringify(narrativa)
+// Persiste el borrador. Valida el límite de Airtable Long Text.
+export async function updatePlanDraft(planId: string, draft: PlanDraft): Promise<void> {
+  const json = JSON.stringify(draft)
   if (json.length > AIRTABLE_LONG_TEXT_LIMIT) {
-    throw new Error(`Plan Narrativa JSON excede el límite de Airtable Long Text (${json.length} > ${AIRTABLE_LONG_TEXT_LIMIT}).`)
+    throw new Error(`Plan Draft JSON excede el límite de Airtable Long Text (${json.length} > ${AIRTABLE_LONG_TEXT_LIMIT}).`)
   }
-  await updateRecord(TABLA_PLANES_PE, planId, { 'Plan Narrativa JSON': json })
+  await updateRecord(TABLA_PLANES_PE, planId, { 'Plan Draft JSON': json })
+}
+
+// Limpia el borrador (al aplicar o descartar).
+export async function clearPlanDraft(planId: string): Promise<void> {
+  await updateRecord(TABLA_PLANES_PE, planId, { 'Plan Draft JSON': '' })
 }
 
 // Cascade delete del plan estratégico: borra todos los turnos de la entrevista

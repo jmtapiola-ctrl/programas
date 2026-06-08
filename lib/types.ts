@@ -975,22 +975,8 @@ export interface PlanVersion {
   snapshot: PlanVersionSnapshot
 }
 
-// Capa narrativa: prosa editable del plan entero. Scratchpad efímero — se
-// regenera desde la versión activa y se descarta tras cada reconcile. La historia
-// durable son las PlanVersion estructuradas, no esta prosa.
-export interface PlanNarrativa {
-  prosa: string                       // documento markdown del plan
-  generada_desde_version: string      // "V1"
-  generada_en: string                 // ISO
-  editada_en?: string                 // ISO del último edit por chat
-  // Anclas: mapean secciones de la prosa a campos estructurados. Generadas junto
-  // con la prosa. NO autoritativas — son pistas para el motor de reconcile.
-  anclas?: { seccion: string; campo_estructurado: string; texto_origen: string }[]
-}
-
-// Reconcile (coordinación narrativa→estructura). Superficie del plan que un
-// cambio toca. V1 solo aplica las de texto (proposito/situacion/criterio); el
-// resto se detecta pero se marca fuera_de_alcance.
+// Superficie del plan que un cambio de edición toca. V1 solo aplica las de texto
+// (proposito/situacion/criterio); el resto se propone pero se marca fuera_de_alcance.
 export type ReconcileSurface =
   | 'proposito.escena' | 'proposito.metricas' | 'proposito.fuera'
   | 'proposito.horizonte' | 'proposito.estabilidad'
@@ -1011,14 +997,34 @@ export interface ReconcileChange {
   fuera_de_alcance?: boolean          // toca inventario/Gantt → informativo, NO se aplica en V1
 }
 
-export interface ReconcileChangeset {
-  changes: ReconcileChange[]
-  meta: {
-    total: number
-    aplicables: number                // changes con fuera_de_alcance != true
-    fuera_de_alcance: number
-    confianza: 'Alta' | 'Media' | 'Baja'
-  }
+// ─── Copia de trabajo (borrador) para editar un plan cerrado ──────────────────
+// El usuario edita un borrador DESACOPLADO (sin las relaciones del plan vivo: no
+// toca la versión activa ni los Jr anclados) vía chat. Acumula cambios con su OK;
+// al "Aplicar al plan" se commitea como versión nueva. Vive en 'Plan Draft JSON'.
+
+export interface PlanDraftMensaje {
+  rol: 'user' | 'model'
+  texto: string
+  ts: string
+  // Cambios estructurales que el modelo propuso en este turno (si los hubo).
+  // El usuario los confirma para aplicarlos al borrador.
+  cambios_propuestos?: ReconcileChange[]
+}
+
+export interface PlanDraft {
+  base_version: string              // versión que se está editando (ej "V1")
+  creado_en: string
+  actualizado_en: string
+  // Copia editable del plan — solo las superficies de texto de V1. El resto
+  // (inventario, dag, curado) NO se edita acá todavía; se muestra de referencia
+  // desde el plan vivo.
+  proposito?: PropositorPE
+  situacion?: SituacionPE
+  preparativos?: PreparativosPE      // incluye criterio_exito
+  mensajes: PlanDraftMensaje[]
+  // Cambios ya confirmados+aplicados al borrador (audit-trail; al "Aplicar al
+  // plan" se vuelcan como warnings_retroactivos en el plan vivo).
+  cambios_aplicados?: ReconcileChange[]
 }
 
 // Rol del turno. Extendido en Fase 1 del feat/audit-reviewer:
