@@ -988,6 +988,39 @@ export interface PlanNarrativa {
   anclas?: { seccion: string; campo_estructurado: string; texto_origen: string }[]
 }
 
+// Reconcile (coordinación narrativa→estructura). Superficie del plan que un
+// cambio toca. V1 solo aplica las de texto (proposito/situacion/criterio); el
+// resto se detecta pero se marca fuera_de_alcance.
+export type ReconcileSurface =
+  | 'proposito.escena' | 'proposito.metricas' | 'proposito.fuera'
+  | 'proposito.horizonte' | 'proposito.estabilidad'
+  | 'situacion' | 'criterio_exito'
+  | 'inventario' | 'dag' | 'otro'   // fuera de alcance en V1
+
+// Un cambio propuesto por el reconcile. Mismo espíritu que ReviewerCrossBlock:
+// que_dice_estructura es una CITA VERBATIM del valor estructural actual (para
+// localizarlo y sustituirlo determinísticamente).
+export interface ReconcileChange {
+  id: string                          // "RC-1"
+  surface: ReconcileSurface
+  target_ref: string                  // ref opcional (ej métrica, "" si no aplica)
+  severidad: 'Alta' | 'Media' | 'Baja'
+  que_dice_estructura: string         // valor estructural actual (verbatim)
+  que_dice_narrativa: string          // lo que la narrativa editada dice ahora
+  cambio_propuesto: string            // nuevo valor estructural propuesto
+  fuera_de_alcance?: boolean          // toca inventario/Gantt → informativo, NO se aplica en V1
+}
+
+export interface ReconcileChangeset {
+  changes: ReconcileChange[]
+  meta: {
+    total: number
+    aplicables: number                // changes con fuera_de_alcance != true
+    fuera_de_alcance: number
+    confianza: 'Alta' | 'Media' | 'Baja'
+  }
+}
+
 // Rol del turno. Extendido en Fase 1 del feat/audit-reviewer:
 //   - 'reviewer': turno consolidado con el reporte de la auditoría externa.
 //   - 'snapshot': turno especial creado al cerrar definitivamente un Paso,

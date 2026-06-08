@@ -13,6 +13,8 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
+import { ReconcileModal } from './ReconcileModal'
+import type { ReconcileChangeset } from '@/lib/types'
 
 interface Props {
   planId: string
@@ -28,6 +30,9 @@ export function EditorPlanCerrado({ planId }: Props) {
   const [enviando, setEnviando] = useState(false)
   const [ultimoCambio, setUltimoCambio] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
+  const [coordinando, setCoordinando] = useState(false)
+  const [changeset, setChangeset] = useState<ReconcileChangeset | null>(null)
+  const [versionActual, setVersionActual] = useState<string | null>(null)
 
   async function abrir() {
     setMounted(true)
@@ -66,6 +71,24 @@ export function EditorPlanCerrado({ planId }: Props) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setEnviando(false)
+    }
+  }
+
+  async function coordinar() {
+    if (coordinando) return
+    setCoordinando(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/planes-estrategicos/${planId}/reconcile/start`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      setChangeset(data.changeset)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setCoordinando(false)
     }
   }
 
@@ -138,21 +161,37 @@ export function EditorPlanCerrado({ planId }: Props) {
               </div>
               <div className="flex items-center justify-between gap-3 pt-1">
                 <p className="text-[11px] text-gray-500">
-                  Coordinar con el plan estructurado (aplicar estos cambios a métricas, criterios, etc.) llega en el próximo hito.
+                  {versionActual ? `Versión activa: ${versionActual}. ` : ''}
+                  Coordinar compara la narrativa con el plan estructurado y propone los cambios a métricas, criterios, etc.
                 </p>
                 <button
                   type="button"
-                  disabled
-                  title="Disponible en el próximo hito"
-                  className="bg-gray-800 text-gray-500 text-[12px] px-3 py-1.5 rounded cursor-not-allowed"
+                  onClick={coordinar}
+                  disabled={cargando || coordinando}
+                  title="Compara la narrativa con la estructura y propone cambios"
+                  className="bg-purple-700 hover:bg-purple-600 disabled:bg-gray-800 disabled:text-gray-500 text-white text-[12px] px-3 py-1.5 rounded transition-colors"
                 >
-                  Coordinar →
+                  {coordinando ? 'Analizando…' : 'Coordinar →'}
                 </button>
               </div>
             </div>
           </div>
         </div>,
         document.body,
+      )}
+
+      {changeset && (
+        <ReconcileModal
+          planId={planId}
+          changeset={changeset}
+          onCerrar={() => setChangeset(null)}
+          onAplicado={(prosaNueva, version) => {
+            if (prosaNueva) setProsa(prosaNueva)
+            if (version) setVersionActual(version)
+            setUltimoCambio(`Coordinado — nueva versión ${version || ''} creada.`)
+            setChangeset(null)
+          }}
+        />
       )}
     </>
   )

@@ -115,6 +115,9 @@ const STRING_FIELDS: StringFieldRef[] = [
   { path: 'situacion.recursos_actuales',    get: p => p.situacion?.recursos_actuales ?? '',    set: (p, v) => { ensureSit(p); (p.situacion as SituacionPE).recursos_actuales = v } },
   { path: 'situacion.recursos_faltantes',   get: p => p.situacion?.recursos_faltantes ?? '',   set: (p, v) => { ensureSit(p); (p.situacion as SituacionPE).recursos_faltantes = v } },
   { path: 'situacion.intentos_previos',     get: p => p.situacion?.intentos_previos ?? '',     set: (p, v) => { ensureSit(p); (p.situacion as SituacionPE).intentos_previos = v } },
+  // Criterio de éxito (3.0.D). Lo agrega el reconcile (feature edición de planes
+  // cerrados). Vive en plan.plan.preparativos.criterio_exito.
+  { path: 'preparativos.criterio_exito.zona_fracaso', get: p => (p.plan?.preparativos?.criterio_exito as any)?.zona_fracaso ?? '', set: (p, v) => { ensurePrepCrit(p); (p.plan!.preparativos!.criterio_exito as any).zona_fracaso = v } },
 ]
 
 const ARRAY_FIELDS: ArrayItemFieldRef[] = [
@@ -122,6 +125,8 @@ const ARRAY_FIELDS: ArrayItemFieldRef[] = [
   { arrayPath: 'proposito.fuera',              get: p => p.proposito?.fuera as any,              itemKeys: ['item', 'razon'] },
   { arrayPath: 'situacion.desvios_secundarios', get: p => p.situacion?.desvios_secundarios as any, itemKeys: ['descripcion', 'datos'] },
   { arrayPath: 'situacion.resistencias',       get: p => p.situacion?.resistencias as any,       itemKeys: ['actor', 'descripcion', 'mitigacion', 'tipo', 'criticidad'] },
+  // Criterio de éxito por métrica (reconcile — feature edición de planes cerrados).
+  { arrayPath: 'preparativos.criterio_exito.por_metrica', get: p => (p.plan?.preparativos?.criterio_exito as any)?.por_metrica as any, itemKeys: ['metrica', 'pleno', 'minimo'] },
 ]
 
 function ensureProp(p: PlanEstrategico): void {
@@ -138,6 +143,27 @@ function ensureSit(p: PlanEstrategico): void {
       resistencias: [],
     }
   }
+}
+function ensurePrepCrit(p: PlanEstrategico): void {
+  if (!p.plan) p.plan = {} as PlanoPE
+  if (!p.plan.preparativos) p.plan.preparativos = {} as any
+  if (!p.plan.preparativos!.criterio_exito) p.plan.preparativos!.criterio_exito = { por_metrica: [], zona_fracaso: '' } as any
+}
+
+// ─── Helper reutilizable de sustitución textual (reconcile) ──────────────────
+// Localiza un texto verbatim en los campos del plan y lo reemplaza. Reusa el
+// mismo localizador determinístico que errors/cross-block. Devuelve el path
+// modificado o null si no se encontró. NO clona — muta el plan recibido.
+export function aplicarSustitucionTextual(
+  plan: PlanEstrategico,
+  needle: string,
+  replacement: string,
+): { aplicado: boolean; fieldPath: string | null } {
+  const target = locateFieldByText(plan, needle)
+  if (!target) return { aplicado: false, fieldPath: null }
+  applyAtTarget(plan, target, needle, replacement)
+  const fieldPath = target.kind === 'string' ? target.path : `${target.arrayPath}[${target.index}].${target.itemKey}`
+  return { aplicado: true, fieldPath }
 }
 
 // ─── Apply de errors ─────────────────────────────────────────────────────────
