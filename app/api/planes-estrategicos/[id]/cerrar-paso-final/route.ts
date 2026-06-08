@@ -19,7 +19,10 @@ import {
   appendSnapshotTurno,
   updateEntrevistaPE,
   updatePlanEstrategico,
+  getPlanVersiones,
+  createPlanVersion,
 } from '@/lib/airtable'
+import { denormalizarPlanVersionSnapshot, siguienteNumeroVersion } from '@/lib/version-persistence'
 import type { SnapshotPaso, LineaJrPersistida } from '@/lib/types'
 
 export async function POST(
@@ -120,6 +123,31 @@ export async function POST(
       }
     } catch (e) {
       console.warn('[cerrar-paso-final] no se pudo marcar el Jr como Completado:', (e as any)?.message)
+    }
+  }
+
+  // Baseline de versionado (feature edición de planes cerrados): al cerrar el
+  // Paso 3 (último del scope estructurado), el plan queda "cerrado" — registramos
+  // la versión inmutable V1. Idempotente: si ya existe alguna versión, no duplica.
+  // Best-effort: un fallo acá NO debe romper el cierre del paso.
+  if (paso === 3) {
+    try {
+      const versionesPrev = await getPlanVersiones(planId)
+      if (versionesPrev.length === 0) {
+        const numero = siguienteNumeroVersion(versionesPrev)
+        await createPlanVersion({
+          planId,
+          numero,
+          trigger: 'cierre',
+          creadaPor: (session.user as any).id ?? '',
+          resumenCambio: 'Baseline — plan cerrado tras aprobar el Paso 3.',
+          snapshot: denormalizarPlanVersionSnapshot(plan),
+        })
+        await updatePlanEstrategico(planId, { version_activa_label: numero })
+        console.log('[cerrar-paso-final] baseline de versión creada:', numero)
+      }
+    } catch (e) {
+      console.warn('[cerrar-paso-final] no se pudo crear la baseline de versión:', (e as any)?.message)
     }
   }
 

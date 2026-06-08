@@ -17,6 +17,8 @@ import type {
   DecisionUsuario,
   SnapshotPaso,
   ContextoCuradoJr,
+  PlanVersion,
+  PlanVersionSnapshot,
 } from './types'
 import { CONTEXTO_CURADO_CAMPOS, contextoCuradoTieneContenido } from './types'
 import { denormalizarCurado, hidratarCurado } from './curado-persistence'
@@ -563,6 +565,8 @@ export async function getUsuariosByIds(ids: string[]): Promise<Record<string, Us
 export const TABLA_PLANES_PE = 'tblPJC1VMQclfCqc7'
 export const TABLA_ENTREVISTAS_PE = 'tblbOOk5jvVu3GsPJ'
 export const TABLA_TURNOS_PE = 'tblWxPv53CRscq18w'
+// Versiones inmutables de planes cerrados (feature edición de planes cerrados).
+export const TABLA_VERSIONES_PE = 'tblc7wd8Hy4dBwE1H'
 
 // Field IDs de Turnos_PE — usados en mappers y create payloads
 const TURNOS_FIELD_ETIQUETA = 'fld2dhV3Nebuxp6dz'
@@ -714,6 +718,10 @@ function mapPlanEstrategico(r: any): PlanEstrategico {
     // MD'). Si los 5 están vacíos/ausentes, contexto_curado queda undefined.
     contexto_curado: mapContextoCurado(f),
     dueno_jr_email: f['Dueno Jr Email'] ?? undefined,
+    // Feature edición de planes cerrados.
+    plan_sr_version_pin: f['Plan Sr Version Pin'] ?? undefined,
+    version_activa_label: f['Version Activa Label'] ?? undefined,
+    editable: f['Editable'] === true,
   }
 }
 
@@ -828,6 +836,67 @@ export async function appendTurnosPE(
   return { ids: data.records.map((r: any) => r.id) }
 }
 
+// ─── Versiones_PE (feature edición de planes cerrados) ────────────────────────
+
+function mapPlanVersion(r: any): PlanVersion {
+  const f = r.fields ?? {}
+  return {
+    id: r.id,
+    numero: f['Numero'] ?? '',
+    trigger: (f['Trigger']?.name ?? f['Trigger'] ?? 'cierre') as PlanVersion['trigger'],
+    creada_en: f['Creada En'] ?? '',
+    creada_por: f['Creada Por'] ?? '',
+    resumen_cambio: f['Resumen Cambio'] ?? '',
+    snapshot: safeParseJson(f['Snapshot JSON'], {
+      inventario_ref: { movs_sin_cambio_ids: [], movs_override: [] },
+      curado_ref: { version_activa: 0 },
+      datos_faltantes: [],
+    }),
+  }
+}
+
+// Lista las versiones de un plan, ordenadas por creación ascendente (V1 primero).
+// Filtra en memoria por el link Plan (ARRAYJOIN sobre linked field no devuelve
+// record IDs). Pagina automáticamente.
+export async function getPlanVersiones(planId: string): Promise<PlanVersion[]> {
+  const records = await fetchAll(TABLA_VERSIONES_PE, 'sort[0][field]=Creada En&sort[0][direction]=asc')
+  return records
+    .filter(r => {
+      const link: string[] = r.fields?.['Plan'] ?? []
+      return link.includes(planId)
+    })
+    .map(mapPlanVersion)
+}
+
+// Crea una versión inmutable del plan. Valida el límite de Airtable sobre el
+// Snapshot JSON (con fallback sugerido en el mensaje, como persistirSubKey).
+export async function createPlanVersion(input: {
+  planId: string
+  numero: string
+  trigger: PlanVersion['trigger']
+  creadaPor: string
+  resumenCambio: string
+  snapshot: PlanVersionSnapshot
+}): Promise<PlanVersion> {
+  const snapshotJson = JSON.stringify(input.snapshot)
+  if (snapshotJson.length > AIRTABLE_LONG_TEXT_LIMIT) {
+    throw new Error(
+      `Snapshot JSON de la versión ${input.numero} excede el límite de Airtable Long Text (${snapshotJson.length} > ${AIRTABLE_LONG_TEXT_LIMIT}). ` +
+      `Habría que splitear el Snapshot JSON en sub-fields (ej: Snapshot Inventario JSON + Snapshot Resto JSON).`,
+    )
+  }
+  const r = await createRecord(TABLA_VERSIONES_PE, {
+    'Numero': input.numero,
+    'Plan': [input.planId],
+    'Trigger': input.trigger,
+    'Creada En': new Date().toISOString(),
+    'Creada Por': input.creadaPor,
+    'Resumen Cambio': input.resumenCambio,
+    'Snapshot JSON': snapshotJson,
+  }, { typecast: true })
+  return mapPlanVersion(r)
+}
+
 // Cascade delete del plan estratégico: borra todos los turnos de la entrevista
 // asociada, después la entrevista, después el plan. Idempotente — si algún
 // registro asociado ya no existe, sigue con el resto.
@@ -857,7 +926,13 @@ export async function deletePlanEstrategico(planId: string): Promise<void> {
     await deleteRecord(TABLA_ENTREVISTAS_PE, entrevistaId).catch(() => undefined)
   }
 
-  // 4. Finalmente borrar el plan.
+  // 4. Borrar las versiones inmutables del plan (Versiones_PE).
+  const versiones = await getPlanVersiones(planId).catch(() => [])
+  for (const v of versiones) {
+    await deleteRecord(TABLA_VERSIONES_PE, v.id).catch(() => undefined)
+  }
+
+  // 5. Finalmente borrar el plan.
   await deleteRecord(TABLA_PLANES_PE, planId)
 }
 
@@ -977,6 +1052,10 @@ export async function updatePlanEstrategico(id: string, data: Partial<{
   movs_heredados_snapshot: any[]          // solo Plan Jr — array de MovimientoPE entero.
   contexto_curado: ContextoCuradoJr       // solo Plan Jr — los 5 campos del contexto.
   dueno_jr_email: string                  // solo Plan Jr — email del dueño formal.
+  // Feature edición de planes cerrados.
+  plan_sr_version_pin: string             // solo Plan Jr — versión del Sr a la que ancla.
+  version_activa_label: string            // qué versión refleja el plan vivo.
+  editable: boolean                       // modo edición del plan cerrado.
 }>): Promise<void> {
   const fields: Record<string, any> = {}
   if (data.nombre !== undefined) fields['Nombre'] = data.nombre
@@ -1008,6 +1087,9 @@ export async function updatePlanEstrategico(id: string, data: Partial<{
     }
   }
   if (data.dueno_jr_email !== undefined) fields['Dueno Jr Email'] = data.dueno_jr_email
+  if (data.plan_sr_version_pin !== undefined) fields['Plan Sr Version Pin'] = data.plan_sr_version_pin
+  if (data.version_activa_label !== undefined) fields['Version Activa Label'] = data.version_activa_label
+  if (data.editable !== undefined) fields['Editable'] = data.editable
   if (data.plan !== undefined) {
     // Strategy: split los 3 sub-keys más pesados a Airtable fields separados:
     //   - plan.borrador   → "Plan Borrador JSON"   (3.C — iteraciones de Opus)

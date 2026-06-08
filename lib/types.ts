@@ -500,6 +500,17 @@ export interface PlanEstrategico {
   // Solo Plan Jr lo usa. Email del dueño formal (espejo del campo Email
   // del Usuario asociado, para búsqueda rápida sin hacer join).
   dueno_jr_email?: string
+  // Solo Plan Jr lo usa. Versión del Sr (PlanVersion.numero, ej "V1") sobre la
+  // que este Jr fue derivado. El Jr queda anclado a esa versión: si el Sr se
+  // edita y genera V1.1, el Jr no se entera (los snapshots heredados siguen
+  // siendo los de V1). Re-apuntar a una versión nueva del Sr es fase futura.
+  plan_sr_version_pin?: string
+  // Feature edición de planes cerrados. Qué PlanVersion.numero refleja el plan
+  // vivo actual. undefined en planes que todavía no tienen versión (legacy).
+  version_activa_label?: string
+  // Feature edición de planes cerrados. true cuando el plan cerrado está en modo
+  // edición (habilita el chat narrativo + reconcile). Default false.
+  editable?: boolean
 }
 
 // ─── Plan (Paso 3) ────────────────────────────────────────────────────────────
@@ -927,6 +938,54 @@ export interface CapAuditoriaJrSnapshot {
   // undefined si alguno de los dos no está secuenciado.
   cierre_jr_ym?: string
   cierre_esperado_sr_ym?: string
+}
+
+// ─── Edición de planes cerrados (versionado + narrativa + reconcile) ──────────
+// Ver docs/plan en repo y lib/version-persistence.ts.
+
+// Qué disparó la creación de una versión inmutable del plan.
+export type PlanVersionTrigger = 'cierre' | 'reconcile' | 'edicion_directa'
+
+// Snapshot DENORMALIZADO de un plan en un momento dado. Mismo principio que el
+// curado: los movimientos del inventario que son idénticos al inventario vivo se
+// guardan solo por id; los que difieren se guardan completos. proposito/situacion/
+// preparativos se guardan enteros (son chicos). El curado se referencia por su
+// version_activa dentro del plan vivo. Se hidrata al leer (ver version-persistence).
+export interface PlanVersionSnapshot {
+  proposito?: PropositorPE
+  situacion?: SituacionPE
+  preparativos?: PreparativosPE        // incluye criterio_exito
+  inventario_ref: {
+    movs_sin_cambio_ids: string[]      // movs idénticos al inventario vivo (solo id)
+    movs_override: MovimientoPE[]      // movs que difieren del vivo (objeto completo)
+    dag?: DAGPlanPE                    // posiciones del canvas (baratas, enteras)
+  }
+  curado_ref: { version_activa: number }   // apunta a plan.curado.versiones[]
+  datos_faltantes: string[]
+}
+
+// Una versión inmutable del plan, persistida en la tabla Versiones_PE.
+export interface PlanVersion {
+  id: string                          // Airtable record id
+  numero: string                      // "V1", "V1.1", ...
+  trigger: PlanVersionTrigger
+  creada_en: string                   // ISO
+  creada_por: string                  // userId
+  resumen_cambio: string              // 1 línea ("Reconcile: 2 métricas, 1 criterio")
+  snapshot: PlanVersionSnapshot
+}
+
+// Capa narrativa: prosa editable del plan entero. Scratchpad efímero — se
+// regenera desde la versión activa y se descarta tras cada reconcile. La historia
+// durable son las PlanVersion estructuradas, no esta prosa.
+export interface PlanNarrativa {
+  prosa: string                       // documento markdown del plan
+  generada_desde_version: string      // "V1"
+  generada_en: string                 // ISO
+  editada_en?: string                 // ISO del último edit por chat
+  // Anclas: mapean secciones de la prosa a campos estructurados. Generadas junto
+  // con la prosa. NO autoritativas — son pistas para el motor de reconcile.
+  anclas?: { seccion: string; campo_estructurado: string; texto_origen: string }[]
 }
 
 // Rol del turno. Extendido en Fase 1 del feat/audit-reviewer:
