@@ -10,6 +10,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { EditorDagCanvas } from './EditorDagCanvas'
 import type { PlanDraft, ReconcileChange, DraftMovCambio, PlanDraftMensaje } from '@/lib/types'
 
 interface Props {
@@ -30,7 +31,26 @@ export function EditorPlanSplit({ planId, planNombre, versionActiva }: Props) {
   const [aplicandoCambios, setAplicandoCambios] = useState(false)
   const [accion, setAccion] = useState<'aplicar' | 'descartar' | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [vista, setVista] = useState<'plan' | 'mapa'>('plan')
   const chatEndRef = useRef<HTMLDivElement>(null)
+
+  function onDraftActualizado(d: PlanDraft, c: string | null) {
+    setDraft(d)
+    if (c) setCierre(c)
+  }
+
+  async function editarCampoDirecto(cambio: DraftMovCambio) {
+    try {
+      const res = await fetch(`/api/planes-estrategicos/${planId}/draft/inventario-directo`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mov_cambios: [cambio] }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      onDraftActualizado(data.draft, data.cierre ?? null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -154,15 +174,25 @@ export function EditorPlanSplit({ planId, planNombre, versionActiva }: Props) {
       {error && <div className="px-5 py-2 bg-red-900/30 border-b border-red-800 text-[12px] text-red-200 flex-shrink-0">{error}</div>}
 
       <div className="flex flex-1 min-h-0">
-        {/* Izquierda: el plan (borrador) */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 border-r border-sidebar-border">
-          {cargando ? (
-            <p className="text-[13px] text-muted-foreground">Cargando borrador…</p>
-          ) : draft ? (
-            <PlanEditable draft={draft} />
-          ) : (
-            <p className="text-[13px] text-muted-foreground">No se pudo cargar el borrador.</p>
-          )}
+        {/* Izquierda: el plan (borrador) — vista Plan o Mapa de dependencias */}
+        <div className="flex-1 min-w-0 flex flex-col border-r border-sidebar-border">
+          <div className="flex items-center gap-1 px-4 py-2 border-b border-sidebar-border flex-shrink-0">
+            <button onClick={() => setVista('plan')} className={`text-[12px] px-3 py-1 rounded transition-colors ${vista === 'plan' ? 'bg-blue-700 text-white' : 'text-muted-foreground hover:text-foreground'}`}>Plan</button>
+            <button onClick={() => setVista('mapa')} className={`text-[12px] px-3 py-1 rounded transition-colors ${vista === 'mapa' ? 'bg-blue-700 text-white' : 'text-muted-foreground hover:text-foreground'}`}>Mapa de dependencias</button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {cargando ? (
+              <p className="text-[13px] text-muted-foreground px-6 py-5">Cargando borrador…</p>
+            ) : !draft ? (
+              <p className="text-[13px] text-muted-foreground px-6 py-5">No se pudo cargar el borrador.</p>
+            ) : vista === 'mapa' ? (
+              <EditorDagCanvas planId={planId} draft={draft} onDraftActualizado={onDraftActualizado} />
+            ) : (
+              <div className="h-full overflow-y-auto px-6 py-5">
+                <PlanEditable draft={draft} onEditarDuracion={(movId, dur) => editarCampoDirecto({ id: 'dir', mov_id: movId, campo: 'duracion_meses_ejecucion', valor_nuevo: dur })} />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Derecha: chat */}
@@ -261,7 +291,7 @@ function CambioChip({ c }: { c: ReconcileChange }) {
 
 // ─── Render del plan editable (borrador) ─────────────────────────────────────
 
-function PlanEditable({ draft }: { draft: PlanDraft }) {
+function PlanEditable({ draft, onEditarDuracion }: { draft: PlanDraft; onEditarDuracion: (movId: string, dur: number) => void }) {
   const p = draft.proposito
   const s = draft.situacion
   const crit = (draft.preparativos as any)?.criterio_exito
@@ -299,26 +329,28 @@ function PlanEditable({ draft }: { draft: PlanDraft }) {
           {crit.zona_fracaso && <Campo label="Zona de fracaso" v={crit.zona_fracaso} />}
         </section>
       )}
-      <InventarioEditable draft={draft} />
+      <InventarioEditable draft={draft} onEditarDuracion={onEditarDuracion} />
     </div>
   )
 }
 
-function InventarioEditable({ draft }: { draft: PlanDraft }) {
+function InventarioEditable({ draft, onEditarDuracion }: { draft: PlanDraft; onEditarDuracion: (movId: string, dur: number) => void }) {
   const movs = (draft.inventario?.movimientos ?? []).filter((m: any) => m.estado_usuario !== 'quitado')
   if (movs.length === 0) return null
   return (
     <section>
       <h2 className="text-[16px] font-semibold mb-2">Inventario de movimientos ({movs.length})</h2>
-      <p className="text-[11px] text-muted-foreground mb-2">Editable vía chat: nombre, brechas, banda, duración, dueño, dependencias. El cronograma se recalcula solo.</p>
+      <p className="text-[11px] text-muted-foreground mb-2">Editá la duración directamente acá, o pedí cambios por chat (nombre, brechas, banda, dueño, dependencias). El cronograma se recalcula solo. Las dependencias se editan en el "Mapa".</p>
       <div className="space-y-2">
         {movs.map((m: any) => (
           <div key={m.id} className="rounded border border-sidebar-border bg-sidebar/40 px-3 py-2">
             <p className="text-[13px] font-medium">{m.id} · {m.nombre}</p>
-            <p className="text-[11px] text-muted-foreground">
-              banda {m.costo_banda_ancha} · {m.duracion_meses_ejecucion ?? '—'}m · dueño {m.dueno || '—'}
-              {(m.precondiciones?.length ?? 0) > 0 && ` · depende de ${m.precondiciones.join(', ')}`}
-            </p>
+            <div className="text-[11px] text-muted-foreground flex items-center gap-1 flex-wrap">
+              <span>banda {m.costo_banda_ancha} ·</span>
+              <DuracionInput movId={m.id} valor={m.duracion_meses_ejecucion} onCommit={onEditarDuracion} />
+              <span>· dueño {m.dueno || '—'}</span>
+              {(m.precondiciones?.length ?? 0) > 0 && <span>· depende de {m.precondiciones.join(', ')}</span>}
+            </div>
             {m.brechas_atacadas?.length > 0 && (
               <p className="text-[11px] text-foreground/80 mt-0.5">brechas: {m.brechas_atacadas.join(' · ')}</p>
             )}
@@ -326,6 +358,23 @@ function InventarioEditable({ draft }: { draft: PlanDraft }) {
         ))}
       </div>
     </section>
+  )
+}
+
+function DuracionInput({ movId, valor, onCommit }: { movId: string; valor: number | undefined; onCommit: (movId: string, dur: number) => void }) {
+  const [v, setV] = useState(valor != null ? String(valor) : '')
+  const original = valor != null ? String(valor) : ''
+  function commit() {
+    const n = parseInt(v, 10)
+    if (Number.isFinite(n) && n >= 0 && String(n) !== original) onCommit(movId, n)
+  }
+  return (
+    <span className="inline-flex items-center gap-1">
+      <input value={v} onChange={e => setV(e.target.value.replace(/[^0-9]/g, ''))} onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+        className="w-10 text-center text-[11px] bg-background border border-sidebar-border rounded px-1 py-0.5 focus:border-blue-500 focus:outline-none" />
+      <span>m</span>
+    </span>
   )
 }
 
