@@ -244,9 +244,9 @@ export function EditorPlanSplit({ planId, planNombre, versionActiva }: Props) {
             <div className="flex gap-2">
               <textarea value={input} onChange={e => setInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
-                disabled={cargando || enviando} rows={2}
+                disabled={cargando || enviando} rows={4}
                 placeholder="Pedí un cambio…"
-                className="flex-1 text-[13px] text-foreground bg-background border border-sidebar-border rounded px-3 py-2 focus:border-blue-500 focus:outline-none resize-none disabled:opacity-50" />
+                className="flex-1 text-[13px] text-foreground bg-background border border-sidebar-border rounded px-3 py-2 focus:border-blue-500 focus:outline-none resize-y min-h-[88px] disabled:opacity-50" />
               <button onClick={enviar} disabled={cargando || enviando || !input.trim()}
                 className="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-[13px] font-medium px-3 rounded transition-colors">
                 Enviar
