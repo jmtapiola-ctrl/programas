@@ -10,6 +10,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import ReactMarkdown from 'react-markdown'
 import { EditorDagCanvas } from './EditorDagCanvas'
 import type { PlanDraft, ReconcileChange, DraftMovCambio, PlanDraftMensaje } from '@/lib/types'
 
@@ -312,7 +313,7 @@ function PlanEditable({ draft, onEditarDuracion }: { draft: PlanDraft; onEditarD
           <h2 className="text-[16px] font-semibold mb-2">Propósito</h2>
           {p.escena && <Campo label="Lugar de llegada" v={p.escena} />}
           {p.metricas?.length > 0 && (
-            <Campo label="Métricas" v={p.metricas.map((m: any) => typeof m === 'string' ? m : `${m.metrica}: ${m.valor_objetivo}${m.valor_actual ? ` (hoy: ${m.valor_actual})` : ''}`).join('\n')} />
+            <Campo label="Métricas" v={p.metricas.map((m: any) => typeof m === 'string' ? `- ${m}` : `- **${m.metrica}:** ${m.valor_objetivo}${m.valor_actual ? ` (hoy: ${m.valor_actual})` : ''}`).join('\n')} />
           )}
           {p.horizonte && <Campo label="Horizonte" v={p.horizonte} />}
           {p.estabilidad && <Campo label="Estabilidad" v={p.estabilidad} />}
@@ -333,7 +334,7 @@ function PlanEditable({ draft, onEditarDuracion }: { draft: PlanDraft; onEditarD
         <section>
           <h2 className="text-[16px] font-semibold mb-2">Criterio de éxito</h2>
           {(crit.por_metrica ?? []).map((c: any, i: number) => (
-            <Campo key={i} label={c.metrica} v={`Pleno: ${c.pleno}\nMínimo: ${c.minimo}`} />
+            <Campo key={i} label={c.metrica} v={`- **Pleno:** ${c.pleno}\n- **Mínimo:** ${c.minimo}`} />
           ))}
           {crit.zona_fracaso && <Campo label="Zona de fracaso" v={crit.zona_fracaso} />}
         </section>
@@ -353,15 +354,15 @@ function InventarioEditable({ draft, onEditarDuracion }: { draft: PlanDraft; onE
       <div className="space-y-2">
         {movs.map((m: any) => (
           <div key={m.id} className="rounded border border-sidebar-border bg-sidebar/40 px-3 py-2">
-            <p className="text-[13px] font-medium">{m.id} · {m.nombre}</p>
-            <div className="text-[11px] text-muted-foreground flex items-center gap-1 flex-wrap">
+            <p className="text-[14px] font-medium">{m.id} · {m.nombre}</p>
+            <div className="text-[12px] text-muted-foreground flex items-center gap-1 flex-wrap">
               <span>banda {m.costo_banda_ancha} ·</span>
               <DuracionInput movId={m.id} valor={m.duracion_meses_ejecucion} onCommit={onEditarDuracion} />
               <span>· dueño {m.dueno || '—'}</span>
               {(m.precondiciones?.length ?? 0) > 0 && <span>· depende de {m.precondiciones.join(', ')}</span>}
             </div>
             {m.brechas_atacadas?.length > 0 && (
-              <p className="text-[11px] text-foreground/80 mt-0.5">brechas: {m.brechas_atacadas.join(' · ')}</p>
+              <p className="text-[12px] text-foreground/80 mt-0.5">brechas: {m.brechas_atacadas.join(' · ')}</p>
             )}
           </div>
         ))}
@@ -391,7 +392,13 @@ function Campo({ label, v }: { label: string; v: string }) {
   return (
     <div className="mb-3">
       <p className="text-[12px] text-muted-foreground uppercase tracking-wide">{label}</p>
-      <p className="text-[13px] text-foreground whitespace-pre-wrap leading-relaxed">{v}</p>
+      <div className="text-[14px] text-foreground leading-relaxed
+        [&_p]:my-1 [&_strong]:text-foreground [&_strong]:font-semibold
+        [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-0.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:space-y-0.5
+        [&_h1]:text-[16px] [&_h1]:font-bold [&_h1]:mt-2 [&_h2]:text-[15px] [&_h2]:font-semibold [&_h2]:mt-2 [&_h3]:text-[14px] [&_h3]:font-semibold
+        [&_a]:text-blue-400 [&_a]:underline [&_em]:italic [&_code]:bg-sidebar [&_code]:px-1 [&_code]:rounded">
+        <ReactMarkdown>{v}</ReactMarkdown>
+      </div>
     </div>
   )
 }
