@@ -149,6 +149,7 @@ export function EditorPlanSplit({ planId, planNombre, versionActiva }: Props) {
   }
 
   const cambiosAplicados = (draft?.cambios_aplicados?.length ?? 0) + (draft?.cambios_inventario_aplicados?.length ?? 0)
+  const invAplicadasCount = draft?.cambios_inventario_aplicados?.length ?? 0
 
   return (
     <div className="flex flex-col h-[calc(100vh-0px)] bg-background text-foreground">
@@ -178,7 +179,10 @@ export function EditorPlanSplit({ planId, planNombre, versionActiva }: Props) {
         <div className="flex-1 min-w-0 flex flex-col border-r border-sidebar-border">
           <div className="flex items-center gap-1 px-4 py-2 border-b border-sidebar-border flex-shrink-0">
             <button onClick={() => setVista('plan')} className={`text-[12px] px-3 py-1 rounded transition-colors ${vista === 'plan' ? 'bg-blue-700 text-white' : 'text-muted-foreground hover:text-foreground'}`}>Plan</button>
-            <button onClick={() => setVista('mapa')} className={`text-[12px] px-3 py-1 rounded transition-colors ${vista === 'mapa' ? 'bg-blue-700 text-white' : 'text-muted-foreground hover:text-foreground'}`}>Mapa de dependencias</button>
+            <button onClick={() => setVista('mapa')} className={`relative text-[12px] px-3 py-1 rounded transition-colors ${vista === 'mapa' ? 'bg-blue-700 text-white' : 'text-muted-foreground hover:text-foreground'}`}>
+              Mapa de dependencias
+              {invAplicadasCount > 0 && <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-cyan-600 text-white text-[10px] font-bold px-1.5">{invAplicadasCount}</span>}
+            </button>
           </div>
           <div className="flex-1 min-h-0 overflow-hidden">
             {cargando ? (
@@ -241,6 +245,11 @@ export function EditorPlanSplit({ planId, planNombre, versionActiva }: Props) {
           </div>
 
           <div className="px-4 py-3 border-t border-sidebar-border flex-shrink-0">
+            {invAplicadasCount > 0 && vista === 'plan' && (
+              <button onClick={() => setVista('mapa')} className="mb-2 w-full text-[12px] text-cyan-200 bg-cyan-950/40 border border-cyan-800/50 rounded px-3 py-1.5 hover:bg-cyan-900/40 transition-colors text-left">
+                {invAplicadasCount} cambio(s) tocan el inventario/dependencias · Ver en el Mapa →
+              </button>
+            )}
             <div className="flex gap-2">
               <textarea value={input} onChange={e => setInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() } }}
@@ -297,7 +306,7 @@ function PlanEditable({ draft, onEditarDuracion }: { draft: PlanDraft; onEditarD
   const crit = (draft.preparativos as any)?.criterio_exito
   return (
     <div className="max-w-2xl space-y-6">
-      <p className="text-[11px] text-muted-foreground uppercase tracking-wider">Lo editable en esta versión — el resto del plan (inventario, dependencias, Gantt) no se toca todavía.</p>
+      <p className="text-[11px] text-muted-foreground uppercase tracking-wider">Editás propósito, situación, criterio e inventario. Las dependencias se editan en el "Mapa". El cronograma se recalcula solo.</p>
       {p && (
         <section>
           <h2 className="text-[16px] font-semibold mb-2">Propósito</h2>

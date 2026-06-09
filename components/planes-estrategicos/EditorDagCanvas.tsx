@@ -5,7 +5,7 @@
 
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DAGSecuenciacion } from './DAGSecuenciacion'
 import type { PlanDraft, MovimientoPE, DAGMovPE, DraftMovCambio } from '@/lib/types'
 
@@ -20,6 +20,24 @@ export function EditorDagCanvas({ planId, draft, onDraftActualizado }: Props) {
   const dagMovs: DAGMovPE[] = draft.inventario?.dag?.movs ?? []
   const [seleccionado, setSeleccionado] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
+
+  // Movimientos afectados en esta sesión de edición (para resaltar al abrir el Mapa).
+  const afectados = useMemo(() => {
+    const map = new Map<string, string[]>()
+    for (const ch of draft.cambios_inventario_aplicados ?? []) {
+      const etiqueta = ch.campo ? ch.campo : (ch.dep ? `dep ${ch.dep.accion} ${ch.dep.desde}` : 'cambio')
+      const arr = map.get(ch.mov_id) ?? []
+      arr.push(etiqueta)
+      map.set(ch.mov_id, arr)
+    }
+    return [...map.entries()].map(([movId, etiquetas]) => ({ movId, etiquetas }))
+  }, [draft.cambios_inventario_aplicados])
+
+  // Al abrir el Mapa con cambios, seleccionar el primer afectado (lo resalta + sus vecinos).
+  useEffect(() => {
+    if (afectados.length > 0 && !seleccionado) setSeleccionado(afectados[0].movId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const posBufferRef = useRef<Record<string, { x: number; y: number }>>({})
   const posTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -67,7 +85,20 @@ export function EditorDagCanvas({ planId, draft, onDraftActualizado }: Props) {
   }
 
   return (
-    <div className="relative h-full">
+    <div className="relative h-full flex flex-col">
+      {afectados.length > 0 && (
+        <div className="flex-shrink-0 px-3 py-2 border-b border-cyan-900/40 bg-cyan-950/20 flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] text-cyan-300 font-semibold">Cambiados en esta edición:</span>
+          {afectados.map(a => (
+            <button key={a.movId} onClick={() => setSeleccionado(a.movId)}
+              title={a.etiquetas.join(' · ')}
+              className={`text-[11px] px-2 py-0.5 rounded border transition-colors ${seleccionado === a.movId ? 'bg-cyan-600 border-cyan-400 text-white' : 'bg-cyan-950/40 border-cyan-800/50 text-cyan-100 hover:bg-cyan-900/50'}`}>
+              {a.movId}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="relative flex-1 min-h-0">
       {guardando && <div className="absolute top-2 right-2 z-10 text-[11px] text-blue-300 bg-gray-900/80 px-2 py-1 rounded">guardando…</div>}
       <DAGSecuenciacion
         movsACanvas={dagMovs}
@@ -80,6 +111,7 @@ export function EditorDagCanvas({ planId, draft, onDraftActualizado }: Props) {
         onQuitarPrecondicion={onQuitarPrecondicion}
         onCambiarTipoEdge={onCambiarTipoEdge}
       />
+      </div>
     </div>
   )
 }

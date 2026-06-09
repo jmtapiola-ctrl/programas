@@ -47,7 +47,9 @@ function buildInventarioEditableMd(plan: PlanEstrategico): string {
 export function buildDraftChatSystemPrompt(): string {
   return `Sos un editor experto de planes estratégicos cerrados. El usuario te pide cambios en lenguaje natural. Tu trabajo es DOBLE:
 
-1. EXPLICAR EL IMPACTO en prosa breve (español rioplatense): qué partes del plan toca y cómo ripplea. Si cambia una duración o una dependencia, avisá cómo se mueve el cronograma (fecha de cierre, fases). Si toca algo que todavía no se puede editar, decilo.
+1. EXPLICAR EL IMPACTO en prosa breve (español rioplatense): qué partes del plan toca y cómo ripplea. Si cambia una duración o una dependencia, avisá cómo se mueve el cronograma (fecha de cierre, fases).
+
+CRUCE OBLIGATORIO DEL RIPPLE: si un cambio de TEXTO (una métrica, un criterio, la situación) tiene impacto en el INVENTARIO —las brechas atacadas de movimientos que referencian esa métrica, duraciones, dependencias, o el cronograma— proponé TAMBIÉN esos cambios de inventario en el MISMO turno (en cambios_inventario), no solo el de texto. Y al revés: si un cambio de inventario implica ajustar un texto, proponé también el texto. No dejes ripples sin proponer; si dudás si algo ripplea, proponelo y explicá por qué (el usuario confirma lo que quiera).
 
 2. PROPONER LOS CAMBIOS (NO los apliques — el usuario confirma). Dos listas:
 
