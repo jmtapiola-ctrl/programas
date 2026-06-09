@@ -27,6 +27,14 @@ import type {
 } from './types'
 
 // Construye el snapshot denormalizado del estado ACTUAL del plan vivo.
+//
+// El snapshot es SELF-CONTAINED: guarda los movimientos completos (en
+// movs_override). Razón: desde F3 el inventario es editable, así que referenciar
+// los movs por id contra el inventario vivo rompería la inmutabilidad de las
+// versiones anteriores (leerían el inventario nuevo). Cada versión es un registro
+// Airtable independiente (límite 100k por registro), así que duplicar el
+// inventario por versión es aceptable. Si un plan gigante supera el límite,
+// createPlanVersion tira con mensaje accionable (fallback: split del Snapshot JSON).
 export function denormalizarPlanVersionSnapshot(plan: PlanEstrategico): PlanVersionSnapshot {
   const movs = plan.plan?.inventario?.movimientos ?? []
   return {
@@ -34,12 +42,8 @@ export function denormalizarPlanVersionSnapshot(plan: PlanEstrategico): PlanVers
     situacion: plan.situacion,
     preparativos: plan.plan?.preparativos,
     inventario_ref: {
-      // V1: el inventario está congelado, todos los movs referencian el vivo.
-      // TODO(F3 edición de inventario): cuando el inventario vivo pueda cambiar,
-      // las versiones previas deben mover sus movs divergentes a movs_override
-      // ANTES de mutar el vivo, para preservar inmutabilidad.
-      movs_sin_cambio_ids: movs.map(m => m.id),
-      movs_override: [],
+      movs_sin_cambio_ids: [],
+      movs_override: movs,            // self-contained: movs completos
       dag: plan.plan?.inventario?.dag,
     },
     curado_ref: { version_activa: plan.plan?.curado?.version_activa ?? 0 },

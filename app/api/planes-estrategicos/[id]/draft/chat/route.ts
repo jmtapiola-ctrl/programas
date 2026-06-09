@@ -19,7 +19,7 @@ import {
   buildDraftChatSystemPrompt,
   buildDraftChatUserMessage,
 } from '@/lib/draft-chat-prompt'
-import type { ReconcileChange } from '@/lib/types'
+import type { ReconcileChange, DraftMovCambio } from '@/lib/types'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 export const maxDuration = 120
@@ -73,14 +73,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     } as ReconcileChange
   }).filter(c => c.cambio_propuesto)
 
+  const rawInv: any[] = parsed && Array.isArray(parsed.cambios_inventario) ? parsed.cambios_inventario : []
+  const cambiosInventario: DraftMovCambio[] = rawInv.map((c: any, i: number) => ({
+    id: `MV-${Date.now()}-${i + 1}`,
+    mov_id: String(c.mov_id ?? ''),
+    campo: c.campo,
+    valor_anterior: c.valor_anterior,
+    valor_nuevo: c.valor_nuevo,
+    dep: c.dep,
+    motivo: c.motivo,
+    severidad: (['Alta', 'Media', 'Baja'].includes(c.severidad) ? c.severidad : 'Media'),
+  } as DraftMovCambio)).filter(c => c.mov_id && (c.campo || c.dep))
+
   // Persistir la conversación en el borrador.
   const ahora = new Date().toISOString()
   draft.mensajes.push({ rol: 'user', texto: mensaje, ts: ahora })
-  draft.mensajes.push({ rol: 'model', texto: respuesta, ts: ahora, cambios_propuestos: cambios })
+  draft.mensajes.push({ rol: 'model', texto: respuesta, ts: ahora, cambios_propuestos: cambios, cambios_inventario: cambiosInventario })
   draft.actualizado_en = ahora
   await updatePlanDraft(planId, draft)
 
-  return NextResponse.json({ ok: true, respuesta, cambios })
+  return NextResponse.json({ ok: true, respuesta, cambios, cambios_inventario: cambiosInventario })
 }
 
 function parseJsonObject(text: string): any {

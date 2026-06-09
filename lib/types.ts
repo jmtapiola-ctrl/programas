@@ -1002,6 +1002,21 @@ export interface ReconcileChange {
 // toca la versión activa ni los Jr anclados) vía chat. Acumula cambios con su OK;
 // al "Aplicar al plan" se commitea como versión nueva. Vive en 'Plan Draft JSON'.
 
+// Cambio sobre un movimiento del inventario (F3). Edita un campo escalar/texto
+// del mov, o una dependencia (precondición). mov_id es el mov afectado; para
+// dependencias, mov_id es el dependiente ("hacia") y dep.desde la precondición.
+export interface DraftMovCambio {
+  id: string
+  mov_id: string
+  campo?: 'nombre' | 'descripcion' | 'brechas_atacadas' | 'costo_banda_ancha'
+        | 'duracion_meses_ejecucion' | 'dueno' | 'criterio_exito' | 'impacto'
+  valor_anterior?: string
+  valor_nuevo?: string | string[] | number
+  dep?: { accion: 'agregar' | 'quitar' | 'editar'; desde: string; tipo?: 'fs' | 'ff' | 'continuo' | 'sugerida'; lag_meses?: number }
+  motivo?: string
+  severidad?: 'Alta' | 'Media' | 'Baja'
+}
+
 export interface PlanDraftMensaje {
   rol: 'user' | 'model'
   texto: string
@@ -1009,6 +1024,8 @@ export interface PlanDraftMensaje {
   // Cambios estructurales que el modelo propuso en este turno (si los hubo).
   // El usuario los confirma para aplicarlos al borrador.
   cambios_propuestos?: ReconcileChange[]
+  // Cambios de inventario propuestos en este turno (F3).
+  cambios_inventario?: DraftMovCambio[]
 }
 
 export interface PlanDraft {
@@ -1021,10 +1038,12 @@ export interface PlanDraft {
   proposito?: PropositorPE
   situacion?: SituacionPE
   preparativos?: PreparativosPE      // incluye criterio_exito
+  inventario?: InventarioPE          // F3: movimientos + dag editables
   mensajes: PlanDraftMensaje[]
   // Cambios ya confirmados+aplicados al borrador (audit-trail; al "Aplicar al
   // plan" se vuelcan como warnings_retroactivos en el plan vivo).
   cambios_aplicados?: ReconcileChange[]
+  cambios_inventario_aplicados?: DraftMovCambio[]
 }
 
 // Rol del turno. Extendido en Fase 1 del feat/audit-reviewer:

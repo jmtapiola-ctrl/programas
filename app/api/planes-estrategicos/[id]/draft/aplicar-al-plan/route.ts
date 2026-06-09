@@ -34,7 +34,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!draft) return NextResponse.json({ error: 'No hay borrador para aplicar.' }, { status: 409 })
 
   const aplicados = draft.cambios_aplicados ?? []
-  if (aplicados.length === 0) {
+  const aplicadosInv = draft.cambios_inventario_aplicados ?? []
+  if (aplicados.length === 0 && aplicadosInv.length === 0) {
     return NextResponse.json({ error: 'El borrador no tiene cambios confirmados. Aplicá algún cambio antes de commitear, o descartá.' }, { status: 400 })
   }
 
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   planNuevo.situacion = draft.situacion ?? planNuevo.situacion
   if (!planNuevo.plan) planNuevo.plan = {} as PlanoPE
   if (draft.preparativos) planNuevo.plan.preparativos = draft.preparativos
+  if (draft.inventario) planNuevo.plan.inventario = draft.inventario
   if (!planNuevo.plan.warnings_retroactivos) planNuevo.plan.warnings_retroactivos = []
   const ahora = new Date().toISOString()
   for (const ch of aplicados) {
@@ -58,6 +60,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       confirmado_por_user: true,
     }
     planNuevo.plan.warnings_retroactivos.push(w)
+  }
+  for (const ch of aplicadosInv) {
+    const desc = ch.campo
+      ? `${ch.mov_id}.${ch.campo} → ${JSON.stringify(ch.valor_nuevo).slice(0, 200)}`
+      : `${ch.mov_id} dependencia ${ch.dep?.accion} ${ch.dep?.desde}${ch.dep?.tipo ? ` (${ch.dep.tipo})` : ''}`
+    planNuevo.plan.warnings_retroactivos.push({
+      timestamp: ahora,
+      bloque_afectado: `inventario · ${ch.mov_id}`,
+      paso_de_origen: 3,
+      sub_bloque_de_origen: 'edicion-plan-cerrado',
+      texto_previo: ch.valor_anterior ?? '',
+      descripcion_cambio: `Edición inventario: ${desc}`,
+      impactos_detectados: [`Severidad: ${ch.severidad ?? 'Media'}`, ch.motivo ?? ''],
+      confirmado_por_user: true,
+    })
   }
 
   // Versión nueva.
@@ -77,10 +94,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     numero,
     trigger: 'reconcile',
     creadaPor: (session.user as any).id ?? '',
-    resumenCambio: `Edición plan cerrado: ${aplicados.length} cambio(s).`,
+    resumenCambio: `Edición plan cerrado: ${aplicados.length} texto(s) + ${aplicadosInv.length} inventario.`,
     snapshot: denormalizarPlanVersionSnapshot(planNuevo),
   })
   await clearPlanDraft(planId)
 
-  return NextResponse.json({ ok: true, version: numero, cambios: aplicados.length })
+  return NextResponse.json({ ok: true, version: numero, cambios: aplicados.length + aplicadosInv.length })
 }

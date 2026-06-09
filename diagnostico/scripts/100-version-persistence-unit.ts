@@ -26,25 +26,26 @@ const plan: PlanEstrategico = {
   },
 }
 
-// 1. Denormalizar guarda proposito/situacion/preparativos enteros + movs por id.
+// 1. Snapshot SELF-CONTAINED: proposito/situacion/preparativos enteros + movs
+// completos en override (inmutable ante cambios futuros del inventario vivo).
 const snap = denormalizarPlanVersionSnapshot(plan)
 check('1 proposito entero', snap.proposito?.metricas?.[0]?.valor_objetivo === '1000/mes')
-check('1 movs por id', JSON.stringify(snap.inventario_ref.movs_sin_cambio_ids) === JSON.stringify(['M-1', 'M-2']))
-check('1 sin overrides', snap.inventario_ref.movs_override.length === 0)
+check('1 movs completos en override', snap.inventario_ref.movs_override.length === 2 && snap.inventario_ref.movs_override[1].nombre === 'Dos')
+check('1 sin ids sueltos', snap.inventario_ref.movs_sin_cambio_ids.length === 0)
 check('1 curado_ref activa', snap.curado_ref.version_activa === 1)
 check('1 dag guardado', !!snap.inventario_ref.dag)
 check('1 datos_faltantes', JSON.stringify(snap.datos_faltantes) === JSON.stringify(['falta x']))
 
-// 2. Hidratar reconstruye movs contra el inventario vivo + curado activo.
-const h = hidratarPlanVersionSnapshot(snap, movs, plan.plan!.curado!.versiones)
-check('2 movs reconstruidos', h.movimientos.length === 2 && h.movimientos[1].nombre === 'Dos')
+// 2. Hidratar es inmutable: NO depende del inventario vivo (self-contained).
+const h = hidratarPlanVersionSnapshot(snap, [], plan.plan!.curado!.versiones)
+check('2 movs self-contained', h.movimientos.length === 2 && h.movimientos[1].nombre === 'Dos')
 check('2 curado activo', h.curado?.contexto === 'c1')
 check('2 proposito preservado', h.proposito?.metricas?.[0]?.valor_objetivo === '1000/mes')
 check('2 preparativos preservado', (h.preparativos as any)?.criterio_exito?.zona_fracaso === 'zf')
 
-// 3. Huérfanos: si el inventario vivo perdió M-2, se filtra sin crash.
-const h2 = hidratarPlanVersionSnapshot(snap, [movs[0]], plan.plan!.curado!.versiones)
-check('3 huérfano filtrado', h2.movimientos.length === 1 && h2.movimientos[0].id === 'M-1')
+// 3. Inmutabilidad: aunque el inventario vivo cambie, el snapshot conserva sus movs.
+const h2 = hidratarPlanVersionSnapshot(snap, [{ ...movs[0], nombre: 'CAMBIADO' }], plan.plan!.curado!.versiones)
+check('3 inmutable ante cambio del vivo', h2.movimientos.length === 2 && h2.movimientos[0].nombre === 'Uno')
 
 // 4. siguienteNumeroVersion
 check('4 baseline V1', siguienteNumeroVersion([]) === 'V1')

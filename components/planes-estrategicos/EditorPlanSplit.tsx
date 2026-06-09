@@ -10,7 +10,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import type { PlanDraft, ReconcileChange, PlanDraftMensaje } from '@/lib/types'
+import type { PlanDraft, ReconcileChange, DraftMovCambio, PlanDraftMensaje } from '@/lib/types'
 
 interface Props {
   planId: string
@@ -25,7 +25,8 @@ export function EditorPlanSplit({ planId, planNombre, versionActiva }: Props) {
   const [mensajes, setMensajes] = useState<PlanDraftMensaje[]>([])
   const [input, setInput] = useState('')
   const [enviando, setEnviando] = useState(false)
-  const [propuesta, setPropuesta] = useState<ReconcileChange[] | null>(null)
+  const [propuesta, setPropuesta] = useState<{ cambios: ReconcileChange[]; cambiosInv: DraftMovCambio[] } | null>(null)
+  const [cierre, setCierre] = useState<string | null>(null)
   const [aplicandoCambios, setAplicandoCambios] = useState(false)
   const [accion, setAccion] = useState<'aplicar' | 'descartar' | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -64,8 +65,10 @@ export function EditorPlanSplit({ planId, planNombre, versionActiva }: Props) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
-      setMensajes(prev => [...prev, { rol: 'model', texto: data.respuesta, ts: new Date().toISOString(), cambios_propuestos: data.cambios }])
-      if (Array.isArray(data.cambios) && data.cambios.length > 0) setPropuesta(data.cambios)
+      const cambios: ReconcileChange[] = data.cambios ?? []
+      const cambiosInv: DraftMovCambio[] = data.cambios_inventario ?? []
+      setMensajes(prev => [...prev, { rol: 'model', texto: data.respuesta, ts: new Date().toISOString(), cambios_propuestos: cambios, cambios_inventario: cambiosInv }])
+      if (cambios.length > 0 || cambiosInv.length > 0) setPropuesta({ cambios, cambiosInv })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -73,18 +76,20 @@ export function EditorPlanSplit({ planId, planNombre, versionActiva }: Props) {
     }
   }
 
-  async function aplicarAlBorrador(cambios: ReconcileChange[]) {
+  async function aplicarAlBorrador(p: { cambios: ReconcileChange[]; cambiosInv: DraftMovCambio[] }) {
     if (aplicandoCambios) return
     setAplicandoCambios(true); setError(null)
     try {
       const res = await fetch(`/api/planes-estrategicos/${planId}/draft/aplicar-cambios`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cambios }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cambios: p.cambios, cambios_inventario: p.cambiosInv }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
       setDraft(data.draft)
       setPropuesta(null)
-      setMensajes(prev => [...prev, { rol: 'model', texto: `✓ Apliqué ${data.aplicados} cambio(s) al borrador.${data.noEncontrados ? ` (${data.noEncontrados} no se localizaron)` : ''}`, ts: new Date().toISOString() }])
+      if (data.cierre) setCierre(data.cierre)
+      const extra = data.cierre ? ` Cronograma: cierra ${data.cierre}.` : ''
+      setMensajes(prev => [...prev, { rol: 'model', texto: `✓ Apliqué ${data.aplicados} cambio(s) al borrador.${data.noEncontrados || data.noAplicadosInv ? ` (${(data.noEncontrados || 0) + (data.noAplicadosInv || 0)} no se aplicaron)` : ''}${extra}`, ts: new Date().toISOString() }])
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -123,7 +128,7 @@ export function EditorPlanSplit({ planId, planNombre, versionActiva }: Props) {
     }
   }
 
-  const cambiosAplicados = draft?.cambios_aplicados?.length ?? 0
+  const cambiosAplicados = (draft?.cambios_aplicados?.length ?? 0) + (draft?.cambios_inventario_aplicados?.length ?? 0)
 
   return (
     <div className="flex flex-col h-[calc(100vh-0px)] bg-background text-foreground">
@@ -131,7 +136,7 @@ export function EditorPlanSplit({ planId, planNombre, versionActiva }: Props) {
       <div className="flex items-center justify-between gap-4 px-5 py-3 border-b border-sidebar-border flex-shrink-0">
         <div className="min-w-0">
           <p className="text-[14px] font-semibold truncate">{planNombre}</p>
-          <p className="text-[12px] text-muted-foreground">Editando sobre {versionActiva} · borrador {cambiosAplicados > 0 ? `· ${cambiosAplicados} cambio(s) listo(s)` : '(sin cambios aún)'}</p>
+          <p className="text-[12px] text-muted-foreground">Editando sobre {versionActiva} · borrador {cambiosAplicados > 0 ? `· ${cambiosAplicados} cambio(s) listo(s)` : '(sin cambios aún)'}{cierre ? ` · cronograma cierra ${cierre}` : ''}</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button onClick={descartar} disabled={!!accion}
@@ -175,9 +180,10 @@ export function EditorPlanSplit({ planId, planNombre, versionActiva }: Props) {
               <div key={i} className={m.rol === 'user' ? 'text-right' : ''}>
                 <div className={`inline-block max-w-[92%] text-left rounded-lg px-3 py-2 text-[13px] leading-relaxed ${m.rol === 'user' ? 'bg-blue-700/40 border border-blue-700/50 text-blue-50' : 'bg-gray-800/70 border border-gray-700 text-gray-100'}`}>
                   {m.texto}
-                  {m.rol === 'model' && (m.cambios_propuestos?.length ?? 0) > 0 && (
+                  {m.rol === 'model' && ((m.cambios_propuestos?.length ?? 0) > 0 || (m.cambios_inventario?.length ?? 0) > 0) && (
                     <div className="mt-2 space-y-1.5">
-                      {m.cambios_propuestos!.map(c => <CambioChip key={c.id} c={c} />)}
+                      {(m.cambios_propuestos ?? []).map(c => <CambioChip key={c.id} c={c} />)}
+                      {(m.cambios_inventario ?? []).map(c => <MovChip key={c.id} c={c} />)}
                     </div>
                   )}
                 </div>
@@ -186,7 +192,7 @@ export function EditorPlanSplit({ planId, planNombre, versionActiva }: Props) {
             {enviando && <p className="text-[12px] text-muted-foreground">La IA está analizando el impacto…</p>}
 
             {/* Propuesta pendiente de confirmar */}
-            {propuesta && propuesta.some(c => !c.fuera_de_alcance) && (
+            {propuesta && (propuesta.cambios.some(c => !c.fuera_de_alcance) || propuesta.cambiosInv.length > 0) && (
               <div className="rounded-lg border border-purple-700/60 bg-purple-950/30 p-3 space-y-2">
                 <p className="text-[12px] text-purple-200 font-semibold">¿Aplico estos cambios al borrador?</p>
                 <div className="flex gap-2">
@@ -219,6 +225,19 @@ export function EditorPlanSplit({ planId, planNombre, versionActiva }: Props) {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function MovChip({ c }: { c: DraftMovCambio }) {
+  const desc = c.campo
+    ? `${c.mov_id} · ${c.campo} → ${Array.isArray(c.valor_nuevo) ? c.valor_nuevo.join(', ') : c.valor_nuevo}`
+    : `${c.mov_id} · dependencia ${c.dep?.accion} ${c.dep?.desde}${c.dep?.tipo ? ` (${c.dep.tipo})` : ''}${c.dep?.lag_meses ? ` +${c.dep.lag_meses}m` : ''}`
+  return (
+    <div className="rounded border border-cyan-800/50 bg-cyan-950/30 px-2 py-1.5 text-[11px]">
+      <div className="text-cyan-300 uppercase font-semibold mb-0.5">inventario · {c.severidad ?? 'Media'}</div>
+      <div className="text-cyan-100">{desc}</div>
+      {c.motivo && <div className="text-gray-400 mt-0.5">{c.motivo}</div>}
     </div>
   )
 }
@@ -280,7 +299,33 @@ function PlanEditable({ draft }: { draft: PlanDraft }) {
           {crit.zona_fracaso && <Campo label="Zona de fracaso" v={crit.zona_fracaso} />}
         </section>
       )}
+      <InventarioEditable draft={draft} />
     </div>
+  )
+}
+
+function InventarioEditable({ draft }: { draft: PlanDraft }) {
+  const movs = (draft.inventario?.movimientos ?? []).filter((m: any) => m.estado_usuario !== 'quitado')
+  if (movs.length === 0) return null
+  return (
+    <section>
+      <h2 className="text-[16px] font-semibold mb-2">Inventario de movimientos ({movs.length})</h2>
+      <p className="text-[11px] text-muted-foreground mb-2">Editable vía chat: nombre, brechas, banda, duración, dueño, dependencias. El cronograma se recalcula solo.</p>
+      <div className="space-y-2">
+        {movs.map((m: any) => (
+          <div key={m.id} className="rounded border border-sidebar-border bg-sidebar/40 px-3 py-2">
+            <p className="text-[13px] font-medium">{m.id} · {m.nombre}</p>
+            <p className="text-[11px] text-muted-foreground">
+              banda {m.costo_banda_ancha} · {m.duracion_meses_ejecucion ?? '—'}m · dueño {m.dueno || '—'}
+              {(m.precondiciones?.length ?? 0) > 0 && ` · depende de ${m.precondiciones.join(', ')}`}
+            </p>
+            {m.brechas_atacadas?.length > 0 && (
+              <p className="text-[11px] text-foreground/80 mt-0.5">brechas: {m.brechas_atacadas.join(' · ')}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }
 

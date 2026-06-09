@@ -37,8 +37,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     proposito: plan.proposito,
     situacion: plan.situacion,
     preparativos: plan.plan?.preparativos,
+    inventario: plan.plan?.inventario,
     mensajes: [],
     cambios_aplicados: [],
+    cambios_inventario_aplicados: [],
   }
   await updatePlanDraft(planId, draft)
   return NextResponse.json({ ok: true, draft, nuevo: true })
