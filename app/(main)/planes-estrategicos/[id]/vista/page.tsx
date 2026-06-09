@@ -6,9 +6,12 @@ import {
   getPlanEstrategico,
   getEntrevistaPE,
   getUsuario,
+  getPlanVersiones,
 } from '@/lib/airtable'
 import { getCuradoActivo } from '@/lib/types'
-import type { MovimientoPE } from '@/lib/types'
+import { hidratarPlanVersionSnapshot } from '@/lib/version-persistence'
+import type { MovimientoPE, PlanEstrategico, PlanVersion } from '@/lib/types'
+import { VersionSelector } from '@/components/planes-estrategicos/VersionSelector'
 import { GlosarioVista } from '@/components/planes-estrategicos/GlosarioVista'
 import { DAGSecuenciacionReadOnly } from '@/components/planes-estrategicos/DAGSecuenciacionReadOnly'
 import { FasesCanvasReadOnly } from '@/components/planes-estrategicos/FasesCanvasReadOnly'
@@ -24,15 +27,20 @@ export const metadata = {
   title: 'Plan Estratégico — Vista completa',
 }
 
-export default async function VistaPlanPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function VistaPlanPage({ params, searchParams }: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ version?: string }>
+}) {
   const { id } = await params
+  const { version: versionParam } = await searchParams
   const plan = await getPlanEstrategico(id).catch(() => null)
   if (!plan) notFound()
 
-  // Cargas paralelas: entrevista (para "última actualización"), responsable
-  const [entrevista, responsable] = await Promise.all([
+  // Cargas paralelas: entrevista (para "última actualización"), responsable, versiones
+  const [entrevista, responsable, versiones] = await Promise.all([
     getEntrevistaPE(id).catch(() => null),
     plan.responsable_id ? getUsuario(plan.responsable_id).catch(() => null) : Promise.resolve(null),
+    getPlanVersiones(id).catch(() => [] as PlanVersion[]),
   ])
 
   const ultimaActualizacion = entrevista?.ultima_actividad
@@ -41,14 +49,21 @@ export default async function VistaPlanPage({ params }: { params: Promise<{ id: 
       })
     : null
 
-  const proposito = plan.proposito
-  const situacion = plan.situacion
-  const datosFaltantes = plan.datos_faltantes ?? []
-  const prep = plan.plan?.preparativos
-  const inventario = plan.plan?.inventario
-  // Curado activo (versión seleccionada del versionado). Si el usuario está
-  // iterando con "Pedir ajuste narrativo", esto refleja la última versión.
-  const curado = getCuradoActivo(plan)
+  // Preview de una versión anterior (F5). Si ?version=X y X no es la activa,
+  // renderizamos el plan desde el snapshot de esa versión (read-only). Sino, el
+  // plan vivo. El snapshot es self-contained (movs completos).
+  const versionViendo = versionParam ? versiones.find(v => v.numero === versionParam) ?? null : null
+  const esActual = !versionViendo || versionViendo.numero === plan.version_activa_label
+  const planRender: PlanEstrategico = (versionViendo && !esActual)
+    ? construirPlanDesdeVersion(plan, versionViendo)
+    : plan
+
+  const proposito = planRender.proposito
+  const situacion = planRender.situacion
+  const datosFaltantes = planRender.datos_faltantes ?? []
+  const prep = planRender.plan?.preparativos
+  const inventario = planRender.plan?.inventario
+  const curado = getCuradoActivo(planRender)
 
   // Sub-bloques del Plan (Paso 3) que tienen contenido — se renderizan solo
   // los que existen. Cuando 3.A/3.B/3.C/3.D/3.E sumen contenido, se agregan
@@ -169,17 +184,33 @@ export default async function VistaPlanPage({ params }: { params: Promise<{ id: 
           {ultimaActualizacion && (
             <p className="meta">Última actualización: {ultimaActualizacion}</p>
           )}
-          {/* Editor de plan cerrado (feature edición). Solo si el plan tiene una
-              versión baseline registrada (= está cerrado). Navega a la vista de
-              edición lado a lado (plan + chat). */}
+          {/* Editor + historial de versiones (feature edición). Solo si el plan
+              tiene una versión baseline registrada (= está cerrado). */}
           {plan.version_activa_label && (
-            <div style={{ marginTop: 12 }}>
-              <Link
-                href={`/planes-estrategicos/${id}/editar`}
-                className="inline-block rounded-lg bg-blue-700 hover:bg-blue-600 text-white text-[13px] font-medium px-4 py-2 transition-colors"
-              >
-                {plan.editable ? 'Continuar edición ✎' : 'Editar plan ✎'}
-              </Link>
+            <div style={{ marginTop: 12 }} className="flex items-center gap-3 flex-wrap">
+              {esActual && (
+                <Link
+                  href={`/planes-estrategicos/${id}/editar`}
+                  className="inline-block rounded-lg bg-blue-700 hover:bg-blue-600 text-white text-[13px] font-medium px-4 py-2 transition-colors"
+                >
+                  {plan.editable ? 'Continuar edición ✎' : 'Editar plan ✎'}
+                </Link>
+              )}
+              {versiones.length > 0 && (
+                <VersionSelector
+                  planId={id}
+                  versiones={versiones.map(v => ({ numero: v.numero, resumen: v.resumen_cambio, creada_en: v.creada_en, trigger: v.trigger }))}
+                  activa={plan.version_activa_label}
+                  viendo={versionViendo?.numero ?? plan.version_activa_label ?? ''}
+                />
+              )}
+            </div>
+          )}
+          {versionViendo && !esActual && (
+            <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 8, background: 'rgba(180,120,20,0.18)', border: '1px solid rgba(180,120,20,0.4)' }}>
+              <p style={{ fontSize: 13, color: '#d8a44a', margin: 0 }}>
+                Estás viendo la versión <strong>{versionViendo.numero}</strong> (anterior, solo lectura). La actual es {plan.version_activa_label}.
+              </p>
             </div>
           )}
         </header>
@@ -713,4 +744,35 @@ function Field({ text, placeholder }: { text?: string; placeholder?: string }) {
     )
   }
   return <p className="empty">{placeholder ?? '—'}</p>
+}
+
+// Construye un PlanEstrategico sintético a partir del snapshot de una versión,
+// para renderear el preview read-only (F5). Reusa el render del plan vivo
+// cambiando solo la fuente de datos. El snapshot es self-contained (movs
+// completos), así que el preview es fiel aunque el plan vivo haya cambiado.
+function construirPlanDesdeVersion(planVivo: PlanEstrategico, version: PlanVersion): PlanEstrategico {
+  // Fuente de hidratación = inventario vivo. Para snapshots self-contained (F3+)
+  // los movs vienen en movs_override (se ignora el vivo); para snapshots viejos
+  // (V1 backfilleados con ids) se resuelven contra el vivo. Cubre ambos shapes.
+  const hyd = hidratarPlanVersionSnapshot(
+    version.snapshot,
+    planVivo.plan?.inventario?.movimientos,
+    planVivo.plan?.curado?.versiones,
+  )
+  return {
+    ...planVivo,
+    proposito: hyd.proposito,
+    situacion: hyd.situacion,
+    datos_faltantes: hyd.datos_faltantes,
+    plan: {
+      ...planVivo.plan,
+      preparativos: hyd.preparativos,
+      inventario: {
+        ...(planVivo.plan?.inventario as any),
+        movimientos: hyd.movimientos,
+        dag: version.snapshot.inventario_ref.dag,
+      } as any,
+      curado: hyd.curado ? { versiones: [hyd.curado], version_activa: 0 } : undefined,
+    },
+  }
 }

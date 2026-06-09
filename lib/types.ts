@@ -944,7 +944,7 @@ export interface CapAuditoriaJrSnapshot {
 // Ver docs/plan en repo y lib/version-persistence.ts.
 
 // Qué disparó la creación de una versión inmutable del plan.
-export type PlanVersionTrigger = 'cierre' | 'reconcile' | 'edicion_directa'
+export type PlanVersionTrigger = 'cierre' | 'reconcile' | 'edicion_directa' | 'restauracion'
 
 // Snapshot DENORMALIZADO de un plan en un momento dado. Mismo principio que el
 // curado: los movimientos del inventario que son idénticos al inventario vivo se
