@@ -43,8 +43,17 @@ export default async function VistaPlanPage({ params, searchParams }: {
     getPlanVersiones(id).catch(() => [] as PlanVersion[]),
   ])
 
-  const ultimaActualizacion = entrevista?.ultima_actividad
-    ? new Date(entrevista.ultima_actividad).toLocaleDateString('es-AR', {
+  // "Última actualización" = la fecha más reciente entre la última actividad del
+  // wizard y la última versión creada. Las ediciones de planes cerrados crean
+  // versiones (V1.1, V1.2…) pero NO tocan entrevista.ultima_actividad, así que sin
+  // esto la fecha quedaba clavada en el último turno del wizard.
+  const ultimaVersion = versiones.length > 0 ? versiones[versiones.length - 1] : null
+  const fechasUpdate = [entrevista?.ultima_actividad, ultimaVersion?.creada_en]
+    .filter((s): s is string => !!s)
+    .map(s => new Date(s).getTime())
+    .filter(t => Number.isFinite(t))
+  const ultimaActualizacion = fechasUpdate.length > 0
+    ? new Date(Math.max(...fechasUpdate)).toLocaleDateString('es-AR', {
         day: 'numeric', month: 'long', year: 'numeric',
       })
     : null
