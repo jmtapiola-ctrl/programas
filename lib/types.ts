@@ -278,10 +278,11 @@ export type EstadoPlanEstrategico =
   | 'Completado'
   | 'Archivado'
 
-// Línea Jr persistida en el Plan Sr. Una línea es un agrupamiento temático de
-// movimientos del inventario del Sr que se asignan a un dueño Jr específico.
-// Cada línea, al ser desplegada, genera un Plan Jr con su propio inventario
-// heredado + contexto curado independiente. Ver plan starry-foraging-sifakis.md.
+// Plan Jr persistido en el Plan Sr (el tipo conserva el nombre legacy
+// LineaJrPersistida por compat de código). Un Plan Jr es un conjunto de 1+
+// movimientos del inventario del Sr asignados a un dueño Jr para cumplir parte
+// de los objetivos del Sr. Al desplegarse, genera el Plan Jr con su propio
+// inventario heredado + contexto curado independiente.
 export interface LineaJrPersistida {
   id: string                    // uuid local (no Airtable record ID)
   nombre: string                // ej: "Demanda", "Oferta", "Personas"
@@ -300,10 +301,10 @@ export interface LineaJrPersistida {
 // los consumidores que esperan un solo markdown (chat del Jr).
 export interface ContextoCuradoJr {
   contexto: string         // Bienvenida + por qué importa (mira atrás/afuera: situación del Sr)
-  proposito: string        // Propósito de la línea (mira adelante: a dónde llega)
-  criterios_exito: string  // Qué significa que la línea esté lograda
-  metricas: string         // Métricas del Propósito del Sr que mueve la línea (markdown)
-  supuestos: string        // Supuestos exógenos del Sr relevantes a la línea
+  proposito: string        // Propósito del plan (mira adelante: a dónde llega)
+  criterios_exito: string  // Qué significa que el plan esté logrado
+  metricas: string         // Métricas del Propósito del Sr que mueve el plan (markdown)
+  supuestos: string        // Supuestos exógenos del Sr relevantes al plan
 }
 
 // Catálogo único de los campos del contexto curado: key TS ↔ campo Airtable ↔
@@ -311,9 +312,9 @@ export interface ContextoCuradoJr {
 // para el mapper, el endpoint, el wizard de despliegue y el render de /inicio.
 export const CONTEXTO_CURADO_CAMPOS = [
   { key: 'contexto',        field: 'Jr Contexto',           label: 'Contexto / Bienvenida',     seccion: null },
-  { key: 'proposito',       field: 'Jr Proposito Linea',    label: 'Propósito de la línea',     seccion: 'Propósito de la línea' },
+  { key: 'proposito',       field: 'Jr Proposito Linea',    label: 'Propósito del plan',        seccion: 'Propósito del plan' },
   { key: 'criterios_exito', field: 'Jr Criterios Exito',    label: 'Criterios de éxito',        seccion: 'Criterios de éxito' },
-  { key: 'metricas',        field: 'Jr Metricas Proposito', label: 'Métricas del Propósito',    seccion: 'Métricas del Propósito que mueve tu línea' },
+  { key: 'metricas',        field: 'Jr Metricas Proposito', label: 'Métricas del Propósito',    seccion: 'Métricas del Propósito que mueve tu plan' },
   { key: 'supuestos',       field: 'Jr Supuestos Criticos', label: 'Supuestos críticos',        seccion: 'Supuestos críticos que tenés que conocer' },
 ] as const
 
@@ -474,10 +475,10 @@ export interface PlanEstrategico {
   datos_faltantes: string[]
   plan?: PlanoPE
   // ─── Campos del sistema Sr→Jr ───────────────────────────────────────────
-  // Solo Plan Sr lo usa. Array de líneas Jr derivadas (vacío hasta que se
-  // crea el primer Jr vía el wizard de creación). Una vez creadas, refleja
-  // el estado actual de cada línea (movimientos_ids, dueño asignado,
-  // plan_jr_id si fue desplegada, estado).
+  // Solo Plan Sr lo usa. Array de Planes Jr derivados (vacío hasta que se
+  // crea el primero vía el wizard de creación). Una vez creados, refleja
+  // el estado actual de cada Plan Jr (movimientos_ids, dueño asignado,
+  // plan_jr_id si fue desplegado, estado).
   lineas_jr?: LineaJrPersistida[]
   // Solo Plan Jr lo usa. IDs de los movimientos del inventario del Sr que
   // este Jr heredó. Es la fuente de verdad de "qué movs me tocan".
@@ -934,7 +935,7 @@ export interface CapAuditoriaJrSnapshot {
   criterios_evaluados: number         // nº de criterios/métricas heredados chequeados
   divergencias_detectadas: number     // nº de ReviewerQuestion de divergencia emitidas
   // Cap temporal (Opción B): fecha de cierre del cronograma Jr (max ventana_temporal.termina
-  // del curado) vs cierre que el Sr esperaba para esta línea (max del snapshot). YYYY-MM o
+  // del curado) vs cierre que el Sr esperaba para este plan (max del snapshot). YYYY-MM o
   // undefined si alguno de los dos no está secuenciado.
   cierre_jr_ym?: string
   cierre_esperado_sr_ym?: string

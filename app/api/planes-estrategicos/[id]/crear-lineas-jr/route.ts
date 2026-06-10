@@ -69,11 +69,11 @@ export async function POST(
     const planSr = access.plan!
 
     if (planSr.tipo !== 'Sr') {
-      return NextResponse.json({ error: 'El plan no es Sr — no puede tener líneas Jr.' }, { status: 409 })
+      return NextResponse.json({ error: 'El plan no es Sr — no puede tener Planes Jr.' }, { status: 409 })
     }
     if ((planSr.lineas_jr?.length ?? 0) > 0) {
       return NextResponse.json({
-        error: 'Este Plan Sr ya tiene líneas Jr creadas. No se permite re-crear (idempotencia).',
+        error: 'Este Plan Sr ya tiene Planes Jr creados. No se permite re-crear (idempotencia).',
       }, { status: 409 })
     }
     const entrevista = await getEntrevistaPE(planSrId).catch(() => null)
@@ -85,7 +85,7 @@ export async function POST(
 
     const body = await req.json().catch(() => null) as { lineas?: LineaJrPersistida[] } | null
     if (!body?.lineas || !Array.isArray(body.lineas) || body.lineas.length < 3) {
-      return NextResponse.json({ error: 'Debés enviar al menos 3 líneas Jr.' }, { status: 400 })
+      return NextResponse.json({ error: 'Debés enviar al menos 3 Planes Jr.' }, { status: 400 })
     }
 
     // Validaciones de cobertura y dueños.

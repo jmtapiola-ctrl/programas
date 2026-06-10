@@ -107,9 +107,9 @@ export function buildInventarioUserMessage(plan: PlanEstrategico): string {
   // como material suplementario.
   const propMd = plan.tipo === 'Jr'
     ? `
-## Propósito de la línea — MÉTRICAS (cada movimiento debe atacar al menos una)
+## Propósito del plan — MÉTRICAS (cada movimiento debe atacar al menos una)
 
-Métricas de la línea (${proposito?.metricas?.length ?? 0}):
+Métricas del plan (${proposito?.metricas?.length ?? 0}):
 ${(proposito?.metricas ?? []).map(m => `- ${m.metrica}: objetivo=${m.valor_objetivo} | actual=${m.valor_actual || '(sin baseline)'}`).join('\n') || '(sin métricas — el Jr debió definirlas en el Paso 1)'}
 ${buildJrContextoHeredadoMd(plan)}`
     : proposito ? `

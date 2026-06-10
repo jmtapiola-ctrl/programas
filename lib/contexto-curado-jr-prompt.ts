@@ -37,35 +37,35 @@ const CAMPO_SPEC: Record<ContextoCuradoCampo, { titulo: string; instruccion: str
   contexto: {
     titulo: 'Contexto / Bienvenida',
     instruccion:
-      'Markdown. Empezá con un header "# Bienvenida — Plan Jr \\"<nombre de la línea>\\"" y un saludo breve al dueño por su nombre. Después, 2-3 párrafos que MIREN HACIA ATRÁS/AFUERA: la situación general del Sr (desvío principal + causa raíz, SIN nombrar otras líneas) y por qué esta línea es parte de la respuesta. Es el encuadre del problema que justifica la línea.',
+      'Markdown. Empezá con un header "# Bienvenida — Plan Jr \\"<nombre del plan>\\"" y un saludo breve al dueño por su nombre. Después, 2-3 párrafos que MIREN HACIA ATRÁS/AFUERA: la situación general del Sr (desvío principal + causa raíz, SIN nombrar otros Planes Jr) y por qué este plan es parte de la respuesta. Es el encuadre del problema que justifica el plan.',
   },
   proposito: {
-    titulo: 'Propósito de la línea',
+    titulo: 'Propósito del plan',
     instruccion:
-      'Markdown (sin header propio — el sistema le pone el título). 1-2 párrafos que MIREN HACIA ADELANTE: a dónde llega esta línea, su alcance operativo (qué cubre y qué NO cubre). Es el lugar de llegada de la línea, derivado del Propósito del Sr.',
+      'Markdown (sin header propio — el sistema le pone el título). 1-2 párrafos que MIREN HACIA ADELANTE: a dónde llega este plan, su alcance operativo (qué cubre y qué NO cubre). Es el lugar de llegada del plan, derivado del Propósito del Sr.',
   },
   criterios_exito: {
     titulo: 'Criterios de éxito',
     instruccion:
-      'Markdown (sin header propio). Qué significa que la línea esté lograda — criterios concretos y verificables. Inferilos del plan curado del Sr y de los movimientos de la línea. Si no hay criterio específico inferible, escribí "Tu rol es ejecutar los movimientos con foco en <métrica X> hasta <horizonte Y>." Usá una lista con - cuando haya más de un criterio.',
+      'Markdown (sin header propio). Qué significa que el plan esté logrado — criterios concretos y verificables. Inferilos del plan curado del Sr y de los movimientos del plan. Si no hay criterio específico inferible, escribí "Tu rol es ejecutar los movimientos con foco en <métrica X> hasta <horizonte Y>." Usá una lista con - cuando haya más de un criterio.',
   },
   metricas: {
     titulo: 'Métricas del Propósito',
     instruccion:
-      'Markdown (sin header propio). Lista con - de las métricas del Propósito del Sr que ESTA línea apunta a mover, cada una con valor objetivo y valor actual (formato "**<métrica>**: objetivo <X> · actual <Y>"). Si una métrica del Sr es totalmente ajena a esta línea, NO la incluyas. Si ninguna aplica, escribí "Esta línea no mueve directamente las métricas del Propósito del Sr; su aporte es habilitante."',
+      'Markdown (sin header propio). Lista con - de las métricas del Propósito del Sr que ESTE plan apunta a mover, cada una con valor objetivo y valor actual (formato "**<métrica>**: objetivo <X> · actual <Y>"). Si una métrica del Sr es totalmente ajena a este plan, NO la incluyas. Si ninguna aplica, escribí "Este plan no mueve directamente las métricas del Propósito del Sr; su aporte es habilitante."',
   },
   supuestos: {
     titulo: 'Supuestos críticos',
     instruccion:
-      'Markdown (sin header propio). Lista con - de los supuestos exógenos del Sr que afectan operativamente a ESTA línea, cada uno con su probabilidad y la estrategia frente a él. Si no hay ninguno relevante, escribí "No hay supuestos exógenos críticos específicos para esta línea — los riesgos están en el plano de ejecución."',
+      'Markdown (sin header propio). Lista con - de los supuestos exógenos del Sr que afectan operativamente a ESTE plan, cada uno con su probabilidad y la estrategia frente a él. Si no hay ninguno relevante, escribí "No hay supuestos exógenos críticos específicos para este plan — los riesgos están en el plano de ejecución."',
   },
 }
 
 const REGLAS_CONFIDENCIALIDAD = `CONFIDENCIALIDAD ESTRICTA — PROHIBIDO mencionar:
-- Otras líneas Jr (sus nombres, sus alcances).
+- Otros Planes Jr (sus nombres, sus alcances).
 - Otros dueños Jr formales.
-- Movimientos que NO están en esta línea (aunque aparezcan en el plan curado del Sr).
-- Decisiones de priorización del Sr que mencionen explícitamente otras líneas.
+- Movimientos que NO están en este plan (aunque aparezcan en el plan curado del Sr).
+- Decisiones de priorización del Sr que mencionen explícitamente otros Planes Jr.
 PERMITIDO: métricas del Propósito del Sr, desvío + causa raíz, decisiones de priorización GENERALES, supuestos exógenos críticos.`
 
 const REGLAS_TONO = `TONO: directo, profesional, respetuoso. Sin emojis. Sin frases vacías ("es un placer trabajar contigo"). El dueño Jr es un ejecutivo que necesita información operativa, no marketing. IDs de movimientos SIEMPRE con nombre entre paréntesis si los mencionás (ej "M-3 (Diseñar campaña)").`
@@ -96,7 +96,7 @@ OUTPUT: SOLO un objeto JSON con UNA key, "${campo}", cuyo valor es el markdown d
 
   return `Sos un consultor estratégico senior. Tu tarea: escribir el CONTEXTO CURADO que recibirá el dueño formal de un Plan Jr cuando entre a su plan por primera vez.
 
-Este contexto es lo PRIMERO que va a leer el dueño Jr y la única vista que tiene del Plan Sr — no ve el plan crudo, no ve las otras líneas Jr. Aparte de este contexto, el dueño verá una lista de sus movimientos heredados con su detalle técnico (NO los re-describas vos, se renderizan por separado).
+Este contexto es lo PRIMERO que va a leer el dueño Jr y la única vista que tiene del Plan Sr — no ve el plan crudo, no ve los otros Planes Jr. Aparte de este contexto, el dueño verá una lista de sus movimientos heredados con su detalle técnico (NO los re-describas vos, se renderizan por separado).
 
 El contexto está dividido en 5 campos independientes (el Sr/Admin los revisa y aprueba por separado):
 
@@ -108,7 +108,7 @@ ${REGLAS_TONO}
 
 IMPORTANTE: NO incluyas una sección de "Movimientos heredados" ni los re-listes — eso se muestra aparte. Concentrate en los 5 campos narrativos.
 
-OUTPUT: SOLO un objeto JSON con exactamente estas 5 keys: "contexto", "proposito", "criterios_exito", "metricas", "supuestos". Cada valor es el markdown del campo. Sin texto antes ni después, sin fences \`\`\`. Verificá antes de emitir que no mencionaste otras líneas Jr ni sus dueños.`
+OUTPUT: SOLO un objeto JSON con exactamente estas 5 keys: "contexto", "proposito", "criterios_exito", "metricas", "supuestos". Cada valor es el markdown del campo. Sin texto antes ni después, sin fences \`\`\`. Verificá antes de emitir que no mencionaste otros Planes Jr ni sus dueños.`
 }
 
 // User message con el contexto del Sr. Si `opts.valoresActuales` viene (modo
@@ -146,8 +146,8 @@ export function buildContextoCuradoUserMessage(
 
   let msg = `# Plan Estratégico Sr — contexto para curar el Jr
 
-## Datos generales de la línea Jr a desplegar
-- **Nombre de la línea:** ${linea.nombre}
+## Datos generales del Plan Jr a desplegar
+- **Nombre del plan:** ${linea.nombre}
 - **Descripción operativa:** ${linea.descripcion || '(sin descripción específica — inferí del contenido de los movs)'}
 - **Dueño formal del Jr:** ${linea.dueno_jr_nombre} (${linea.dueno_jr_email})
 - **Movimientos heredados:** ${linea.movimientos_ids.length}
@@ -157,7 +157,7 @@ export function buildContextoCuradoUserMessage(
 - Horizonte: ${planSr.proposito?.horizonte ?? '(no declarado)'}
 - Estabilidad esperada: ${planSr.proposito?.estabilidad ?? '(no declarada)'}
 
-### Métricas del Propósito (todas — vos elegís cuáles aplican a esta línea)
+### Métricas del Propósito (todas — vos elegís cuáles aplican a este plan)
 ${(planSr.proposito?.metricas ?? []).map(m => `  - **${m.metrica}**: objetivo ${m.valor_objetivo} · actual ${m.valor_actual}`).join('\n') || '  (sin métricas declaradas)'}
 
 ## Situación del Plan Sr
@@ -167,7 +167,7 @@ ${(planSr.proposito?.metricas ?? []).map(m => `  - **${m.metrica}**: objetivo ${
 - **Consecuencia 6 meses:** ${planSr.situacion?.consecuencia_6m ?? '(no declarada)'}
 - **Consecuencia 12 meses:** ${planSr.situacion?.consecuencia_12m ?? '(no declarada)'}
 
-## Supuestos exógenos críticos del Sr (filtrá los que aplican a esta línea)
+## Supuestos exógenos críticos del Sr (filtrá los que aplican a este plan)
 ${(planoP3.preparativos?.supuestos_exogenos ?? []).map(s =>
   `  - "${s.descripcion}" · tipo ${s.tipo || '?'} · prob ${s.probabilidad || '?'} · impacto ${s.impacto_signo || '?'}/${s.impacto_magnitud || '?'} · estrategia ${s.estrategia || '?'} — ${s.razon}`,
 ).join('\n') || '  (sin supuestos críticos declarados)'}
@@ -183,8 +183,8 @@ ${curado.decisiones_priorizacion.map((d, i) => `  ${i + 1}. **${d.decision}** �
   // Los movs se pasan como CONTEXTO (para que la narrativa sea fiel), pero el
   // modelo NO debe re-listarlos en la salida — se renderizan aparte.
   msg += `
-## Movimientos heredados de esta línea (CONTEXTO — NO los re-listes en tu salida)
-Son ${movsHeredados.length} movimientos. Usalos para que el contexto, el propósito y los criterios sean fieles al trabajo real de la línea.
+## Movimientos heredados de este plan (CONTEXTO — NO los re-listes en tu salida)
+Son ${movsHeredados.length} movimientos. Usalos para que el contexto, el propósito y los criterios sean fieles al trabajo real del plan.
 
 `
   for (const m of movsHeredados) {
@@ -195,7 +195,7 @@ Son ${movsHeredados.length} movimientos. Usalos para que el contexto, el propós
 - Qué resuelve: ${m.que_resuelve}
 - Dueño operativo: ${m.dueno}${m.dueno_es_vacante ? ` [VACANCIA — ${m.dueno_semanas_cobertura ?? 8} semanas estimadas para cubrir]` : ''}
 - Esfuerzo (banda ancha): ${m.costo_banda_ancha} · Impacto: ${m.impacto ?? 'media'}
-- Precondiciones internas: ${precs.internas.join(', ') || 'ninguna'}${precs.externas.length ? ` · externas (otras líneas): ${precs.externas.length}` : ''}
+- Precondiciones internas: ${precs.internas.join(', ') || 'ninguna'}${precs.externas.length ? ` · externas (otros planes): ${precs.externas.length}` : ''}
 - Criterio de éxito: ${m.criterio_exito}
 `
   }
@@ -219,7 +219,7 @@ Emití SOLO el JSON con la key "${opts.campo}".`
 # Tarea
 
 Generá el contexto curado para el dueño Jr ${linea.dueno_jr_nombre}, en los 5 campos. Verificá ANTES de emitir:
-1. No mencionaste otras líneas Jr ni sus dueños.
+1. No mencionaste otros Planes Jr ni sus dueños.
 2. No re-listaste los movimientos (se muestran aparte).
 3. El tono es directo y operativo, sin marketing.
 

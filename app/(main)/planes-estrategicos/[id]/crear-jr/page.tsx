@@ -168,7 +168,7 @@ export default function CrearJrPage() {
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           <p className="text-[14px] font-semibold text-foreground">Analizando el Plan Sr…</p>
           <p className="text-[13px] text-muted-foreground leading-relaxed">
-            El modelo está leyendo el propósito, situación, inventario completo y curado para sugerir líneas Jr temáticas. Tarda 60-90s.
+            El modelo está leyendo el propósito, situación, inventario completo y curado para sugerir Planes Jr temáticos. Tarda 60-90s.
           </p>
         </div>
       </div>
@@ -182,7 +182,7 @@ export default function CrearJrPage() {
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           <p className="text-[14px] font-semibold text-foreground">Creando Planes Jr…</p>
           <p className="text-[13px] text-muted-foreground leading-relaxed">
-            Creando usuarios + planes en Airtable. Tarda 10-30s según cantidad de líneas.
+            Creando usuarios + planes en Airtable. Tarda 10-30s según cantidad de planes.
           </p>
         </div>
       </div>
@@ -243,7 +243,7 @@ export default function CrearJrPage() {
           </Link>
         </div>
         <p className="text-[13px] text-muted-foreground leading-relaxed">
-          El modelo propuso {lineas.length} líneas temáticas para los {movsActivos.length} movs del inventario. Revisalas, ajustá si querés, y asigná dueño a cada una.
+          El modelo propuso {lineas.length} Planes Jr temáticos para los {movsActivos.length} movs del inventario. Revisalos, ajustá si querés, y asigná dueño a cada uno.
         </p>
       </header>
 
@@ -260,7 +260,7 @@ export default function CrearJrPage() {
           )}
         </div>
         <div className="text-[12px] text-muted-foreground">
-          {lineas.length} línea{lineas.length === 1 ? '' : 's'} (mínimo 3)
+          {lineas.length} Plan{lineas.length === 1 ? '' : 'es'} Jr (mínimo 3)
         </div>
       </section>
 
@@ -297,7 +297,7 @@ export default function CrearJrPage() {
           onClick={agregarLineaVacia}
           className="w-full rounded-lg border-2 border-dashed border-sidebar-border hover:border-primary/50 px-4 py-3 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
         >
-          + Agregar línea vacía
+          + Agregar Plan Jr vacío
         </button>
       </section>
 
@@ -305,12 +305,12 @@ export default function CrearJrPage() {
       <section className="sticky bottom-4 rounded-lg border border-sidebar-border bg-background/95 backdrop-blur-sm px-4 py-3 flex items-center justify-between gap-3">
         <div className="text-[12px] text-muted-foreground">
           {puedeConfirmar
-            ? 'Todas las líneas tienen dueño y cobertura completa.'
+            ? 'Todos los Planes Jr tienen dueño y cobertura completa.'
             : !coberturaCompleta
-              ? `Faltan asignar ${movsSinAsignar.length} mov(s) a alguna línea.`
+              ? `Faltan asignar ${movsSinAsignar.length} mov(s) a algún Plan Jr.`
               : lineas.length < 3
-                ? `Necesitás al menos 3 líneas (tenés ${lineas.length}).`
-                : 'Faltan datos en alguna línea (nombre / dueño / email válido).'}
+                ? `Necesitás al menos 3 Planes Jr (tenés ${lineas.length}).`
+                : 'Faltan datos en algún Plan Jr (nombre / dueño / email válido).'}
         </div>
         <button
           type="button"
@@ -383,7 +383,7 @@ function LineaSlot({
               value={linea.descripcion}
               onChange={e => onUpdate({ descripcion: e.target.value })}
               rows={2}
-              placeholder="Qué cubre esta línea operativamente y cómo se distingue de las otras."
+              placeholder="Qué cubre este Plan Jr operativamente y cómo se distingue de los otros."
               className="w-full rounded border border-sidebar-border bg-background px-2 py-1 text-[13px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-y"
             />
           </div>
@@ -392,7 +392,7 @@ function LineaSlot({
           <button
             type="button"
             onClick={onDelete}
-            title="Eliminar esta línea"
+            title="Eliminar este Plan Jr"
             className="flex-shrink-0 rounded border border-red-900/40 text-red-400/70 hover:text-red-300 hover:bg-red-950/30 px-2 py-1 text-[12px] transition-colors"
           >
             🗑
@@ -414,7 +414,7 @@ function LineaSlot({
               <button
                 type="button"
                 onClick={() => quitarMov(movId)}
-                title="Quitar de esta línea"
+                title="Quitar de este Plan Jr"
                 className="text-muted-foreground hover:text-red-400 text-[14px] leading-none"
               >
                 ×

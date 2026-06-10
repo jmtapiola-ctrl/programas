@@ -57,7 +57,7 @@ export async function POST(
 
     // Validaciones de elegibilidad.
     if (plan.tipo !== 'Sr') {
-      return NextResponse.json({ error: 'Solo Planes Sr pueden derivar líneas Jr.' }, { status: 409 })
+      return NextResponse.json({ error: 'Solo Planes Sr pueden derivar Planes Jr.' }, { status: 409 })
     }
     const entrevista = await getEntrevistaPE(planId).catch(() => null)
     if (!entrevista || (entrevista.paso_actual ?? 0) < 4) {

@@ -118,7 +118,7 @@ export async function POST(
     const linea = planSr.lineas_jr?.find(l => l.plan_jr_id === planJrId)
     if (!linea) {
       return NextResponse.json({
-        error: 'Línea Jr no encontrada en el Plan Sr — desconsistencia entre Jr y Sr.',
+        error: 'Plan Jr no encontrado en el Plan Sr — inconsistencia entre Jr y Sr.',
       }, { status: 500 })
     }
 
@@ -126,7 +126,7 @@ export async function POST(
     const movsHeredados = movsInventarioSr.filter(m => linea.movimientos_ids.includes(m.id))
     if (movsHeredados.length === 0) {
       return NextResponse.json({
-        error: 'La línea no tiene movimientos heredados resolvibles en el inventario del Sr.',
+        error: 'El Plan Jr no tiene movimientos heredados resolvibles en el inventario del Sr.',
       }, { status: 409 })
     }
 

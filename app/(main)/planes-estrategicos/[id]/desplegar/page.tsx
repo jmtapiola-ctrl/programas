@@ -84,7 +84,7 @@ export default function DesplegarJrPage() {
         const planSr: PlanEstrategico = dataSr.plan
         const linea = planSr.lineas_jr?.find(l => l.plan_jr_id === planJrId)
         if (!linea) {
-          throw new Error('Línea Jr no encontrada en el Sr — desconsistencia.')
+          throw new Error('Plan Jr no encontrado en el Sr — inconsistencia.')
         }
         const idsHeredados = new Set(linea.movimientos_ids)
         const movsHeredados = (planSr.plan?.inventario?.movimientos ?? []).filter(m => idsHeredados.has(m.id))

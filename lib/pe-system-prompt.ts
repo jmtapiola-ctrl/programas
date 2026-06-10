@@ -241,7 +241,7 @@ ${plan.datos_faltantes?.length ? `Datos por conseguir: ${plan.datos_faltantes.jo
   const contextoJrBlock = !esSr ? `
 ## Contexto curado heredado del Plan Sr — DADO, NO SE REDEFINE
 
-⚠️ NO tenés acceso al plan Sr crudo (propósito, situación, plan curado, otras líneas Jr). Lo que sigue es el contexto editado por el Plan Sr/Admin antes de compartirte este Jr. Es tu fuente de verdad sobre el Sr Y el propósito/criterios/métricas de ESTA línea: son un DADO heredado, no se redefinen en este wizard. El Jr define su SITUACIÓN de partida y los MOVIMIENTOS para llegar a este propósito.
+⚠️ NO tenés acceso al plan Sr crudo (propósito, situación, plan curado, otros Planes Jr). Lo que sigue es el contexto editado por el Plan Sr/Admin antes de compartirte este Jr. Es tu fuente de verdad sobre el Sr Y el propósito/criterios/métricas de ESTE plan: son un DADO heredado, no se redefinen en este wizard. El Jr define su SITUACIÓN de partida y los MOVIMIENTOS para llegar a este propósito.
 
 ${contextoCuradoMd
     ? contextoCuradoMd
@@ -250,7 +250,7 @@ ${contextoCuradoMd
 ${(plan.movs_heredados_snapshot?.length ?? 0) > 0 ? `
 ## Movimientos heredados del Plan Sr (REFERENCIA / baseline, snapshot al desplegar)
 
-El Sr estimó ${plan.movs_heredados_snapshot.length} movimientos para esta línea, con sus costos, duraciones y criterios. NO son tu inventario (vas a armar uno fresco con el dueño Jr): son la REFERENCIA de alcance/costo/duración que el Sr esperaba. Usalos para calibrar y para detectar shortfalls (ver CAP más abajo).
+El Sr estimó ${plan.movs_heredados_snapshot.length} movimientos para este plan, con sus costos, duraciones y criterios. NO son tu inventario (vas a armar uno fresco con el dueño Jr): son la REFERENCIA de alcance/costo/duración que el Sr esperaba. Usalos para calibrar y para detectar shortfalls (ver CAP más abajo).
 
 ${(plan.movs_heredados_snapshot ?? []).map((m: any) => {
   const precs = (m.precondiciones ?? []).join(', ') || 'ninguna'

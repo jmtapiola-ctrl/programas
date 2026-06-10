@@ -87,8 +87,8 @@ export function generarDivergenciasCapJr(
       divergencias.push({
         id: 'cap-costo-sobre',
         categoria: 'CRITICA',
-        pregunta: `Tu plan suma ~USD ${Math.round(aggJr.costo).toLocaleString('en-US')} en costo, ${Math.round((ratio - 1) * 100)}% por encima de lo que el Sr estimó para esta línea (~USD ${Math.round(aggSr.costo).toLocaleString('en-US')}). ¿Cómo justificás el sobrecosto, o qué ajustás para acercarte al presupuesto del Sr?`,
-        por_que_importa: 'El Sr dimensionó la línea con un presupuesto implícito. Un sobrecosto grande sin justificación puede romper la viabilidad del plan superior.',
+        pregunta: `Tu plan suma ~USD ${Math.round(aggJr.costo).toLocaleString('en-US')} en costo, ${Math.round((ratio - 1) * 100)}% por encima de lo que el Sr estimó para este plan (~USD ${Math.round(aggSr.costo).toLocaleString('en-US')}). ¿Cómo justificás el sobrecosto, o qué ajustás para acercarte al presupuesto del Sr?`,
+        por_que_importa: 'El Sr dimensionó el plan con un presupuesto implícito. Un sobrecosto grande sin justificación puede romper la viabilidad del plan superior.',
         relacion_con_plan: 'Costo total del plan curado vs baseline heredado del Sr.',
         placeholder_ejemplo_respuesta: 'El sobrecosto viene de X; lo justifico porque… / Recorto los movimientos Y y Z para volver al rango.',
       })
@@ -96,7 +96,7 @@ export function generarDivergenciasCapJr(
       divergencias.push({
         id: 'cap-costo-bajo',
         categoria: 'RECOMENDADA',
-        pregunta: `Tu plan suma ~USD ${Math.round(aggJr.costo).toLocaleString('en-US')} en costo, bastante por debajo de lo que el Sr estimó (~USD ${Math.round(aggSr.costo).toLocaleString('en-US')}). ¿Estás cubriendo todo el alcance que el Sr esperaba para esta línea, o estás dejando algo afuera?`,
+        pregunta: `Tu plan suma ~USD ${Math.round(aggJr.costo).toLocaleString('en-US')} en costo, bastante por debajo de lo que el Sr estimó (~USD ${Math.round(aggSr.costo).toLocaleString('en-US')}). ¿Estás cubriendo todo el alcance que el Sr esperaba para este plan, o estás dejando algo afuera?`,
         por_que_importa: 'Un costo muy por debajo del baseline puede indicar que el plan del Jr no cubre todo el alcance que el Sr le asignó (shortfall encubierto).',
         relacion_con_plan: 'Costo total del plan curado vs baseline heredado del Sr.',
         placeholder_ejemplo_respuesta: 'Cubro todo el alcance pero más barato porque… / Efectivamente dejo afuera X, lo cual está OK porque…',
@@ -118,10 +118,10 @@ export function generarDivergenciasCapJr(
       divergencias.push({
         id: 'cap-tiempo-atraso',
         categoria: 'CRITICA',
-        pregunta: `Tu cronograma cierra esta línea en ${cierreJr}, ${atrasoMeses} ${atrasoMeses === 1 ? 'mes' : 'meses'} después de lo que el Sr esperaba (${cierreSr}). Como esta línea suele ser base para el resto del Plan Sr, ese atraso puede arrastrar al plan superior. ¿Cómo lo resolvés — replanificás la secuencia, recortás duraciones, o acotás alcance?`,
-        por_que_importa: 'El horizonte/ventana de esta línea es un DADO heredado del Sr, no una elección del Jr. Un atraso en una línea prerequisite se amplifica aguas abajo y puede anular el cronograma del Plan Sr.',
+        pregunta: `Tu cronograma cierra este plan en ${cierreJr}, ${atrasoMeses} ${atrasoMeses === 1 ? 'mes' : 'meses'} después de lo que el Sr esperaba (${cierreSr}). Como este plan suele ser base para el resto del Plan Sr, ese atraso puede arrastrar al plan superior. ¿Cómo lo resolvés — replanificás la secuencia, recortás duraciones, o acotás alcance?`,
+        por_que_importa: 'El horizonte/ventana de este plan es un DADO heredado del Sr, no una elección del Jr. Un atraso en un plan prerequisite se amplifica aguas abajo y puede anular el cronograma del Plan Sr.',
         relacion_con_plan: 'Fecha de cierre del cronograma curado del Jr vs cierre esperado por el Sr (snapshot heredado).',
-        placeholder_ejemplo_respuesta: 'Adelanto X poniéndolo en paralelo / Recorto la duración de M-Y / Acepto el atraso porque el Sr tiene holgura en esta línea, lo confirmo.',
+        placeholder_ejemplo_respuesta: 'Adelanto X poniéndolo en paralelo / Recorto la duración de M-Y / Acepto el atraso porque el Sr tiene holgura en este plan, lo confirmo.',
       })
     }
   }
@@ -131,7 +131,7 @@ export function generarDivergenciasCapJr(
     divergencias.push({
       id: 'cap-cobertura',
       categoria: 'CRITICA',
-      pregunta: `El Sr estimó ${aggSr.count} movimientos para esta línea y tu plan curado tiene ${aggJr.count}. ¿Estás seguro de que con menos movimientos llegás a los criterios de éxito heredados, o falta cubrir frentes?`,
+      pregunta: `El Sr estimó ${aggSr.count} movimientos para este plan y tu plan curado tiene ${aggJr.count}. ¿Estás seguro de que con menos movimientos llegás a los criterios de éxito heredados, o falta cubrir frentes?`,
       por_que_importa: 'Una cobertura mucho menor a la estimada por el Sr suele significar que algún criterio heredado no está siendo atacado.',
       relacion_con_plan: 'Cantidad de movimientos del plan curado vs baseline heredado.',
       placeholder_ejemplo_respuesta: 'Consolidé varios movimientos del Sr en menos, más potentes, porque… / Falta cubrir X, lo agrego.',

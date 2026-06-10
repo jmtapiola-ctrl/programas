@@ -98,7 +98,7 @@ export async function POST(
     const lineaIdx = lineas.findIndex(l => l.plan_jr_id === planJrId)
     if (lineaIdx === -1) {
       return NextResponse.json({
-        error: 'Línea Jr no encontrada en el Plan Sr — desconsistencia.',
+        error: 'Plan Jr no encontrado en el Plan Sr — inconsistencia.',
       }, { status: 500 })
     }
     const linea = lineas[lineaIdx]
