@@ -664,6 +664,10 @@ export interface MovimientoPE {
   // vía desbloquea) — proxy de "qué tan habilitador/prerequisite es en el Sr".
   // > 0 ⇒ es prerequisite del resto del Sr; un atraso acá se propaga aguas abajo.
   sr_desbloquea_total?: number
+  // Solo en movs_heredados_snapshot del Jr. Congelado al desplegar: nombre de cada
+  // movimiento referenciado en precondiciones/desbloquea (id→nombre), para poder
+  // mostrarlos "M-X (Nombre)" sin acceso al Sr (el Jr no tiene el inventario Sr).
+  ref_nombres?: { [movId: string]: string }
   precondiciones: string[]  // ids de otros movimientos
   desbloquea: string[]      // ids de otros movimientos
   tipo_dependencia: DependenciaTipo

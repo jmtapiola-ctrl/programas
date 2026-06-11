@@ -46,6 +46,14 @@ export function congelarExpectativasSr(
     const out: MovimientoPE = { ...m }
     if (s) out.ventana_temporal = { arranca: s.arrancaYM, termina: s.terminaYM }
     out.sr_desbloquea_total = desbloqueoTransitivo(m.id, byId)
+    // Nombres de los movimientos referenciados (precond + desbloquea), para
+    // mostrarlos "M-X (Nombre)" en el Jr sin acceso al inventario Sr.
+    const refNombres: Record<string, string> = {}
+    for (const id of [...(m.precondiciones ?? []), ...(m.desbloquea ?? [])]) {
+      const r = byId.get(id)
+      if (r) refNombres[id] = r.nombre
+    }
+    out.ref_nombres = refNombres
     return out
   })
 }

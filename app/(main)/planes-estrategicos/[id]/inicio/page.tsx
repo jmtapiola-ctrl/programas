@@ -178,6 +178,15 @@ export default async function InicioJrPage({
   )
 }
 
+// Renderiza una lista de ids de movimientos como "M-X (Nombre)", usando el mapa
+// de nombres congelado al desplegar (ref_nombres). Si falta el nombre (snapshot
+// viejo sin backfill), cae al id solo.
+function refsConNombre(ids?: string[], nombres?: { [id: string]: string }): string {
+  return (ids ?? [])
+    .map(id => (nombres?.[id] ? `${id} (${nombres[id]})` : id))
+    .join(', ')
+}
+
 // Detalle expandible de un movimiento heredado. Server component — usa
 // <details>/<summary> nativos en lugar de useState para mantener todo SSR.
 function MovHeredadoDetails({ mov }: { mov: MovimientoPE }) {
@@ -228,12 +237,12 @@ function MovHeredadoDetails({ mov }: { mov: MovimientoPE }) {
         </Field>
         <Field label={`Precondiciones (${precsCount})`}>
           {precsCount > 0
-            ? (mov.precondiciones ?? []).join(', ')
+            ? refsConNombre(mov.precondiciones, mov.ref_nombres)
             : 'Ninguna — podés arrancar este movimiento sin esperar nada.'}
         </Field>
         <Field label={`Desbloquea (${desblCount})`}>
           {desblCount > 0
-            ? (mov.desbloquea ?? []).join(', ')
+            ? refsConNombre(mov.desbloquea, mov.ref_nombres)
             : 'Ninguno.'}
         </Field>
         <Field label="Criterio de éxito">{mov.criterio_exito}</Field>
