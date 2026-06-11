@@ -659,6 +659,11 @@ export interface MovimientoPE {
   // el schema para no romper planes viejos y para snapshot en curado. Movs
   // nuevos NO requieren poblarlo; CPM lo calcula on-the-fly.
   ventana_temporal?: { arranca: string; termina: string }  // YYYY-MM
+  // Solo en movs_heredados_snapshot del Jr (Fase: detección de desvíos Jr↔Sr).
+  // Congelado al desplegar: cuántos movimientos del Sr depende este (transitivo,
+  // vía desbloquea) — proxy de "qué tan habilitador/prerequisite es en el Sr".
+  // > 0 ⇒ es prerequisite del resto del Sr; un atraso acá se propaga aguas abajo.
+  sr_desbloquea_total?: number
   precondiciones: string[]  // ids de otros movimientos
   desbloquea: string[]      // ids de otros movimientos
   tipo_dependencia: DependenciaTipo

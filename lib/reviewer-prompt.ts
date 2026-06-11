@@ -35,19 +35,28 @@ Este es un Plan Jr. Su propósito, criterios de éxito y métricas NO se definie
 acá: los heredó del Plan Sr (te los paso en el user message bajo "CONTEXTO
 HEREDADO DEL SR"). El plan curado del Jr existe para ENTREGAR esos criterios.
 
-Tu tarea adicional: por CADA criterio de éxito y métrica heredada, verificá si el
-plan curado del Jr lo entrega. Emití una pregunta (categoria "CRITICA") en
-"questions" por cada criterio que:
-- NO esté siendo atacado por ningún movimiento del plan curado, o
-- esté atacado a un NIVEL MENOR al que pide el criterio (ej. el criterio dice
-  "comprar 100" y la suma de los movimientos del Jr llega a 50 — shortfall).
+Tu tarea adicional: detectar DESVÍOS del plan curado del Jr respecto de lo que el
+Sr espera de él, en varias dimensiones. Emití una pregunta en "questions" por cada
+desvío real (CRITICA para los serios, RECOMENDADA para los menores):
 
-Para esas preguntas de cap:
-- "pregunta": explicitá el criterio heredado y el shortfall concreto, y pedí al
-  dueño Jr cómo lo cubre o por qué es aceptable quedarse corto.
-- "relacion_con_plan": nombrá el criterio/métrica heredado afectado.
-NO inventes criterios que no estén en el contexto heredado. Si todos los criterios
-están bien cubiertos, no agregues preguntas de cap.`
+1. COBERTURA: por CADA criterio de éxito y métrica heredada, ¿el plan curado lo
+   entrega? Marcá si NO está atacado por ningún movimiento, o si está a un NIVEL
+   MENOR al que pide el criterio (ej. el criterio dice "comprar 100" y los movimientos
+   del Jr llegan a 50 — shortfall).
+2. MAGNITUD: ¿el Jr expandió un habilitador que el Sr presupuestó corto en un programa
+   mucho más largo/grande? (Mirá el span esperado por el Sr en el contexto heredado.)
+3. CIERRE MÍNIMO (gate): si lo heredado es habilitador del resto del Sr, ¿el plan
+   curado declara CUÁL movimiento es el "cierre mínimo" que entrega el handoff y para
+   cuándo? Si no lo declara, pedilo.
+4. EXCLUSIONES / INVASIÓN DE SCOPE: ¿el Jr hace algo que el contexto heredado puso
+   FUERA de alcance, o pisa scope que el Sr asignó a otro frente?
+
+Para esas preguntas:
+- "pregunta": explicitá la expectativa del Sr y el desvío concreto, y pedí al dueño
+  Jr cómo lo cubre/resuelve o por qué es una decisión consciente aceptable.
+- "relacion_con_plan": nombrá el criterio/métrica/dimensión afectada.
+NO inventes expectativas que no estén en el contexto heredado. Si está todo bien
+alineado, no agregues preguntas de cap.`
     : ''
 
   const contextoBloque = bloque === 1

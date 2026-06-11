@@ -1042,24 +1042,32 @@ el Sr dejó definido, y AVISAR EN PROSA cuando detectás un faltante. Específic
   encima en costo/tiempo, marcalo.
 
 - TIEMPO / HORIZONTE — restricción DURA del Sr, NO elección del Jr. El horizonte
-  temporal es un DADO heredado (está en el contexto curado y en las ventanas
-  \`arranca→termina\` del snapshot de movimientos del Sr). **NO le preguntes al
-  dueño Jr "cuál es tu horizonte" — vos ya lo sabés.** Tu trabajo es CONTRASTAR el
-  cronograma del Jr (las fechas que el sistema computa por CPM a partir de
-  dependencias + duraciones, visibles en la secuenciación 3.A.6) contra ese
-  horizonte heredado y contra las ventanas que el Sr estimó para este plan. Si el
-  cronograma del Jr EXCEDE el horizonte del Sr, o atrasa este plan más allá de la
-  ventana que el Sr esperaba, marcalo con ÉNFASIS como una desviación seria y pedí
-  resolverlo AHORA (replanificar la secuencia, recortar duraciones, o acotar
-  alcance) — NO lo dejes como pregunta abierta del tipo "¿qué horizonte te pusiste?".
+  temporal es un DADO heredado. Cada movimiento heredado del Sr trae su **ventana
+  esperada real** \`arranca→termina\` (computada por el CPM del Sr al desplegar) y,
+  cuando es habilitador, **cuántos movimientos del Sr desbloquea aguas abajo** — ambos
+  visibles en el snapshot. **NO le preguntes al dueño Jr "cuál es tu horizonte" — vos
+  ya lo sabés.** Tu trabajo es CONTRASTAR el cronograma del Jr (las fechas que el
+  sistema computa por CPM a partir de dependencias + duraciones, visibles en 3.A.6)
+  contra esas ventanas esperadas del Sr. Si el cierre del Jr **supera la \`termina\`
+  que el Sr esperaba** para el movimiento heredado, marcalo con ÉNFASIS como una
+  desviación seria y pedí resolverlo AHORA (replanificar la secuencia, recortar
+  duraciones, o acotar alcance) — NO lo dejes como pregunta abierta del tipo "¿qué
+  horizonte te pusiste?". Citá la fecha concreta esperada vs la del Jr.
 
-- ESTE PLAN SUELE SER PREREQUISITE del resto del Plan Sr: lo que entrega es
-  muchas veces la base sobre la que el Sr construye lo demás (ej: definir
-  estructura/organigramas ANTES de poder asignar gente o avanzar otros Planes Jr). Un
-  atraso en la cabeza de este plan NO queda contenido acá: se propaga y puede
-  anular el Plan Sr entero. El Jr no puede "ir por libre" con el cronograma y
-  romper la secuencia del Sr. Si el timing del Jr pone en riesgo esa dependencia
-  aguas arriba, decílo explícitamente y tratalo como un problema a resolver ya.
+- MAGNITUD — si el Sr presupuestó el movimiento heredado como un **habilitador corto**
+  (ventana de pocos meses) y el plan del Jr lo expande a un programa mucho más largo,
+  marcalo aunque la fecha absoluta no parezca tardía: convertir un enabler de 1 mes en
+  uno de 6-8 meses demora todo lo que cuelga del Sr. Distinguí "el Sr lo subestimó (hay
+  que avisarle)" de "se puede comprimir/paralelizar".
+
+- ESTE PLAN SUELE SER PREREQUISITE del resto del Plan Sr (mirá \`sr_desbloquea_total\`
+  en el snapshot): lo que entrega es la base sobre la que el Sr construye lo demás. Un
+  atraso acá NO queda contenido: se propaga y puede anular el Plan Sr entero. Por eso,
+  **cuando lo heredado es habilitador, exigí que el Jr declare cuál de SUS movimientos
+  es el "cierre mínimo" que le entrega el handoff al Sr, y para qué fecha** — no hace
+  falta tener TODO el plan del Jr terminado para destrabar al Sr, pero el dueño de
+  aguas arriba tiene que saber cuándo puede arrancar. Si esa declaración no aparece,
+  pedila explícitamente.
 
 Esto es un aviso conversacional fuerte (no bloquea — el dueño Jr puede seguir si
 lo justifica como decisión consciente, pero tiene que ser eso: una decisión, no

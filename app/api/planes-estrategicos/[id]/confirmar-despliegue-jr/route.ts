@@ -28,6 +28,7 @@ import {
 } from '@/lib/airtable'
 import { checkPlanAccess } from '@/lib/auth-ownership'
 import { CONTEXTO_CURADO_CAMPOS, contextoCuradoTieneContenido } from '@/lib/types'
+import { congelarExpectativasSr } from '@/lib/sr-expectativas'
 import type { MovimientoPE, LineaJrPersistida, ContextoCuradoJr } from '@/lib/types'
 
 export const maxDuration = 60
@@ -109,7 +110,10 @@ export async function POST(
     // solo los que existen al momento del despliegue.
     const movsInventarioSr: MovimientoPE[] = planSr.plan?.inventario?.movimientos ?? []
     const idsHeredados = new Set(linea.movimientos_ids)
-    const snapshot: MovimientoPE[] = movsInventarioSr.filter(m => idsHeredados.has(m.id))
+    const snapshotBase: MovimientoPE[] = movsInventarioSr.filter(m => idsHeredados.has(m.id))
+    // Congelar las expectativas REALES del Sr: ventana CPM + rol crítico por mov
+    // heredado (ver lib/sr-expectativas.ts). Es el "contrato del Sr" con fechas.
+    const snapshot: MovimientoPE[] = congelarExpectativasSr(snapshotBase, movsInventarioSr)
 
     if (snapshot.length === 0) {
       return NextResponse.json({
