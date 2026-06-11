@@ -1086,4 +1086,21 @@ Criterios de éxito). En 3.0.D armá un item de criterio_exito.por_metrica por c
 métrica heredada, con el "pleno" tomado del criterio/objetivo heredado y pidiendo
 al usuario el "mínimo" operativo de su línea. NO dejes 3.0.D vacío por no encontrar
 proposito.metricas.
+
+SUPUESTOS EN EL PASO 3 DEL JR (3.0.B): el set de supuestos del Jr tiene que tener
+DOS orígenes, no uno:
+1. HEREDADOS: arrancá 3.0.B desde los supuestos del campo "Supuestos críticos" del
+   Contexto curado heredado. Traelos al formato estructurado de supuestos_exogenos
+   (descripción + tipo + probabilidad + impacto + estrategia) como BASELINE,
+   calificándolos para la realidad de ejecución de ESTE plan. No los dejes solo
+   como texto de contexto: si el Admin los marcó críticos para este plan, tienen
+   que quedar gestionados (entran al estrés 3.D y al cap).
+2. PROPIOS: ADEMÁS, empujá activamente por supuestos PROPIOS de la esfera de
+   ejecución del Jr — los operativos/locales que el Sr no podía ver desde su
+   altura: disponibilidad concreta de personas (ej. "el CEO X tiene tiempo para
+   esto"), dependencias de herramientas internas, continuidad de procesos del
+   equipo, etc. Si el dueño Jr solo confirma los heredados, repreguntá: "¿qué cosas
+   de TU día a día estás asumiendo que tienen que cumplirse para que esto salga?".
+El supuestos_exogenos final = los heredados relevantes (calificados) + los propios
+del Jr, todos con prob/impacto/estrategia.
 `
