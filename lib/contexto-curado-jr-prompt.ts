@@ -47,12 +47,12 @@ const CAMPO_SPEC: Record<ContextoCuradoCampo, { titulo: string; instruccion: str
   criterios_exito: {
     titulo: 'Criterios de éxito',
     instruccion:
-      'Markdown (sin header propio). Qué significa que el plan esté logrado — criterios concretos y verificables. Inferilos del plan curado del Sr y de los movimientos del plan. Si no hay criterio específico inferible, escribí "Tu rol es ejecutar los movimientos con foco en <métrica X> hasta <horizonte Y>." Usá una lista con - cuando haya más de un criterio.',
+      'Markdown (sin header propio). Qué significa que el plan esté logrado — criterios concretos y verificables, derivados del "criterio_exito" de los movimientos heredados y del plan curado del Sr. APLICÁ LA REGLA ANTI-INVENCIÓN: todo VALOR/UMBRAL tiene que estar respaldado por una fuente del Sr; si falta, proponé la variable SIN valor con "[valor a definir por el admin]". Si no hay criterio específico inferible, escribí "Tu rol es ejecutar los movimientos con foco en <métrica X> hasta <horizonte Y>." Usá una lista con - cuando haya más de un criterio.',
   },
   metricas: {
     titulo: 'Métricas del Propósito',
     instruccion:
-      'Markdown (sin header propio). Lista con - de las métricas del Propósito del Sr que ESTE plan apunta a mover, cada una con valor objetivo y valor actual (formato "**<métrica>**: objetivo <X> · actual <Y>"). Si una métrica del Sr es totalmente ajena a este plan, NO la incluyas. Si ninguna aplica, escribí "Este plan no mueve directamente las métricas del Propósito del Sr; su aporte es habilitante."',
+      'Markdown (sin header propio). Lista con - de las métricas del Propósito del Sr que ESTE plan apunta a mover, cada una con valor objetivo y valor actual (formato "**<métrica>**: objetivo <X> · actual <Y>"). APLICÁ LA REGLA ANTI-INVENCIÓN: los valores objetivo/actual se copian de la fuente del Sr; NO inventes números. Si una métrica del Sr es totalmente ajena a este plan, NO la incluyas. Si ninguna aplica, escribí "Este plan no mueve directamente las métricas del Propósito del Sr; su aporte es habilitante."',
   },
   supuestos: {
     titulo: 'Supuestos críticos',
@@ -70,6 +70,11 @@ PERMITIDO: métricas del Propósito del Sr, desvío + causa raíz, decisiones de
 
 const REGLAS_TONO = `TONO: directo, profesional, respetuoso. Sin emojis. Sin frases vacías ("es un placer trabajar contigo"). El dueño Jr es un ejecutivo que necesita información operativa, no marketing. IDs de movimientos SIEMPRE con nombre entre paréntesis si los mencionás (ej "M-3 (Diseñar campaña)").`
 
+const REGLAS_ANTI_INVENCION = `ANTI-INVENCIÓN (CRÍTICO — la confianza del admin depende de esto):
+- NUNCA inventes valores, umbrales, números, porcentajes, montos ni fechas. Todo valor cuantitativo de un criterio de éxito o de una métrica TIENE que estar respaldado por una fuente del Sr que te paso en el user message: el "criterio_exito" de un movimiento heredado, una métrica/criterio del Propósito del Sr, o el plan curado. Preferí copiar el valor TEXTUAL de la fuente.
+- NO agregues precisión que la fuente NO tiene. Ej: si el Sr dice "CACm < CACm actual", NO lo conviertas en "CACm PAI del canal" salvo que la fuente lo diga explícitamente. Quedate con la redacción de la fuente.
+- Si te parece que falta un criterio o variable RELEVANTE para el plan que el Sr NO especificó con un valor, está bien proponerlo — pero como VARIABLE SIN VALOR: nombrá la variable y escribí "[valor a definir por el admin]" en lugar de inventar un número. SIEMPRE es mejor una variable sin valor que un valor inventado. El admin completará el valor.`
+
 // System prompt. Si `campo` viene, instruye regeneración de SOLO ese campo.
 export function buildContextoCuradoSystemPrompt(campo?: ContextoCuradoCampo): string {
   if (campo) {
@@ -83,6 +88,8 @@ ${spec.instruccion}
 ${REGLAS_CONFIDENCIALIDAD}
 
 ${REGLAS_TONO}
+
+${REGLAS_ANTI_INVENCION}
 
 COHERENCIA: en el mensaje del usuario vas a recibir los otros campos del contexto YA EDITADOS por el Sr/Admin. Tu campo regenerado tiene que ser coherente con ellos (no repetir, no contradecir).
 
@@ -106,9 +113,14 @@ ${REGLAS_CONFIDENCIALIDAD}
 
 ${REGLAS_TONO}
 
+${REGLAS_ANTI_INVENCION}
+
 IMPORTANTE: NO incluyas una sección de "Movimientos heredados" ni los re-listes — eso se muestra aparte. Concentrate en los 5 campos narrativos.
 
-OUTPUT: SOLO un objeto JSON con exactamente estas 5 keys: "contexto", "proposito", "criterios_exito", "metricas", "supuestos". Cada valor es el markdown del campo. Sin texto antes ni después, sin fences \`\`\`. Verificá antes de emitir que no mencionaste otros Planes Jr ni sus dueños.`
+OUTPUT: SOLO un objeto JSON con estas 6 keys:
+- "contexto", "proposito", "criterios_exito", "metricas", "supuestos": cada valor es el markdown del campo (lo que LEE el dueño Jr).
+- "fuentes": markdown SOLO PARA EL ADMIN (el dueño Jr NO lo ve nunca). Por cada criterio de éxito y cada métrica que propusiste, indicá en una línea de qué fuente del Sr salió su valor — ej "- Captación graduada: M-17 (Modelo de captación), criterio «CACm global <1000 USD»". Si un criterio/variable lo propusiste SIN valor (porque el Sr no lo especificó), marcalo como "- <variable>: [a completar por el admin — no estaba en el Sr]". Esto le permite al admin verificar de un vistazo que nada está inventado y qué le falta completar.
+Sin texto antes ni después, sin fences \`\`\`. Verificá antes de emitir que no mencionaste otros Planes Jr ni sus dueños, y que ningún valor de criterio/métrica está inventado (cada uno tiene fuente o está marcado "[a definir por el admin]").`
 }
 
 // User message con el contexto del Sr. Si `opts.valoresActuales` viene (modo

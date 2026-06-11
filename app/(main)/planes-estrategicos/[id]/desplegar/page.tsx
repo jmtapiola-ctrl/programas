@@ -21,6 +21,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
 import MarkdownEditor from '@/components/planes-estrategicos/MarkdownEditor'
 import { BTN_CTA, BTN_SECONDARY_SM } from '@/components/ui/button-styles'
 import { CONTEXTO_CURADO_CAMPOS } from '@/lib/types'
@@ -51,6 +52,9 @@ export default function DesplegarJrPage() {
   const [regenerando, setRegenerando] = useState<CampoKey | null>(null)
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
+  // Provenance SOLO PARA EL ADMIN (de qué fuente del Sr salió cada criterio/
+  // métrica + qué quedó por completar). NO se persiste ni la ve el dueño Jr.
+  const [fuentes, setFuentes] = useState<string>('')
 
   // Cargar Plan Jr al mount.
   useEffect(() => {
@@ -120,6 +124,7 @@ export default function DesplegarJrPage() {
         return
       }
       setCampos({ ...CAMPOS_VACIOS, ...(data.contexto_curado ?? {}) })
+      setFuentes(typeof data.fuentes === 'string' ? data.fuentes : '')
       setAprobados({}) // todos sin aprobar al regenerar todo
       setSubPaso('editar')
     } catch (e) {
@@ -392,6 +397,32 @@ export default function DesplegarJrPage() {
           </section>
         )
       })}
+
+      {/* Provenance SOLO PARA EL ADMIN — de qué fuente del Sr salió cada criterio/
+          métrica y qué quedó por completar. NO se persiste ni lo ve el dueño Jr. */}
+      {(() => {
+        const porCompletar = /\[(?:valor )?a (?:definir|completar)/i.test(`${campos.criterios_exito}\n${campos.metricas}`)
+        if (!fuentes && !porCompletar) return null
+        return (
+          <section className="rounded-lg border border-amber-700/40 bg-amber-950/15 px-4 py-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-[13px] font-semibold text-amber-200">Fuentes — solo para vos (el admin)</h2>
+              <span className="text-[11px] text-amber-300/70">no se guarda · el dueño Jr no lo ve</span>
+            </div>
+            {porCompletar && (
+              <p className="text-[12px] text-amber-200 bg-amber-900/30 border border-amber-700/40 rounded px-2.5 py-1.5">
+                ⚠ Hay criterios/métricas marcados <code>[a definir por el admin]</code> — la IA no inventó un valor porque no estaba en el Sr. Completalos vos antes de aprobar.
+              </p>
+            )}
+            {fuentes && (
+              <div className="text-[12px] text-amber-100/90 leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-0.5 [&_strong]:text-amber-100 [&_code]:bg-amber-900/40 [&_code]:px-1 [&_code]:rounded">
+                <ReactMarkdown>{fuentes}</ReactMarkdown>
+              </div>
+            )}
+            <p className="text-[11px] text-amber-300/60">Verificá que cada valor tenga una fuente real del Sr. Si algo no te cierra, editá el campo o regeneralo.</p>
+          </section>
+        )
+      })()}
 
       <section className="sticky bottom-4 rounded-lg border border-sidebar-border bg-background/95 backdrop-blur-sm px-4 py-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">

@@ -227,14 +227,20 @@ export async function POST(
       console.warn('[proponer-contexto-curado] campos faltantes en la salida:', faltantes.join(', '))
     }
 
+    // Provenance SOLO PARA EL ADMIN: de qué fuente del Sr salió cada criterio/
+    // métrica + qué quedó "[a definir por el admin]". NO se persiste en
+    // contexto_curado ni la ve el dueño Jr — es para la revisión del despliegue.
+    const fuentes = typeof parsed.fuentes === 'string' ? parsed.fuentes.trim() : ''
+
     console.log('[proponer-contexto-curado] done', JSON.stringify({
       plan_jr_id: planJrId,
       campos_ok: CAMPO_KEYS.length - faltantes.length,
       faltantes,
+      tiene_fuentes: fuentes.length > 0,
       ...metricas,
     }))
 
-    return NextResponse.json({ ok: true, contexto_curado, faltantes, metricas })
+    return NextResponse.json({ ok: true, contexto_curado, faltantes, fuentes, metricas })
   } catch (err) {
     const errAny = err as any
     console.error('[proponer-contexto-curado] UNCAUGHT:', errAny?.message, errAny?.stack)
