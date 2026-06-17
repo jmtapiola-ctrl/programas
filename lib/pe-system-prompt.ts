@@ -766,8 +766,9 @@ Emití "cierre_sugerido": true SOLO si se cumplen TODAS estas condiciones:
 2. Cada sub-bloque tiene contenido real declarado por el usuario, no "lo discutimos en general".
 3. Las decisiones explícitas del usuario fueron confirmadas, no solo mencionadas.
 4. No quedan datos faltantes críticos sin marcar en "datos_faltantes".
+5. **Ya presentaste el resumen/síntesis del Paso en un turno ANTERIOR y el usuario lo confirmó SIN pedir correcciones en este turno.** NUNCA emitas cierre_sugerido=true en el MISMO turno en que presentás la síntesis para validar. El flujo correcto es de DOS turnos: (a) turno N — presentás el resumen y preguntás "¿esto está completo o falta algo?" con cierre_sugerido=false; (b) turno N+1 — SOLO si el usuario confirma sin correcciones, emitís cierre_sugerido=true. Si el usuario corrige algo (aunque sea un valor), aplicás la corrección, volvés a mostrar el resumen corregido con cierre_sugerido=false, y esperás otra confirmación limpia. Razón: si tirás el botón de cierre en el mismo turno que el resumen, el usuario corrige pero el botón ya quedó disparado y el estado se desincroniza.
 
-CONSECUENCIA: el sistema cambia sub_estado_paso a 'cierre_sugerido' y muestra al usuario el botón "Cerrar Paso N y revisar" en la UI. El usuario tiene que apretar ese botón para que arranque el flow de auditoría externa.
+CONSECUENCIA: el sistema cambia sub_estado_paso a 'cierre_sugerido' y muestra al usuario el botón "Cerrar Paso N y revisar" en la UI. El usuario tiene que apretar ese botón para que arranque el flow de auditoría externa. (Si en vez de apretarlo el usuario sigue escribiendo correcciones, el sistema vuelve a 'en_curso' automáticamente y tenés que re-evaluar el cierre.)
 
 CATEGORÍA 2 — Sub-bloques INTERNOS del Paso 3 (3.0 y 3.A — cierres formales internos):
 

@@ -132,6 +132,28 @@ export async function POST(req: NextRequest) {
   const userContent = mensaje.trim() || 'Comenzar entrevista'
   messages.push({ role: 'user', content: userContent })
 
+  // ─── Reset del latch de cierre ──
+  // Si entramos a un turno de chat (mensaje real del usuario) con
+  // sub_estado_paso='cierre_sugerido', significa que el usuario eligió SEGUIR
+  // EDITANDO por chat en vez de clickear "Cerrar Paso N" (ese botón va a la ruta de
+  // auditoría, NO pasa por acá). Sin reset, el estado queda trabado: el cierre-block
+  // de más abajo se vuelve no-op permanente (subEstadoActual !== 'en_curso') y el
+  // modelo sigue avanzando contenido con el estado congelado — bug real (Lab 10x):
+  // paso_actual trepó a 3 con sub_estado='cierre_sugerido' y sub_bloque atrás en 2.G,
+  // botón mostrando "Cerrar Paso 3" sin haber cerrado el 2. Volvemos a 'en_curso';
+  // si el modelo re-sugiere cierre al final del turno, el botón reaparece (el flujo
+  // se re-evalúa turno a turno). No reseteamos en apertura de sesión (mensaje vacío):
+  // ahí el botón debe seguir visible para que el usuario lo pueda clickear.
+  if (entrevista.sub_estado_paso === 'cierre_sugerido' && mensaje.trim()) {
+    try {
+      await updateSubEstadoPaso(entrevista.id, 'cierre_sugerido', 'en_curso')
+      entrevista.sub_estado_paso = 'en_curso'
+      console.log(`[PE chat] reset cierre_sugerido→en_curso (usuario siguió editando, entrevista ${entrevista.id})`)
+    } catch (e) {
+      console.warn(`[PE chat] no se pudo resetear cierre_sugerido:`, e instanceof Error ? e.message : String(e))
+    }
+  }
+
   // Pasar entrevista al system prompt para que el modelo sepa en qué paso/
   // sub-bloque está. Sin esto, el modelo asume Paso 0 cuando arranca sin
   // historial — bug confirmado en checkpoint del Paso 3 (3 mayo 2026).
