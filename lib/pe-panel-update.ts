@@ -1252,48 +1252,57 @@ function mergePreparativos(
   current: PreparativosPE | undefined,
   incoming: PreparativosPE,
 ): MergeResult<PreparativosPE> {
-  const c: PreparativosPE = current ?? {
-    areas_afectadas: [],
-    supuestos_exogenos: [],
-    priorizacion_inicial: { desvio_elegido: '', razon: '' },
-    criterio_exito: { por_metrica: [], zona_fracaso: '' },
-  }
+  // El modelo emite preparativos PARCIAL turno a turno (3.0.A solo areas, 3.0.B
+  // suma supuestos, 3.0.C priorizacion, 3.0.D criterio_exito). Por eso `current`
+  // puede ser un objeto sin algunas sub-keys — típicamente sin criterio_exito
+  // hasta 3.0.D. El default top-level NO alcanza: solo aplica si `current` es
+  // ENTERO nullish. Con un current parcial, `c.criterio_exito.por_metrica`
+  // crasheaba con "Cannot read properties of undefined (reading 'por_metrica')"
+  // (bug real Lab 10x). Normalizamos cada sub-key por separado.
+  const c: Partial<PreparativosPE> = current ?? {}
+  const cCriterio = c.criterio_exito ?? { por_metrica: [], zona_fracaso: '' }
+  const cPriorizacion = c.priorizacion_inicial ?? { desvio_elegido: '', razon: '' }
+  const incCriterio = incoming.criterio_exito ?? { por_metrica: [], zona_fracaso: '' }
   const events: MergeEvent[] = []
 
-  const areas = pickField('plan.preparativos.areas_afectadas', c.areas_afectadas, incoming.areas_afectadas)
+  const areas = pickField('plan.preparativos.areas_afectadas', c.areas_afectadas ?? [], incoming.areas_afectadas)
   if (areas.event) events.push(areas.event)
 
-  const supuestos = pickField('plan.preparativos.supuestos_exogenos', c.supuestos_exogenos, incoming.supuestos_exogenos)
+  const supuestos = pickField('plan.preparativos.supuestos_exogenos', c.supuestos_exogenos ?? [], incoming.supuestos_exogenos)
   if (supuestos.event) events.push(supuestos.event)
 
   // priorizacion_inicial: si incoming tiene desvio_elegido no vacío, gana
   const priIncomingFull = !isEmpty(incoming.priorizacion_inicial?.desvio_elegido)
-  const priorizacion = priIncomingFull ? incoming.priorizacion_inicial : c.priorizacion_inicial
-  if (priIncomingFull && JSON.stringify(c.priorizacion_inicial) !== JSON.stringify(incoming.priorizacion_inicial)) {
+  const priorizacion = priIncomingFull ? incoming.priorizacion_inicial : cPriorizacion
+  if (priIncomingFull && JSON.stringify(cPriorizacion) !== JSON.stringify(incoming.priorizacion_inicial)) {
     events.push({
       type: 'updated',
       field: 'plan.preparativos.priorizacion_inicial',
-      from: previewValue(c.priorizacion_inicial),
+      from: previewValue(cPriorizacion),
       to: previewValue(incoming.priorizacion_inicial),
     })
   }
 
   // criterio_exito: por_metrica (array) + zona_fracaso (string)
-  const porMetrica = pickField('plan.preparativos.criterio_exito.por_metrica', c.criterio_exito.por_metrica, incoming.criterio_exito.por_metrica)
-  const zonaFracaso = pickField('plan.preparativos.criterio_exito.zona_fracaso', c.criterio_exito.zona_fracaso, incoming.criterio_exito.zona_fracaso)
+  const porMetrica = pickField('plan.preparativos.criterio_exito.por_metrica', cCriterio.por_metrica, incCriterio.por_metrica)
+  const zonaFracaso = pickField('plan.preparativos.criterio_exito.zona_fracaso', cCriterio.zona_fracaso, incCriterio.zona_fracaso)
   if (porMetrica.event) events.push(porMetrica.event)
   if (zonaFracaso.event) events.push(zonaFracaso.event)
 
-  return {
-    value: {
-      areas_afectadas: areas.value,
-      supuestos_exogenos: supuestos.value,
-      priorizacion_inicial: priorizacion,
-      criterio_exito: {
-        por_metrica: porMetrica.value,
-        zona_fracaso: zonaFracaso.value,
-      },
+  const merged: PreparativosPE = {
+    areas_afectadas: areas.value,
+    supuestos_exogenos: supuestos.value,
+    priorizacion_inicial: priorizacion,
+    criterio_exito: {
+      por_metrica: porMetrica.value,
+      zona_fracaso: zonaFracaso.value,
     },
-    events,
   }
+  // Preservar brechas_revisadas: lo setea 3.A (modal de renombrar brechas). El merge
+  // de chat reconstruye el objeto con las 4 sub-keys canónicas y antes BORRABA este
+  // flag → reabría el modal. Incoming gana si lo trae; si no, se preserva el current.
+  const brechas = incoming.brechas_revisadas ?? c.brechas_revisadas
+  if (brechas !== undefined) merged.brechas_revisadas = brechas
+
+  return { value: merged, events }
 }
