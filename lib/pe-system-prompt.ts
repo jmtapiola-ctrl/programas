@@ -112,6 +112,85 @@ function renderGrafoDependencias(inventario: InventarioPE): string {
 // sub_estado_paso a 'cierre_sugerido' y el frontend muestra botón "Cerrar Paso N
 // y revisar". Hasta que ese feature exista, el modelo emite el campo y se
 // persiste, pero no genera UI ni transición de estado.
+// ── Helpers de render del estado estructurado (Fase blindaje: memoria) ──
+// El system prompt re-inyecta el plan estructurado COMPLETO en cada turno para que
+// el modelo no "olvide" datos que ya viven en el estado. Antes solo se renderizaban
+// desvio_principal+causa_raiz de situacion y un stub literal 'declarados' de
+// preparativos → el modelo perdía zona_fracaso, mínimos, supuestos calificados,
+// priorización, etc. (causa raíz del bug del YTV/CAC olvidado).
+function fmtCampo(s: string | undefined | null): string {
+  const t = (s ?? '').toString().trim()
+  return t.length ? t : '(vacío)'
+}
+
+function renderSituacionCompleta(s: any): string {
+  const sec = (s.desvios_secundarios ?? []).length
+    ? s.desvios_secundarios.map((d: any, i: number) => `  ${i + 1}. ${d.descripcion}${d.datos ? ` — datos: ${d.datos}` : ''}`).join('\n')
+    : '  (ninguno)'
+  const res = (s.resistencias ?? []).length
+    ? s.resistencias.map((r: any) => `  - [${r.criticidad}/${r.tipo}] ${r.actor}: ${r.descripcion}${r.mitigacion ? ` — mitigación: ${r.mitigacion}` : ' — (sin mitigación)'}`).join('\n')
+    : '  (ninguna)'
+  return `Desvío principal: ${fmtCampo(s.desvio_principal)}
+Desvío cuantificado: ${fmtCampo(s.desvio_cuantificado)}
+Desvíos secundarios:
+${sec}
+Causa raíz: ${fmtCampo(s.causa_raiz)}
+Consecuencia 6m: ${fmtCampo(s.consecuencia_6m)}
+Consecuencia 12m: ${fmtCampo(s.consecuencia_12m)}
+Recursos actuales: ${fmtCampo(s.recursos_actuales)}
+Recursos faltantes: ${fmtCampo(s.recursos_faltantes)}
+Intentos previos: ${fmtCampo(s.intentos_previos)}
+Resistencias:
+${res}`
+}
+
+function renderPreparativosCompleto(p: any): string {
+  const areas = (p.areas_afectadas ?? []).length
+    ? p.areas_afectadas.map((a: any) => `  - ${a.nombre} → ${a.responsable || '(sin responsable)'}${a.notas ? ` (${a.notas})` : ''}`).join('\n')
+    : '  (ninguna)'
+  const sup = (p.supuestos_exogenos ?? []).length
+    ? p.supuestos_exogenos.map((s: any) => `  - "${s.descripcion}" [tipo:${s.tipo || '?'} · prob:${s.probabilidad || 'sin calificar'} · impacto:${s.impacto_signo || '?'}/${s.impacto_magnitud || '?'} · estrategia:${s.estrategia || '?'}]${s.razon ? ` — ${s.razon}` : ''}`).join('\n')
+    : '  (ninguno)'
+  const pri = p.priorizacion_inicial?.desvio_elegido
+    ? `${p.priorizacion_inicial.desvio_elegido} — ${p.priorizacion_inicial.razon || '(sin razón)'}${p.priorizacion_inicial.desbloquea ? ` (desbloquea: ${p.priorizacion_inicial.desbloquea})` : ''}`
+    : '(no declarada)'
+  const ce = p.criterio_exito
+  const porMetrica = (ce?.por_metrica ?? []).length
+    ? ce.por_metrica.map((c: any) => `  - ${c.metrica}: pleno=${c.pleno || '(vacío)'} · mínimo=${c.minimo || '(vacío)'}`).join('\n')
+    : '  (ninguno)'
+  const zona = ce?.zona_fracaso?.trim() ? ce.zona_fracaso : '(no declarada)'
+  return `Áreas afectadas:
+${areas}
+Supuestos exógenos:
+${sup}
+Priorización inicial: ${pri}
+Criterio de éxito por métrica:
+${porMetrica}
+ZONA DE FRACASO GLOBAL: ${zona}`
+}
+
+function renderBorradorResumen(b: any): string {
+  const its = b.iteraciones ?? []
+  if (!its.length) return '(sin iteraciones)'
+  const last = its[its.length - 1]
+  const dec = (last.decisiones_priorizacion ?? []).length
+    ? last.decisiones_priorizacion.map((d: any) => `    - ${d.decision ?? d.descripcion ?? JSON.stringify(d).slice(0, 80)}`).join('\n')
+    : '    (ninguna)'
+  const sup = (last.supuestos_criticos ?? []).length ? last.supuestos_criticos.join('; ') : '(ninguno)'
+  return `iteración ${last.numero}/${its.length}${b.iteracion_aceptada ? ` (aceptada: ${b.iteracion_aceptada})` : ''}
+  Criterio: pleno=${fmtCampo(last.criterio_exito?.pleno)} · mínimo=${fmtCampo(last.criterio_exito?.minimo)} · path=${fmtCampo(last.criterio_exito?.path_minimo)}
+  Decisiones de priorización:
+${dec}
+  Supuestos críticos: ${sup}
+  Alternativas descartadas: ${(last.alternativas_descartadas ?? []).length}`
+}
+
+function renderEstresResumen(e: any): string {
+  const qs = e.preguntas ?? []
+  if (!qs.length) return '(sin preguntas)'
+  return qs.map((q: any) => `  ${q.id}: "${(q.pregunta ?? '').slice(0, 90)}" → "${(q.respuesta ?? '(sin responder)').slice(0, 90)}"${q.ajuste_aplicado ? ` [ajuste: ${q.ajuste_aplicado.tipo ?? 'sí'}]` : ''}`).join('\n')
+}
+
 export function buildSystemPrompt(plan: any, planSr: any | null, entrevista?: { paso_actual?: number; sub_bloque_actual?: string; sub_estado_paso?: string; historial?: Array<unknown> }): string {
   const esSr = plan.tipo === 'Sr'
 
@@ -172,12 +251,12 @@ Estabilidad: ${plan.proposito.estabilidad || '(vacío)'}
 ` : '(propósito aún no iniciado)'}
 ${plan.situacion ? `
 ### Situación construida hasta ahora
-Desvío principal: ${plan.situacion.desvio_principal || '(vacío)'}
-Causa raíz: ${plan.situacion.causa_raiz || '(vacío)'}
+${renderSituacionCompleta(plan.situacion)}
 ` : '(situación aún no iniciada)'}
 ${plan.plan ? `
 ### Plan (Paso 3) construido hasta ahora
-Preparativos: ${plan.plan.preparativos ? 'declarados' : '(pendiente)'}
+${plan.plan.preparativos ? `Preparativos:
+${renderPreparativosCompleto(plan.plan.preparativos)}` : 'Preparativos: (pendiente)'}
 Inventario: ${plan.plan.inventario?.movimientos?.length ? `${plan.plan.inventario.movimientos.length} movimientos` : '(pendiente)'}
 ${plan.plan.inventario?.movimientos?.length ? renderGrafoDependencias(plan.plan.inventario) : ''}
 ${(() => {
@@ -221,9 +300,11 @@ ${plan.plan.palancas.preguntas_validador.map((q: any) => {
   return `  ${q.id}: "${q.pregunta.slice(0, 100)}${q.pregunta.length > 100 ? '...' : ''}" → "${q.respuesta.slice(0, 80)}${q.respuesta.length > 80 ? '...' : ''}"${reTxt}`
 }).join('\n')}
 ` : ''}
-Borrador: ${plan.plan.borrador ? `${plan.plan.borrador.iteraciones?.length ?? 0} iteraciones` : '(pendiente)'}
-Estrés: ${plan.plan.estres?.preguntas?.length ? `${plan.plan.estres.preguntas.length} preguntas` : '(pendiente)'}
-Curado: ${plan.plan.curado ? 'cerrado' : '(pendiente)'}
+${plan.plan.borrador ? `Borrador:
+${renderBorradorResumen(plan.plan.borrador)}` : 'Borrador: (pendiente)'}
+${plan.plan.estres?.preguntas?.length ? `Estrés (${plan.plan.estres.preguntas.length} preguntas):
+${renderEstresResumen(plan.plan.estres)}` : 'Estrés: (pendiente)'}
+Curado: ${plan.plan.curado ? `cerrado (versión activa: ${(plan.plan.curado.version_activa ?? 0) + 1}/${plan.plan.curado.versiones?.length ?? 1})` : '(pendiente)'}
 ` : '(plan aún no iniciado)'}
 ${plan.datos_faltantes?.length ? `Datos por conseguir: ${plan.datos_faltantes.join(', ')}` : ''}
 `
