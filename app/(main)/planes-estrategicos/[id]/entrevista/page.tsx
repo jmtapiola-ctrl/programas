@@ -1070,20 +1070,24 @@ export default function EntrevistaPage() {
   // Disparado por el botón "Cerrar Paso N y revisar". Llama a /cerrar-paso
   // que transiciona sub_estado_paso de 'cierre_sugerido' a 'esperando_auditoria'
   // y devuelve la URL para navegar a la Pantalla 1 del audit-reviewer.
-  async function handleCerrarPaso() {
-    if (cerrandoPaso || !cierreSugeridoPaso) return
+  // pasoArg permite el cierre DETERMINÍSTICO (Fase C blindaje): cuando el modelo no
+  // emitió cierre_sugerido pero el Paso 3 está completo (curado existe), el botón
+  // pasa paso=3 explícito. Sin arg, usa cierreSugeridoPaso (camino normal).
+  async function handleCerrarPaso(pasoArg?: number) {
+    const paso = pasoArg ?? cierreSugeridoPaso
+    if (cerrandoPaso || !paso) return
     setCerrandoPaso(true)
     setCierrePasoError(null)
     try {
       const res = await fetch(`/api/planes-estrategicos/${id}/cerrar-paso`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paso: cierreSugeridoPaso }),
+        body: JSON.stringify({ paso }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
       // Navegar a Pantalla 1 del audit-reviewer.
-      const url = data.redirect ?? `/planes-estrategicos/${id}/cierre/${cierreSugeridoPaso}`
+      const url = data.redirect ?? `/planes-estrategicos/${id}/cierre/${paso}`
       router.push(url)
     } catch (e) {
       setCierrePasoError(e instanceof Error ? e.message : String(e))
@@ -1658,12 +1662,35 @@ export default function EntrevistaPage() {
                 </div>
               )}
               {curadoActual !== null && !curadoAbierto && (
-                <button
-                  onClick={() => setCuradoAbierto(true)}
-                  className={BTN_CTA}
-                >
-                  Ver plan curado →
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setCuradoAbierto(true)}
+                    className={BTN_CTA}
+                  >
+                    Ver plan curado →
+                  </button>
+                  {/* Cierre DETERMINÍSTICO (Fase C blindaje): si el curado existe, el
+                      Paso 3 está estructuralmente completo. Ofrecemos el cierre sin
+                      depender de que el modelo emita cierre_sugerido. Solo cuando el
+                      modelo NO lo disparó ya (sino se muestra el banner dedicado abajo). */}
+                  {cierreSugeridoPaso === null && (
+                    <div className="pt-1">
+                      <p className="text-[12px] text-muted-foreground mb-1">
+                        Cuando hayas leído y aprobado el plan curado, podés cerrar el Paso 3 (dispara la auditoría obligatoria del Revisor).
+                      </p>
+                      <button
+                        onClick={() => handleCerrarPaso(3)}
+                        disabled={cerrandoPaso}
+                        className={BTN_CTA}
+                      >
+                        {cerrandoPaso ? 'Cerrando…' : 'Cerrar Paso 3 y revisar →'}
+                      </button>
+                      {cierrePasoError && (
+                        <p className="mt-1 text-[12px] text-red-400">Error: {cierrePasoError}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
               {/* Error visible siempre que haya curadoError, en ambos casos
                   (sin curado o con curado pero modal cerrado). El modal
@@ -1698,7 +1725,7 @@ export default function EntrevistaPage() {
                   )}
                 </div>
                 <button
-                  onClick={handleCerrarPaso}
+                  onClick={() => handleCerrarPaso()}
                   disabled={cerrandoPaso}
                   className={`${BTN_CTA} flex-shrink-0`}
                 >

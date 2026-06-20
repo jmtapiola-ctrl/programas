@@ -11,7 +11,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getEntrevistaPE, updateSubEstadoPaso } from '@/lib/airtable'
+import { getEntrevistaPE, getPlanEstrategico, updateSubEstadoPaso } from '@/lib/airtable'
+import { getCuradoActivo } from '@/lib/types'
 
 export async function POST(
   req: NextRequest,
@@ -43,21 +44,42 @@ export async function POST(
   }
 
   const subEstadoActual = entrevista.sub_estado_paso ?? 'en_curso'
-  if (subEstadoActual !== 'cierre_sugerido') {
-    return NextResponse.json(
-      {
-        error: `sub_estado_paso debe ser 'cierre_sugerido' para cerrar el Paso, pero es '${subEstadoActual}'`,
-        hint: subEstadoActual === 'en_curso'
-          ? 'El modelo todavía no sugirió cierre. Seguí entrevistando hasta que aparezca el botón.'
-          : 'El Paso ya fue cerrado o está en otra fase del flow de auditoría.',
-      },
-      { status: 409 },
-    )
-  }
 
-  // Transición guarded: 'cierre_sugerido' → 'esperando_auditoria'.
+  // Camino 1 — el modelo emitió cierre_sugerido: transición directa.
+  // Camino 2 (Fase C blindaje) — cierre DETERMINÍSTICO: el usuario puede cerrar el
+  // Paso 3 aunque el modelo NO haya emitido cierre_sugerido, SIEMPRE que el Paso esté
+  // estructuralmente completo (existe el plan curado de 3.E). Evita que el usuario
+  // quede trabado esperando una señal probabilística del modelo. Respeta la máquina
+  // de estados haciendo las dos transiciones válidas (en_curso → cierre_sugerido →
+  // esperando_auditoria).
   try {
-    await updateSubEstadoPaso(entrevista.id, 'cierre_sugerido', 'esperando_auditoria')
+    if (subEstadoActual === 'cierre_sugerido') {
+      await updateSubEstadoPaso(entrevista.id, 'cierre_sugerido', 'esperando_auditoria')
+    } else if (subEstadoActual === 'en_curso' && paso === 3) {
+      const plan = await getPlanEstrategico(planId)
+      const curado = getCuradoActivo(plan)
+      if (!curado) {
+        return NextResponse.json(
+          {
+            error: 'El Paso 3 no está completo: falta el plan curado.',
+            hint: 'Generá y aprobá el plan curado en 3.E antes de cerrar el Paso.',
+          },
+          { status: 409 },
+        )
+      }
+      await updateSubEstadoPaso(entrevista.id, 'en_curso', 'cierre_sugerido')
+      await updateSubEstadoPaso(entrevista.id, 'cierre_sugerido', 'esperando_auditoria')
+    } else {
+      return NextResponse.json(
+        {
+          error: `No se puede cerrar el Paso desde sub_estado_paso='${subEstadoActual}'`,
+          hint: subEstadoActual === 'en_curso'
+            ? 'El cierre determinístico requiere el plan curado (Paso 3, sub-bloque 3.E). En Pasos 1 y 2, esperá a que el modelo sugiera el cierre.'
+            : 'El Paso ya fue cerrado o está en otra fase del flow de auditoría.',
+        },
+        { status: 409 },
+      )
+    }
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'transición rechazada por el guard' },
