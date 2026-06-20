@@ -25,6 +25,7 @@ import {
 } from '@/lib/pe-panel-update'
 import type { TurnoPE, PanelUpdatePE, PalancaQAPE } from '@/lib/types'
 import { sintetizarPreguntaPalanca } from '@/lib/palanca-sintesis'
+import { reconcilePasoSubBloque } from '@/lib/wizard-invariants'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -602,9 +603,18 @@ async function saveWithRetry(
       if (subBloqueAEscribir !== panelUpdate.sub_bloque_actual) {
         console.warn(`[PE chat] Backslide bloqueado en sub_bloque: current='${subBloqueActualCurrent}' incoming='${panelUpdate.sub_bloque_actual}' → preservando '${subBloqueAEscribir}'.`)
       }
+      const pasoAEscribir = mergePasoActual(pasoActualCurrent, panelUpdate.paso_actual)
+      // Invariante (Fase B blindaje): paso_actual ↔ sub_bloque_actual coherentes.
+      // Los merge-protectors garantizan monotonía de cada campo por separado pero
+      // NO su coherencia cruzada (bug Lab 10x: paso=3 / sub_bloque=2.G). Reconcilia
+      // sin regresar ninguno.
+      const rec = reconcilePasoSubBloque(pasoAEscribir, subBloqueAEscribir)
+      if (rec.corregido) {
+        console.warn(`[PE chat] invariante paso↔sub_bloque corregido: ${rec.nota} (entrevista ${entrevistaId})`)
+      }
       await updateEntrevistaPE(entrevistaId, {
-        paso_actual: mergePasoActual(pasoActualCurrent, panelUpdate.paso_actual),
-        sub_bloque_actual: subBloqueAEscribir,
+        paso_actual: rec.paso_actual,
+        sub_bloque_actual: rec.sub_bloque_actual,
         ultimo_panel_update_ok: panelHealth.ultimoPanelOK,
         turnos_sin_panel_consecutivos: panelHealth.counterSinPanel,
         retries_panel_update_acumulados: panelHealth.retriesAcumulados,
