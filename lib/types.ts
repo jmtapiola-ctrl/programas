@@ -422,6 +422,33 @@ export interface CambioRetroactivoDetectado {
   impactos_detectados?: string[]    // contradicciones/cascadas que el modelo detecta
 }
 
+// Escape hatch explícito del merge protector. El modelo solo puede incluir una
+// ruta cuando el usuario pidió borrar/limpiar un valor o reemplazar un array por
+// otro más corto. Sin esta marca, vacío/shrinkage se sigue tratando como omisión
+// accidental y se preserva el valor persistido.
+export type RutaReemplazoExplicitoPE =
+  | 'proposito.escena'
+  | 'proposito.metricas'
+  | 'proposito.fuera'
+  | 'proposito.horizonte'
+  | 'proposito.estabilidad'
+  | 'situacion.desvio_principal'
+  | 'situacion.desvio_cuantificado'
+  | 'situacion.desvios_secundarios'
+  | 'situacion.causa_raiz'
+  | 'situacion.consecuencia_6m'
+  | 'situacion.consecuencia_12m'
+  | 'situacion.recursos_actuales'
+  | 'situacion.recursos_faltantes'
+  | 'situacion.intentos_previos'
+  | 'situacion.resistencias'
+  | 'datos_faltantes'
+  | 'plan.preparativos.areas_afectadas'
+  | 'plan.preparativos.supuestos_exogenos'
+  | 'plan.preparativos.priorizacion_inicial'
+  | 'plan.preparativos.criterio_exito.por_metrica'
+  | 'plan.preparativos.criterio_exito.zona_fracaso'
+
 export interface PanelUpdatePE {
   paso_actual: number
   sub_bloque_actual: string
@@ -444,6 +471,10 @@ export interface PanelUpdatePE {
   cierre_sugerido?: boolean
   // Detección de cambio retroactivo (Fase F — H7). Opcional, default { detectado: false }.
   cambio_retroactivo?: CambioRetroactivoDetectado
+  // Rutas que el usuario pidió vaciar o reemplazar por un conjunto más chico.
+  // Deben venir acompañadas por el valor final autoritativo en el mismo
+  // PANEL_UPDATE. Nunca se infieren por omisión.
+  reemplazos_explicitos?: RutaReemplazoExplicitoPE[]
 }
 
 // Audit trail permanente de cambios retroactivos confirmados por el usuario

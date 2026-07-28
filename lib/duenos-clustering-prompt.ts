@@ -1,5 +1,6 @@
 // System + user message para clustering de variantes de dueños del inventario.
-// Sonnet 4.6 recibe la lista de strings únicos del campo `m.dueno` y propone
+// El modelo central del wizard recibe la lista de strings únicos del campo
+// `m.dueno` y propone
 // clusters de variantes que probablemente sean la MISMA persona (typos,
 // abreviaturas, mayúsculas/minúsculas, full name vs nickname).
 //

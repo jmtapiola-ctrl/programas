@@ -20,8 +20,9 @@ import {
 import { MovimientoFormModal } from '@/components/planes-estrategicos/MovimientoFormModal'
 import { BTN_CTA, BTN_SECONDARY_SM } from '@/components/ui/button-styles'
 import type { GestionInventario } from '@/components/planes-estrategicos/fichas/FichaMovimiento'
-import type { PlanEstrategico, TurnoPE, PanelUpdatePE, InventarioPE, MovimientoPE, PalancaQAPE, EstresQAPE, RespuestaEstructurada, BorradorIteracionPE, FaseSecuenciaPE, PlanCuradoPE, PlanCuradoVersionado } from '@/lib/types'
+import type { PlanEstrategico, TurnoPE, PanelUpdatePE, InventarioPE, MovimientoPE, PalancaQAPE, EstresQAPE, RespuestaEstructurada, BorradorIteracionPE, FaseSecuenciaPE, PlanCuradoPE, PlanCuradoVersionado, SubEstadoPaso } from '@/lib/types'
 import { getCuradoActivo } from '@/lib/types'
+import { rutaRecuperacionAuditoria } from '@/lib/audit-navigation'
 
 const PANEL_UPDATE_RE = /<!--PANEL_UPDATE-->[\s\S]*?<!--\/PANEL_UPDATE-->/g
 
@@ -29,6 +30,7 @@ const PANEL_UPDATE_RE = /<!--PANEL_UPDATE-->[\s\S]*?<!--\/PANEL_UPDATE-->/g
 function modeloLabel(id: string | null): string | null {
   if (!id) return null
   if (id.includes('haiku')) return 'Haiku 4.5'
+  if (id.includes('sonnet-5')) return 'Sonnet 5'
   if (id.includes('sonnet')) return 'Sonnet 4.6'
   if (id.includes('opus-4-8')) return 'Opus 4.8'
   if (id.includes('opus')) return 'Opus 4.7'
@@ -72,6 +74,9 @@ export default function EntrevistaPage() {
   // dentro de un mismo run, los cambios de paso ocurren via cerrar-paso/avance
   // y el user navega a otra ruta.
   const [pasoActualEntrevista, setPasoActualEntrevista] = useState<number>(0)
+  // Estado de la máquina de cierre/auditoría. Se usa para impedir que el CTA
+  // determinístico de Paso 3 reaparezca una vez que el audit ya comenzó.
+  const [subEstadoPaso, setSubEstadoPaso] = useState<SubEstadoPaso>('en_curso')
   const [inventarioOverride, setInventarioOverride] = useState<InventarioPE | null>(null)
   const [generandoInventario, setGenerandoInventario] = useState(false)
   const [generarError, setGenerarError] = useState<string | null>(null)
@@ -201,12 +206,23 @@ export default function EntrevistaPage() {
           setHistorial(hist)
           setSubBloqueActual(entrevista?.sub_bloque_actual ?? '0')
           setPasoActualEntrevista(entrevista?.paso_actual ?? 0)
+          const estado = (entrevista?.sub_estado_paso ?? 'en_curso') as SubEstadoPaso
+          setSubEstadoPaso(estado)
 
           // Hidratar cierreSugeridoPaso desde el estado persistido. Si Juan
           // recarga la página después de que el modelo emitió cierre_sugerido
           // pero antes de clickear "Cerrar Paso", el botón debe seguir visible.
           if (entrevista?.sub_estado_paso === 'cierre_sugerido') {
             setCierreSugeridoPaso(entrevista.paso_actual ?? null)
+          }
+
+          // Recovery determinístico: si el audit ya arrancó, la entrevista dejó
+          // de ser la pantalla correcta. La vista /cierre sabe rehidratar tanto
+          // el progreso como un reporte ya completo.
+          const rutaAuditoria = rutaRecuperacionAuditoria(id, entrevista?.paso_actual ?? 3, estado)
+          if (rutaAuditoria) {
+            router.replace(rutaAuditoria)
+            return
           }
 
           // Si historial vacío → disparar apertura del Paso 0
@@ -222,7 +238,7 @@ export default function EntrevistaPage() {
       }
     }
     load()
-  }, [id])
+  }, [id, router])
 
   const sendMessage = useCallback(async (
     mensaje: string,
@@ -361,6 +377,7 @@ export default function EntrevistaPage() {
             if (paso !== null) {
               console.log(`[entrevista] cierre_sugerido recibido para Paso ${paso} — mostrando botón de cierre.`)
               setCierreSugeridoPaso(paso)
+              setSubEstadoPaso('cierre_sugerido')
             }
           } else if (evt.type === 'panel_unhealthy') {
             // El panel lateral no se está actualizando — la conversación sigue,
@@ -1086,6 +1103,7 @@ export default function EntrevistaPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      setSubEstadoPaso('esperando_auditoria')
       // Navegar a Pantalla 1 del audit-reviewer.
       const url = data.redirect ?? `/planes-estrategicos/${id}/cierre/${paso}`
       router.push(url)
@@ -1673,7 +1691,7 @@ export default function EntrevistaPage() {
                       Paso 3 está estructuralmente completo. Ofrecemos el cierre sin
                       depender de que el modelo emita cierre_sugerido. Solo cuando el
                       modelo NO lo disparó ya (sino se muestra el banner dedicado abajo). */}
-                  {cierreSugeridoPaso === null && (
+                  {cierreSugeridoPaso === null && subEstadoPaso === 'en_curso' && (
                     <div className="pt-1">
                       <p className="text-[12px] text-muted-foreground mb-1">
                         Cuando hayas leído y aprobado el plan curado, podés cerrar el Paso 3 (dispara la auditoría obligatoria del Revisor).
@@ -1710,7 +1728,7 @@ export default function EntrevistaPage() {
               el botón explícito que el user clickea para navegar al audit-reviewer.
               Prominente porque es decisión load-bearing (a partir de acá no
               se puede seguir conversando del Paso). */}
-          {cierreSugeridoPaso !== null && (
+          {cierreSugeridoPaso !== null && subEstadoPaso === 'cierre_sugerido' && (
             <div className="flex-shrink-0 border-t-2 border-primary/50 bg-gradient-to-r from-primary/20 to-primary/5 px-4 py-3">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1">
@@ -2107,4 +2125,3 @@ export default function EntrevistaPage() {
     </div>
   )
 }
-

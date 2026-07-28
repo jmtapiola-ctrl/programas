@@ -628,22 +628,23 @@ async function saveWithRetry(
     }
 
     // 3. Update del plan en sí (proposito, situacion, datos_faltantes)
-    //    Usa merge protector: nunca pisa un campo no-vacío con vacío.
-    //    Esto resuelve H2 (PANEL_UPDATEs parciales). Limitación conocida:
-    //    si incoming tiene array NO vacío pero MÁS CHICO que current, igual
-    //    pisa (Fase 2 detectará "shrinkage").
+    //    Usa merge protector: nunca pisa un campo no-vacío con vacío ni acepta
+    //    un array más chico, salvo que el usuario lo haya pedido y el modelo
+    //    marque la ruta en reemplazos_explicitos.
     if (panelUpdate) {
-      const propMerge = mergeProposito(plan.proposito, panelUpdate.proposito)
-      const sitMerge = mergeSituacion(plan.situacion, panelUpdate.situacion)
-      const datosMerge = mergeDatosFaltantes(plan.datos_faltantes, panelUpdate.datos_faltantes)
-      const planMerge = mergePlan(plan.plan, panelUpdate.plan)
+      const reemplazosExplicitos = new Set<string>(panelUpdate.reemplazos_explicitos ?? [])
+      const propMerge = mergeProposito(plan.proposito, panelUpdate.proposito, reemplazosExplicitos)
+      const sitMerge = mergeSituacion(plan.situacion, panelUpdate.situacion, reemplazosExplicitos)
+      const datosMerge = mergeDatosFaltantes(plan.datos_faltantes, panelUpdate.datos_faltantes, reemplazosExplicitos)
+      const planMerge = mergePlan(plan.plan, panelUpdate.plan, reemplazosExplicitos)
 
       // Log estructurado de eventos del merge (para Fase 2 instrumentación)
       const allEvents = [...propMerge.events, ...sitMerge.events, ...datosMerge.events, ...planMerge.events]
       const shrinkages = allEvents.filter(e => e.type === 'preserved_shrinkage')
       const preserved = allEvents.filter(e => e.type === 'preserved_empty')
       const updated = allEvents.filter(e => e.type === 'updated')
-      console.log(`[PE chat] panel_merge plan=${planId} updated=${updated.length} preserved_empty=${preserved.length} shrinkages=${shrinkages.length}`)
+      const explicitReplaces = allEvents.filter(e => e.type === 'explicit_replace')
+      console.log(`[PE chat] panel_merge plan=${planId} updated=${updated.length} explicit_replace=${explicitReplaces.length} preserved_empty=${preserved.length} shrinkages=${shrinkages.length}`)
       if (shrinkages.length > 0) {
         console.warn('[PE chat] array_shrinkage_detected:', JSON.stringify(shrinkages))
       }

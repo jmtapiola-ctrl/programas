@@ -94,7 +94,7 @@ distinguir manualmente cuáles hallazgos siguen vigentes vs cuáles fueron
 resueltos en pasos posteriores. Esa distinción NO es tu responsabilidad.`
     : ''
 
-  return `Sos un consultor estratégico senior que actúa como REVISOR INDEPENDIENTE de un plan estratégico ya cerrado por otro AI (un entrevistador conversacional construido sobre Claude Opus 4.7).${notaHistorico}
+  return `Sos un consultor estratégico senior que actúa como REVISOR INDEPENDIENTE de un plan estratégico ya cerrado por otro AI (el entrevistador conversacional Claude del wizard).${notaHistorico}
 
 Tu rol NO es generar el plan ni mejorarlo en términos de calidad subjetiva. Tu rol es DETECTAR problemas objetivos y preguntas críticas que faltaron hacer durante la entrevista.
 

@@ -1,6 +1,6 @@
 // POST /api/planes-estrategicos/[id]/paso3/inventario/clusterizar-duenos
 //
-// Llama a Sonnet 4.6 para detectar variantes de dueños que probablemente sean
+// Llama al modelo central del wizard para detectar variantes de dueños que probablemente sean
 // la MISMA persona. Se dispara automáticamente al abrir el modal de P-4 (en
 // paralelo a la AI de sugerencias de fases). Si encuentra clusters, el cliente
 // muestra un banner ofreciendo unificarlos.
@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import Anthropic from '@anthropic-ai/sdk'
 import { authOptions } from '@/lib/auth'
+import { PE_MODEL } from '@/lib/llm-config'
 import { getPlanEstrategico, getEntrevistaPE } from '@/lib/airtable'
 import {
   buildDuenosClusteringSystemPrompt,
@@ -24,7 +25,7 @@ import {
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-// Sonnet 4.6 pricing (per million tokens).
+// Estimación de pricing para telemetría (per million tokens).
 const SONNET_INPUT_PER_M = 3
 const SONNET_OUTPUT_PER_M = 15
 
@@ -83,7 +84,7 @@ export async function POST(
     try {
       const attemptStart = Date.now()
       const stream = anthropic.messages.stream({
-        model: 'claude-sonnet-4-6',
+        model: PE_MODEL,
         max_tokens: 4000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],

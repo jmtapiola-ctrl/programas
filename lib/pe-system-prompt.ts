@@ -13,8 +13,9 @@ import {
   K_PE_PASO1_JR,
   K_PE_CAP_JR,
 } from './knowledge-pe'
-import { getContextoTemporalArg, normalizeDepTipoEdge, contextoCuradoToMarkdown } from './types'
-import type { RespuestaEstructurada, InventarioPE, MovimientoPE } from './types'
+import { getContextoTemporalArg, normalizeDepTipoEdge, contextoCuradoToMarkdown, getCuradoActivo } from './types'
+import type { RespuestaEstructurada, InventarioPE, PlanCuradoPE } from './types'
+import { computeSchedule } from './computeSchedule'
 
 // Renderiza la respuesta_estructurada de una pregunta (3.B/3.D Panel
 // Interactivo de Fichas) en una línea legible para el modelo. Sin esto, el
@@ -41,69 +42,6 @@ function formatRespuestaEstructurada(re: RespuestaEstructurada | undefined): str
         ? 'marcó: ninguna ficha (respuesta válida = "ninguno tiene este atributo")'
         : `marcó fichas: ${re.marcados.join(', ')}`
   }
-}
-
-// Renderiza el grafo completo de dependencias del inventario en una sección
-// compacta del system prompt. Sin esto, el modelo SOLO ve "Inventario: N
-// movimientos" y no tiene visibilidad de qué precondicíona a qué, qué tipo
-// (FS/FF/continuo) ni qué lag. Eso le llevó a decir incorrectamente "M-X
-// está aislado" cuando el user había declarado dependencias vía P-3 o el
-// editor DAG de 3.A.6. Esta función emite el grafo completo: una línea por
-// mov con sus precondiciones + desbloqueos, tipos y lag, más una lista final
-// de movs huérfanos. Ver Plan: "Visibilidad completa del grafo de dependencias".
-function renderGrafoDependencias(inventario: InventarioPE): string {
-  const movs = inventario.movimientos.filter(m => m.estado_usuario !== 'quitado')
-  if (movs.length === 0) return ''
-  const movsById = new Map<string, MovimientoPE>(movs.map(m => [m.id, m]))
-
-  // Render de un edge: "M-X (FS +1m)" o "M-X (sugerida)".
-  function renderEdge(otherId: string, tipo: string | undefined | null, lag: number): string {
-    const t = normalizeDepTipoEdge(tipo)
-    const lagStr = (t !== 'sugerida' && lag > 0) ? ` +${lag}m` : ''
-    return `${otherId} (${t.toUpperCase()}${lagStr})`
-  }
-
-  const lineas: string[] = []
-  const huerfanos: string[] = []
-  let totalEdges = 0
-
-  for (const m of movs) {
-    const precs = m.precondiciones ?? []
-    const desbl = m.desbloquea ?? []
-    if (precs.length === 0 && desbl.length === 0) {
-      huerfanos.push(m.id)
-      lineas.push(`  ${m.id} (${m.nombre}): (sin dependencias declaradas)`)
-      continue
-    }
-    const partes: string[] = []
-    if (precs.length > 0) {
-      const renderedPrecs = precs.map(precId => {
-        const tipo = m.precondiciones_tipo?.[precId]
-        const lag = m.precondiciones_lag_meses?.[precId] ?? 0
-        return renderEdge(precId, tipo, lag)
-      })
-      partes.push(`← precond [${renderedPrecs.join(', ')}]`)
-    }
-    if (desbl.length > 0) {
-      // El tipo + lag del edge "M → target" vive en target.precondiciones_tipo[M.id]
-      // y target.precondiciones_lag_meses[M.id]. Lookup por target.
-      const renderedDesbl = desbl.map(targetId => {
-        const target = movsById.get(targetId)
-        const tipo = target?.precondiciones_tipo?.[m.id]
-        const lag = target?.precondiciones_lag_meses?.[m.id] ?? 0
-        return renderEdge(targetId, tipo, lag)
-      })
-      partes.push(`→ desbloquea [${renderedDesbl.join(', ')}]`)
-    }
-    totalEdges += precs.length
-    lineas.push(`  ${m.id} (${m.nombre}): ${partes.join(' · ')}`)
-  }
-
-  const header = `Grafo de dependencias del inventario (${movs.length} movs activos, ${totalEdges} edges totales):`
-  const huerfanosLinea = huerfanos.length > 0
-    ? `\nMovs sin dependencias declaradas: ${huerfanos.join(', ')}`
-    : ''
-  return `\n${header}\n${lineas.join('\n')}${huerfanosLinea}\n`
 }
 
 // TODO: el campo cierre_sugerido del PANEL_UPDATE (sumado al schema y al bloque
@@ -174,21 +112,126 @@ function renderBorradorResumen(b: any): string {
   if (!its.length) return '(sin iteraciones)'
   const last = its[its.length - 1]
   const dec = (last.decisiones_priorizacion ?? []).length
-    ? last.decisiones_priorizacion.map((d: any) => `    - ${d.decision ?? d.descripcion ?? JSON.stringify(d).slice(0, 80)}`).join('\n')
+    ? last.decisiones_priorizacion.map((d: any) => `    - ${d.decision ?? d.descripcion ?? JSON.stringify(d)} — razón: ${fmtCampo(d.razon)} — descartadas: ${(d.alternativas_descartadas ?? []).join('; ') || '(ninguna)'}`).join('\n')
     : '    (ninguna)'
   const sup = (last.supuestos_criticos ?? []).length ? last.supuestos_criticos.join('; ') : '(ninguno)'
+  const secuencia = (last.secuencia_movimientos ?? []).length
+    ? last.secuencia_movimientos.map((f: any) => `    - ${f.fase}: [${(f.movimientos ?? []).join(', ')}] — ${fmtCampo(f.razon_secuencia)}`).join('\n')
+    : '    (ninguna)'
+  const alternativas = (last.alternativas_descartadas ?? []).length
+    ? last.alternativas_descartadas.map((a: any) => `    - ${fmtCampo(a.decision)} — ${fmtCampo(a.razon)}`).join('\n')
+    : '    (ninguna)'
+  const disconformidades = (last.disconformidades_usuario ?? []).length
+    ? last.disconformidades_usuario.map((d: any) => `    - ${fmtCampo(d.elemento)} — ${fmtCampo(d.razon)}`).join('\n')
+    : '    (ninguna)'
   return `iteración ${last.numero}/${its.length}${b.iteracion_aceptada ? ` (aceptada: ${b.iteracion_aceptada})` : ''}
+  Contexto: ${fmtCampo(last.contexto)}
   Criterio: pleno=${fmtCampo(last.criterio_exito?.pleno)} · mínimo=${fmtCampo(last.criterio_exito?.minimo)} · path=${fmtCampo(last.criterio_exito?.path_minimo)}
   Decisiones de priorización:
 ${dec}
+  Secuencia:
+${secuencia}
   Supuestos críticos: ${sup}
-  Alternativas descartadas: ${(last.alternativas_descartadas ?? []).length}`
+  Alternativas descartadas:
+${alternativas}
+  Disconformidades del usuario:
+${disconformidades}`
 }
 
 function renderEstresResumen(e: any): string {
   const qs = e.preguntas ?? []
   if (!qs.length) return '(sin preguntas)'
-  return qs.map((q: any) => `  ${q.id}: "${(q.pregunta ?? '').slice(0, 90)}" → "${(q.respuesta ?? '(sin responder)').slice(0, 90)}"${q.ajuste_aplicado ? ` [ajuste: ${q.ajuste_aplicado.tipo ?? 'sí'}]` : ''}`).join('\n')
+  return qs.map((q: any) => {
+    const re = formatRespuestaEstructurada(q.respuesta_estructurada)
+    return `  ${q.id}: "${fmtCampo(q.pregunta)}"
+    respuesta: "${fmtCampo(q.respuesta)}"
+    selección estructurada: ${re || '(ninguna)'}
+    observación del modelo: ${fmtCampo(q.observacion_modelo)}
+    ajuste aplicado: ${q.ajuste_aplicado ? `${q.ajuste_aplicado.tipo}: ${q.ajuste_aplicado.descripcion}` : '(ninguno)'}`
+  }).join('\n')
+}
+
+/**
+ * Fuente de verdad completa del inventario para el modelo conversacional.
+ * Incluye el schedule CPM derivado; `ventana_temporal` se informa solo como
+ * legacy y nunca se presenta como cronograma vigente.
+ */
+function renderInventarioCompleto(inventario: InventarioPE): string {
+  const movs = inventario.movimientos ?? []
+  if (movs.length === 0) return '(pendiente)'
+  const schedule = computeSchedule(movs, new Date())
+
+  const lineas = movs.map(m => {
+    const sched = schedule.get(m.id)
+    const cronograma = sched
+      ? `${sched.arrancaYM}→${sched.terminaYM} · ${sched.faseKey}${sched.tieneOverride ? ' · override aplicado' : ''}${sched.empujadoPorVacancia ? ' · empujado por vacancia' : ''}${sched.empujadoPorDuraId ? ` · empujado por ${sched.empujadoPorDuraId}` : ''}`
+      : '(sin CPM: falta duración o está quitado)'
+    const precs = (m.precondiciones ?? []).map(id => {
+      const tipo = normalizeDepTipoEdge(m.precondiciones_tipo?.[id]).toUpperCase()
+      const lag = m.precondiciones_lag_meses?.[id] ?? 0
+      const razon = m.precondiciones_razonamiento?.[id]
+      return `${id} (${tipo}${lag > 0 ? ` +${lag}m` : ''}${razon ? `; ${razon}` : ''})`
+    })
+    const legacy = m.ventana_temporal
+      ? '(presente pero omitida: campo legacy, NO usar)'
+      : '(ausente)'
+    return `  ${m.id} "${m.nombre}" [${m.categoria} · estado:${m.estado_usuario}]
+    descripción: ${fmtCampo(m.descripcion)}
+    qué resuelve: ${fmtCampo(m.que_resuelve)}
+    brechas atacadas: ${(m.brechas_atacadas ?? []).join('; ') || '(ninguna declarada)'}
+    dueño: ${fmtCampo(m.dueno)}${m.dueno_es_vacante ? ` [VACANTE · cobertura ${m.dueno_semanas_cobertura ?? 8} semanas]` : ''}
+    esfuerzo: ${m.costo_banda_ancha} · impacto: ${m.impacto ?? 'media'} · costo USD: ${m.costo_monetario?.rango_min_usd ?? '?'}-${m.costo_monetario?.rango_max_usd ?? '?'}${m.costo_monetario?.nota ? ` (${m.costo_monetario.nota})` : ''}
+    duración ejecución: ${m.duracion_meses_ejecucion ?? '(sin definir)'} meses
+    CRONOGRAMA CPM VIGENTE: ${cronograma}
+    ventana_temporal: ${legacy}
+    precondiciones: ${precs.join(' · ') || '(ninguna)'}
+    desbloquea: ${(m.desbloquea ?? []).join(', ') || '(ninguno)'}
+    criterio de éxito: ${fmtCampo(m.criterio_exito)}
+    override: ${m.arranca_override ?? '(ninguno)'}${m.arranca_override_razonamiento ? ` — ${m.arranca_override_razonamiento}` : ''}
+    riesgo alto: ${m.riesgo_ejecucion_razonamiento ?? '(no marcado)'}`
+  })
+
+  return `${movs.length} movimientos (${movs.filter(m => m.estado_usuario !== 'quitado').length} activos):
+${lineas.join('\n')}`
+}
+
+function renderPreguntasCompleto(label: string, preguntas: any[]): string {
+  if (!preguntas.length) return `${label}: (ninguna)`
+  return `${label}:
+${preguntas.map(q => {
+    const re = formatRespuestaEstructurada(q.respuesta_estructurada)
+    return `  ${q.id}: "${fmtCampo(q.pregunta)}"
+    respuesta: "${fmtCampo(q.respuesta)}"
+    selección estructurada: ${re || '(ninguna)'}
+    observación: ${fmtCampo(q.observacion_modelo)}`
+  }).join('\n')}`
+}
+
+function renderCuradoCompleto(curado: PlanCuradoPE | null): string {
+  if (!curado) return '(pendiente)'
+  const decisiones = curado.decisiones_priorizacion?.length
+    ? curado.decisiones_priorizacion.map((d, i) => `  ${i + 1}. ${d.decision} — ${d.razon}`).join('\n')
+    : '  (ninguna)'
+  const secuencia = curado.secuencia_movimientos?.length
+    ? curado.secuencia_movimientos.map(f => `  - ${f.fase}: [${f.movimientos.map(m => m.id).join(', ')}] — ${f.razon_secuencia}`).join('\n')
+    : '  (ninguna)'
+  const supuestos = curado.supuestos_criticos?.length
+    ? curado.supuestos_criticos.map(s => `  - ${s.descripcion} [${s.tipo}/${s.probabilidad}/${s.estrategia}] — ${s.razon}`).join('\n')
+    : '  (ninguno)'
+  const alternativas = curado.alternativas_descartadas?.length
+    ? curado.alternativas_descartadas.map(a => `  - ${a.decision} — ${a.razon}`).join('\n')
+    : '  (ninguna)'
+  return `Contexto: ${fmtCampo(curado.contexto)}
+Decisiones:
+${decisiones}
+Secuencia (los datos y fechas vigentes de cada movimiento están en Inventario):
+${secuencia}
+Supuestos críticos:
+${supuestos}
+Criterio: pleno=${fmtCampo(curado.criterio_exito?.pleno)} · mínimo=${fmtCampo(curado.criterio_exito?.minimo)} · path=${fmtCampo(curado.criterio_exito?.path_minimo)}
+Alternativas descartadas:
+${alternativas}
+Cerrado en: ${curado.cerrado_en}`
 }
 
 export function buildSystemPrompt(plan: any, planSr: any | null, entrevista?: { paso_actual?: number; sub_bloque_actual?: string; sub_estado_paso?: string; historial?: Array<unknown> }): string {
@@ -238,6 +281,13 @@ pre-poblar la lista de áreas.
   const estadoActual = `
 ## Estado actual del plan en construcción
 
+⚠️ FUENTE DE VERDAD AUTORITATIVA: todo lo que aparece en esta sección fue
+releído del estado estructurado persistido en este turno. Si el historial
+conversacional contiene un valor diferente o más antiguo, MANDA esta sección.
+No le vuelvas a preguntar al usuario un dato que figure acá. Para fechas y
+fases, manda exclusivamente "CRONOGRAMA CPM VIGENTE"; \`ventana_temporal\` es
+legacy informativo y no puede usarse para decidir Q3/Q4.
+
 Área: ${plan.area || '(no declarada aún)'}
 Tipo: Plan ${plan.tipo}
 ${plan.horizonte ? `Horizonte: ${plan.horizonte}` : ''}
@@ -257,54 +307,17 @@ ${plan.plan ? `
 ### Plan (Paso 3) construido hasta ahora
 ${plan.plan.preparativos ? `Preparativos:
 ${renderPreparativosCompleto(plan.plan.preparativos)}` : 'Preparativos: (pendiente)'}
-Inventario: ${plan.plan.inventario?.movimientos?.length ? `${plan.plan.inventario.movimientos.length} movimientos` : '(pendiente)'}
-${plan.plan.inventario?.movimientos?.length ? renderGrafoDependencias(plan.plan.inventario) : ''}
-${(() => {
-  // Sección: movs con campos USER-EDITED in-line en el inventario (P-4 arranca
-  // override + P-5 riesgo de ejecución). El system prompt resume el inventario
-  // como conteo nada más; los campos editados por el usuario (arranca_override,
-  // riesgo_ejecucion_razonamiento) NO se ven sino. Esta sección le da al modelo
-  // visibilidad EXPLÍCITA de esos cambios para que pueda procesarlos en P-4/P-5.
-  const movs = plan.plan?.inventario?.movimientos ?? []
-  const conRiesgo = movs.filter((m: any) => !!m.riesgo_ejecucion_razonamiento)
-  const conOverride = movs.filter((m: any) => !!m.arranca_override)
-  if (conRiesgo.length === 0 && conOverride.length === 0) return ''
-  const partes: string[] = []
-  if (conRiesgo.length > 0) {
-    partes.push(`Movimientos marcados con RIESGO ALTO de ejecución (respuesta del usuario a P-5, razon in-line por mov):
-${conRiesgo.map((m: any) =>
-  `  ${m.id} "${m.nombre}" [categoría: ${m.categoria}] — razon: "${m.riesgo_ejecucion_razonamiento}"`
-).join('\n')}`)
-  }
-  if (conOverride.length > 0) {
-    partes.push(`Movimientos con arranque MOVIDO MANUALMENTE (override del usuario en P-4):
-${conOverride.map((m: any) =>
-  `  ${m.id} "${m.nombre}" → arranca_override: ${m.arranca_override}${m.arranca_override_razonamiento ? ` — razon: "${m.arranca_override_razonamiento}"` : ' (sin razon todavía)'}`
-).join('\n')}`)
-  }
-  return '\n' + partes.join('\n\n') + '\n'
-})()}
+Inventario:
+${plan.plan.inventario ? renderInventarioCompleto(plan.plan.inventario) : '(pendiente)'}
 Palancas: ${plan.plan.palancas ? `${plan.plan.palancas.preguntas_principal?.length ?? 0} principal + ${plan.plan.palancas.preguntas_validador?.length ?? 0} validador` : '(pendiente)'}
-${plan.plan.palancas?.preguntas_principal?.length ? `Preguntas principal hechas hasta ahora:
-${plan.plan.palancas.preguntas_principal.map((q: any) => {
-  const reStr = formatRespuestaEstructurada(q.respuesta_estructurada)
-  const respTxt = q.respuesta ? ` → respondida: "${q.respuesta.slice(0, 60)}${q.respuesta.length > 60 ? '...' : ''}"` : ' (sin responder)'
-  const reTxt = reStr ? ` [panel: ${reStr}]` : ''
-  return `  ${q.id}: "${q.pregunta.slice(0, 100)}${q.pregunta.length > 100 ? '...' : ''}"${respTxt}${reTxt}`
-}).join('\n')}
-` : ''}
-${plan.plan.palancas?.preguntas_validador?.length ? `Preguntas validador (ya respondidas en UI dedicada):
-${plan.plan.palancas.preguntas_validador.map((q: any) => {
-  const reStr = formatRespuestaEstructurada(q.respuesta_estructurada)
-  const reTxt = reStr ? ` [panel: ${reStr}]` : ''
-  return `  ${q.id}: "${q.pregunta.slice(0, 100)}${q.pregunta.length > 100 ? '...' : ''}" → "${q.respuesta.slice(0, 80)}${q.respuesta.length > 80 ? '...' : ''}"${reTxt}`
-}).join('\n')}
-` : ''}
+${plan.plan.palancas ? renderPreguntasCompleto('Preguntas principal', plan.plan.palancas.preguntas_principal ?? []) : ''}
+${plan.plan.palancas ? renderPreguntasCompleto('Preguntas validador', plan.plan.palancas.preguntas_validador ?? []) : ''}
 ${plan.plan.borrador ? `Borrador:
 ${renderBorradorResumen(plan.plan.borrador)}` : 'Borrador: (pendiente)'}
 ${plan.plan.estres?.preguntas?.length ? `Estrés (${plan.plan.estres.preguntas.length} preguntas):
 ${renderEstresResumen(plan.plan.estres)}` : 'Estrés: (pendiente)'}
-Curado: ${plan.plan.curado ? `cerrado (versión activa: ${(plan.plan.curado.version_activa ?? 0) + 1}/${plan.plan.curado.versiones?.length ?? 1})` : '(pendiente)'}
+Curado: ${plan.plan.curado ? `cerrado (versión activa: ${(plan.plan.curado.version_activa ?? 0) + 1}/${plan.plan.curado.versiones?.length ?? 1})
+${renderCuradoCompleto(getCuradoActivo(plan))}` : '(pendiente)'}
 ` : '(plan aún no iniciado)'}
 ${plan.datos_faltantes?.length ? `Datos por conseguir: ${plan.datos_faltantes.join(', ')}` : ''}
 `
@@ -429,6 +442,38 @@ Reglas estrictas (NO son sugerencias):
 - El bloque va siempre al final, después de tu respuesta conversacional.
 - Para plan Sr: omitir los campos "alineacion_sr" y "alineacion_sr_comentario" del objeto proposito.
 
+BORRADOS Y REEMPLAZOS POR CONJUNTOS MÁS CHICOS — \`reemplazos_explicitos\`:
+
+El backend protege los datos persistidos contra omisiones accidentales: por
+default NO acepta que un valor no vacío pase a vacío ni que un array sea
+reemplazado por otro más corto. Cuando —y SOLO cuando— el usuario pidió
+explícitamente borrar, limpiar, retirar o reducir datos, emití:
+
+\`\`\`json
+"reemplazos_explicitos": ["<ruta exacta del campo>"]
+\`\`\`
+
+y emití en el mismo PANEL_UPDATE el valor final autoritativo de ese campo
+(\`""\`, \`[]\` o el array completo más corto). En todos los demás turnos emití
+\`"reemplazos_explicitos": []\`. Esta marca NO es para corregir olvidos tuyos ni
+para enviar patches parciales.
+
+Rutas permitidas: \`proposito.escena\`, \`proposito.metricas\`,
+\`proposito.fuera\`, \`proposito.horizonte\`, \`proposito.estabilidad\`;
+todos los campos directos de \`situacion\`, incluyendo
+\`desvios_secundarios\` y \`resistencias\`; \`datos_faltantes\`;
+\`plan.preparativos.areas_afectadas\`,
+\`plan.preparativos.supuestos_exogenos\`,
+\`plan.preparativos.priorizacion_inicial\`,
+\`plan.preparativos.criterio_exito.por_metrica\` y
+\`plan.preparativos.criterio_exito.zona_fracaso\`.
+
+Ejemplo: el usuario dice “sacá la métrica CAC” y quedan dos métricas. Emitís
+las dos métricas restantes como estado completo y
+\`"reemplazos_explicitos":["proposito.metricas"]\`. Si una métrica simplemente
+no apareció en tu output por error, NO uses esta marca: reemití el estado
+completo correcto.
+
 REGLA GLOBAL DE FORMATO — códigos y referencias estructuradas en texto narrativo:
 
 Cuando cites CUALQUIER código del wizard en texto NARRATIVO (tu respuesta conversacional, observaciones intermedias 3.B/3.D, mensajes de cierre/transición, observacion_modelo, razón de cualquier campo del plan), incluí la descripción/nombre entre paréntesis **la PRIMERA vez que aparece la sigla en cada turno tuyo**. Apariciones SIGUIENTES dentro del MISMO turno: no es necesario repetir el paréntesis (sería verbose), pero podés hacerlo si la separación es grande (varios párrafos).
@@ -456,7 +501,7 @@ Cuando cites CUALQUIER código del wizard en texto NARRATIVO (tu respuesta conve
 1. El usuario abre tu turno NUEVO sin memoria del paréntesis que pusiste en el turno previo. Tratá cada turno como si fuera la primera vez que el usuario lee esa sigla.
 2. Si tu lector tiene que parar y pensar "¿qué era V-3?", lo escribiste mal.
 
-**Antes de decir que un movimiento está "aislado", "sin función estructural", "sin dependencias" o "sin desbloqueos"**: consultá OBLIGATORIAMENTE la sección "Grafo de dependencias del inventario" arriba en este system prompt. Esa sección lista cada mov con sus precondiciones y desbloqueos persistidos. Es la FUENTE DE VERDAD del grafo. NUNCA infieras dependencias por ausencia en respuestas a P-3 ni por memoria de turnos pasados — el grafo del system prompt manda. Si el grafo dice que M-X tiene desbloqueos, NO digas que está aislado.
+**Antes de decir que un movimiento está "aislado", "sin función estructural", "sin dependencias" o "sin desbloqueos"**: consultá OBLIGATORIAMENTE la sección "Inventario" de la FUENTE DE VERDAD arriba. Cada movimiento lista sus precondiciones, tipos, lags y desbloqueos persistidos. NUNCA infieras dependencias por ausencia en respuestas a P-3 ni por memoria de turnos pasados. Si el inventario dice que M-X tiene desbloqueos, NO digas que está aislado.
 
 Ejemplos:
 
@@ -660,9 +705,9 @@ Schema de cada sub-key:
   "preguntas_validador": [<idem schema PalancaQAPE pero origen='validador' e id 'V-1'..'V-5'. En V1 NO emitas modo_interaccion para validador — esas preguntas son texto puro>]
 }
 
-"inventario": schema completo se persiste vía endpoint dedicado /paso3/inventario/generar — NO lo emitas vos. El sistema lo poblará en plan.inventario y vos solo lo VES como contexto en este system prompt (a través del rendering de "Inventario: N movimientos" arriba).
+"inventario": schema completo se persiste vía endpoint dedicado /paso3/inventario/generar — NO lo emitas vos durante el flujo normal. El sistema lo poblará en plan.inventario y vos lo VES completo, junto con su cronograma CPM vigente, en la FUENTE DE VERDAD de este system prompt.
 
-"borrador" (3.C): MISMO patrón que inventario — se persiste vía endpoint dedicado /paso3/borrador/generar (Opus dedicado con max_tokens=24000 y schema strict de 6 secciones). NO emitas plan.borrador en tu PANEL_UPDATE. Si lo hacés, el merge protector podría pisar la versión real que escribió el endpoint. Tu rol conversacional durante 3.C: acompañar al usuario revisando el borrador (que ve en una vista dedicada), discutir disconformidades, y guiar la decisión de re-iterar vs aceptar. NO construyas el borrador turno a turno.
+"borrador" (3.C): MISMO patrón que inventario — se persiste vía endpoint dedicado /paso3/borrador/generar (modelo central del wizard con max_tokens=24000 y schema strict de 6 secciones). NO emitas plan.borrador en tu PANEL_UPDATE. Si lo hacés, el merge protector podría pisar la versión real que escribió el endpoint. Tu rol conversacional durante 3.C: acompañar al usuario revisando el borrador (que ve en una vista dedicada), discutir disconformidades, y guiar la decisión de re-iterar vs aceptar. NO construyas el borrador turno a turno.
 
 "estres" (3.D): schema dedicado de preguntas de estrés. Forma:
 

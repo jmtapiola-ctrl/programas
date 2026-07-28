@@ -20,9 +20,45 @@ import type {
   PalancaQAPE,
   EstresPE,
   EstresQAPE,
+  RutaReemplazoExplicitoPE,
 } from './types'
 
 const PANEL_UPDATE_RE = /<!--PANEL_UPDATE-->([\s\S]*?)<!--\/PANEL_UPDATE-->/
+
+export const RUTAS_REEMPLAZO_EXPLICITO: readonly RutaReemplazoExplicitoPE[] = [
+  'proposito.escena',
+  'proposito.metricas',
+  'proposito.fuera',
+  'proposito.horizonte',
+  'proposito.estabilidad',
+  'situacion.desvio_principal',
+  'situacion.desvio_cuantificado',
+  'situacion.desvios_secundarios',
+  'situacion.causa_raiz',
+  'situacion.consecuencia_6m',
+  'situacion.consecuencia_12m',
+  'situacion.recursos_actuales',
+  'situacion.recursos_faltantes',
+  'situacion.intentos_previos',
+  'situacion.resistencias',
+  'datos_faltantes',
+  'plan.preparativos.areas_afectadas',
+  'plan.preparativos.supuestos_exogenos',
+  'plan.preparativos.priorizacion_inicial',
+  'plan.preparativos.criterio_exito.por_metrica',
+  'plan.preparativos.criterio_exito.zona_fracaso',
+] as const
+
+const RUTAS_REEMPLAZO_EXPLICITO_SET = new Set<string>(RUTAS_REEMPLAZO_EXPLICITO)
+
+function getPathValue(obj: any, path: string): unknown {
+  let current = obj
+  for (const segment of path.split('.')) {
+    if (current === null || current === undefined || typeof current !== 'object') return undefined
+    current = current[segment]
+  }
+  return current
+}
 
 export type ParseResult =
   | { ok: true; data: PanelUpdatePE }
@@ -634,6 +670,34 @@ export function parsePanelUpdate(fullResponse: string): ParseResult {
     }
   }
 
+  // Reemplazos explícitos: única forma autorizada de vaciar un campo o reducir
+  // un array protegido. Cada ruta está allowlisteada y el PANEL_UPDATE debe
+  // traer el valor final correspondiente; una marca sin dato nunca borra nada.
+  if (parsed?.reemplazos_explicitos !== undefined) {
+    if (!Array.isArray(parsed.reemplazos_explicitos)) {
+      errors.push(`reemplazos_explicitos (si presente) debe ser array de rutas`)
+    } else {
+      const vistas = new Set<string>()
+      parsed.reemplazos_explicitos.forEach((ruta: any, i: number) => {
+        if (typeof ruta !== 'string') {
+          errors.push(`reemplazos_explicitos[${i}] debe ser string`)
+          return
+        }
+        if (!RUTAS_REEMPLAZO_EXPLICITO_SET.has(ruta)) {
+          errors.push(`reemplazos_explicitos[${i}] ruta no permitida: '${ruta}'`)
+          return
+        }
+        if (vistas.has(ruta)) {
+          errors.push(`reemplazos_explicitos contiene ruta duplicada: '${ruta}'`)
+        }
+        vistas.add(ruta)
+        if (getPathValue(parsed, ruta) === undefined) {
+          errors.push(`reemplazos_explicitos marca '${ruta}' pero el PANEL_UPDATE no trae su valor final`)
+        }
+      })
+    }
+  }
+
   // cierre_sugerido (opcional, default false implícito).
   // Ausencia: permitido — necesario para rehidratar PANEL_UPDATEs viejos sin el campo.
   // Presencia: tiene que ser boolean estricto (no string truthy/falsy, no null).
@@ -759,6 +823,7 @@ const SITUACION_DEFAULT: SituacionPE = {
  */
 export type MergeEvent =
   | { type: 'updated'; field: string; from: string; to: string }
+  | { type: 'explicit_replace'; field: string; from: string; to: string }
   | { type: 'preserved_empty'; field: string }    // incoming vacío, current preservado
   | { type: 'preserved_shrinkage'; field: string; current_size: number; incoming_size: number }
 
@@ -777,7 +842,26 @@ export interface MergeResult<T> {
  *   - Si incoming es no-vacío y no es shrinkage → usar incoming (updated).
  *   - Si ambos son vacíos → tomar incoming (no events porque no hay nada que reportar).
  */
-function pickField<T>(field: string, current: T, incoming: T): { value: T; event?: MergeEvent } {
+function pickField<T>(
+  field: string,
+  current: T,
+  incoming: T,
+  explicitReplace = false,
+): { value: T; event?: MergeEvent } {
+  if (explicitReplace) {
+    return JSON.stringify(current) === JSON.stringify(incoming)
+      ? { value: incoming }
+      : {
+          value: incoming,
+          event: {
+            type: 'explicit_replace',
+            field,
+            from: previewValue(current),
+            to: previewValue(incoming),
+          },
+        }
+  }
+
   const incEmpty = isEmpty(incoming)
   const curEmpty = isEmpty(current)
 
@@ -820,6 +904,7 @@ function previewValue(v: unknown): string {
 export function mergeProposito(
   current: PropositorPE | undefined,
   incoming: PropositorPE | undefined,
+  reemplazosExplicitos: ReadonlySet<string> = new Set(),
 ): MergeResult<PropositorPE> {
   const c = current ?? PROPOSITO_DEFAULT
   // Incoming omitido (regla "no re-emitir sub-trees congelados" en 3.x): preservar current intacto.
@@ -830,7 +915,8 @@ export function mergeProposito(
   const fields: (keyof PropositorPE)[] = ['escena', 'metricas', 'fuera', 'horizonte', 'estabilidad']
   const result: any = {}
   for (const f of fields) {
-    const { value, event } = pickField(`proposito.${String(f)}`, c[f], incoming[f])
+    const path = `proposito.${String(f)}`
+    const { value, event } = pickField(path, c[f], incoming[f], reemplazosExplicitos.has(path))
     result[f] = value
     if (event) events.push(event)
   }
@@ -850,6 +936,7 @@ export function mergeProposito(
 export function mergeSituacion(
   current: SituacionPE | undefined,
   incoming: SituacionPE | undefined,
+  reemplazosExplicitos: ReadonlySet<string> = new Set(),
 ): MergeResult<SituacionPE> {
   const c = current ?? SITUACION_DEFAULT
   // Incoming omitido (regla "no re-emitir sub-trees congelados" en 3.x): preservar current intacto.
@@ -865,7 +952,8 @@ export function mergeSituacion(
   ]
   const result: any = {}
   for (const f of fields) {
-    const { value, event } = pickField(`situacion.${String(f)}`, c[f], incoming[f])
+    const path = `situacion.${String(f)}`
+    const { value, event } = pickField(path, c[f], incoming[f], reemplazosExplicitos.has(path))
     result[f] = value
     if (event) events.push(event)
   }
@@ -875,13 +963,14 @@ export function mergeSituacion(
 export function mergeDatosFaltantes(
   current: string[] | undefined,
   incoming: string[] | undefined,
+  reemplazosExplicitos: ReadonlySet<string> = new Set(),
 ): MergeResult<string[]> {
   const cur = current ?? []
   // Incoming omitido: preservar current.
   if (incoming === undefined || incoming === null) {
     return { value: cur, events: [{ type: 'preserved_empty', field: 'datos_faltantes (omitido por modelo)' }] }
   }
-  const { value, event } = pickField('datos_faltantes', cur, incoming)
+  const { value, event } = pickField('datos_faltantes', cur, incoming, reemplazosExplicitos.has('datos_faltantes'))
   return { value, events: event ? [event] : [] }
 }
 
@@ -937,6 +1026,7 @@ export function mergeSubBloque(current: string, incoming: string): string {
 export function mergePlan(
   current: PlanoPE | undefined,
   incoming: PlanoPE | undefined,
+  reemplazosExplicitos: ReadonlySet<string> = new Set(),
 ): MergeResult<PlanoPE | undefined> {
   if (!incoming) return { value: current, events: [] }
   const c = current ?? {}
@@ -945,7 +1035,7 @@ export function mergePlan(
 
   // preparativos: merge campo a campo si está presente en incoming
   if (incoming.preparativos !== undefined) {
-    const merged = mergePreparativos(c.preparativos, incoming.preparativos)
+    const merged = mergePreparativos(c.preparativos, incoming.preparativos, reemplazosExplicitos)
     if (merged.value !== undefined) result.preparativos = merged.value
     events.push(...merged.events)
   } else if (c.preparativos !== undefined) {
@@ -1251,6 +1341,7 @@ function mergeEstres(
 function mergePreparativos(
   current: PreparativosPE | undefined,
   incoming: PreparativosPE,
+  reemplazosExplicitos: ReadonlySet<string> = new Set(),
 ): MergeResult<PreparativosPE> {
   // El modelo emite preparativos PARCIAL turno a turno (3.0.A solo areas, 3.0.B
   // suma supuestos, 3.0.C priorizacion, 3.0.D criterio_exito). Por eso `current`
@@ -1265,27 +1356,33 @@ function mergePreparativos(
   const incCriterio = incoming.criterio_exito ?? { por_metrica: [], zona_fracaso: '' }
   const events: MergeEvent[] = []
 
-  const areas = pickField('plan.preparativos.areas_afectadas', c.areas_afectadas ?? [], incoming.areas_afectadas)
+  const areasPath = 'plan.preparativos.areas_afectadas'
+  const areas = pickField(areasPath, c.areas_afectadas ?? [], incoming.areas_afectadas, reemplazosExplicitos.has(areasPath))
   if (areas.event) events.push(areas.event)
 
-  const supuestos = pickField('plan.preparativos.supuestos_exogenos', c.supuestos_exogenos ?? [], incoming.supuestos_exogenos)
+  const supuestosPath = 'plan.preparativos.supuestos_exogenos'
+  const supuestos = pickField(supuestosPath, c.supuestos_exogenos ?? [], incoming.supuestos_exogenos, reemplazosExplicitos.has(supuestosPath))
   if (supuestos.event) events.push(supuestos.event)
 
   // priorizacion_inicial: si incoming tiene desvio_elegido no vacío, gana
-  const priIncomingFull = !isEmpty(incoming.priorizacion_inicial?.desvio_elegido)
+  const priorizacionPath = 'plan.preparativos.priorizacion_inicial'
+  const reemplazoPriorizacion = reemplazosExplicitos.has(priorizacionPath)
+  const priIncomingFull = reemplazoPriorizacion || !isEmpty(incoming.priorizacion_inicial?.desvio_elegido)
   const priorizacion = priIncomingFull ? incoming.priorizacion_inicial : cPriorizacion
   if (priIncomingFull && JSON.stringify(cPriorizacion) !== JSON.stringify(incoming.priorizacion_inicial)) {
     events.push({
-      type: 'updated',
-      field: 'plan.preparativos.priorizacion_inicial',
+      type: reemplazoPriorizacion ? 'explicit_replace' : 'updated',
+      field: priorizacionPath,
       from: previewValue(cPriorizacion),
       to: previewValue(incoming.priorizacion_inicial),
     })
   }
 
   // criterio_exito: por_metrica (array) + zona_fracaso (string)
-  const porMetrica = pickField('plan.preparativos.criterio_exito.por_metrica', cCriterio.por_metrica, incCriterio.por_metrica)
-  const zonaFracaso = pickField('plan.preparativos.criterio_exito.zona_fracaso', cCriterio.zona_fracaso, incCriterio.zona_fracaso)
+  const porMetricaPath = 'plan.preparativos.criterio_exito.por_metrica'
+  const zonaFracasoPath = 'plan.preparativos.criterio_exito.zona_fracaso'
+  const porMetrica = pickField(porMetricaPath, cCriterio.por_metrica, incCriterio.por_metrica, reemplazosExplicitos.has(porMetricaPath))
+  const zonaFracaso = pickField(zonaFracasoPath, cCriterio.zona_fracaso, incCriterio.zona_fracaso, reemplazosExplicitos.has(zonaFracasoPath))
   if (porMetrica.event) events.push(porMetrica.event)
   if (zonaFracaso.event) events.push(zonaFracaso.event)
 

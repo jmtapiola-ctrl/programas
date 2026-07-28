@@ -1,19 +1,18 @@
 // Switch central del modelo Anthropic que usa el wizard PE.
 //
-// Motivo: abaratar costos durante la etapa de pruebas (sobre todo el wizard del
-// Plan Jr). En vez de hardcodear 'claude-opus-4-7' en cada endpoint, todos
-// importan PE_MODEL de acá. Para cambiar de modelo, hay dos formas:
+// En vez de hardcodear un model id en cada endpoint, todos importan PE_MODEL
+// de acá. Para cambiar de modelo, hay dos formas:
 //
 //   1. Variable de entorno (sin tocar código, requiere reiniciar dev):
 //        PE_WIZARD_MODEL=opus     → vuelve a Opus
 //        PE_WIZARD_MODEL=haiku    → Haiku (barato)
-//        PE_WIZARD_MODEL=sonnet   → Sonnet (intermedio)
+//        PE_WIZARD_MODEL=sonnet   → Sonnet 5 (default)
 //        PE_WIZARD_MODEL=<model-id-completo>  → cualquier otro id
 //
 //   2. Cambiando el DEFAULT de una línea acá abajo (DEFAULT_MODELO).
 //
-// Default actual: SONNET. Cambiar = setear la env PE_WIZARD_MODEL (haiku/opus/
-// id completo) o cambiar DEFAULT_MODELO acá abajo.
+// Default actual: SONNET 5. Cambiar = setear la env PE_WIZARD_MODEL
+// (haiku/opus/id completo) o cambiar DEFAULT_MODELO acá abajo.
 //
 // CAVEAT de costos: los endpoints loguean costo estimado con constantes de
 // precio de Opus ($15/$75 por M tokens). Bajo Haiku el costo REAL es mucho menor
@@ -25,7 +24,7 @@
 
 export const MODELOS_ANTHROPIC = {
   haiku: 'claude-haiku-4-5-20251001',
-  sonnet: 'claude-sonnet-4-6',
+  sonnet: 'claude-sonnet-5',
   opus: 'claude-opus-4-7',
 } as const
 

@@ -42,10 +42,11 @@ import type { PlanEstrategico, SnapshotPaso, SubEstadoPaso, ReviewerQuestion } f
 import { getCuradoActivo, contextoCuradoToMarkdown } from '@/lib/types'
 import { generarDivergenciasCapJr } from '@/lib/cap-jr'
 import { updatePlanEstrategico } from '@/lib/airtable'
+import { computeSchedule } from '@/lib/computeSchedule'
 
 // ─── Helper: serializar el resumen del Paso a markdown ──────────────────────
 
-async function serializeResumenPaso(plan: PlanEstrategico, paso: number): Promise<string> {
+export async function serializeResumenPaso(plan: PlanEstrategico, paso: number): Promise<string> {
   const responsable = plan.responsable_id
     ? await getUsuario(plan.responsable_id).catch(() => null)
     : null
@@ -157,9 +158,19 @@ ${resistenciasList}
     const decisionesList = c.decisiones_priorizacion?.length
       ? c.decisiones_priorizacion.map((d, i) => `${i + 1}. **${d.decision}** — razón: ${d.razon}`).join('\n')
       : '_(ninguna)_'
+    // El cronograma real es derivado: duración + dependencias + vacancias +
+    // overrides. `ventana_temporal` es legacy y puede estar vacío o representar
+    // una versión anterior del plan, por lo que no debe alimentar al reviewer.
+    const schedule = computeSchedule(plan.plan?.inventario?.movimientos ?? [], new Date())
     const secuenciaList = c.secuencia_movimientos?.length
       ? c.secuencia_movimientos.map(f => {
-          const movs = f.movimientos.map(m => `  - **${m.id}** ${m.nombre} (dueño: ${m.dueno || '_(sin asignar)_'}, ventana: ${m.ventana_temporal?.arranca ?? '?'}→${m.ventana_temporal?.termina ?? '?'})`).join('\n')
+          const movs = f.movimientos.map(m => {
+            const sched = schedule.get(m.id)
+            const ventana = sched
+              ? `${sched.arrancaYM}→${sched.terminaYM} · fase CPM ${sched.faseKey}`
+              : 'sin cronograma CPM (falta duración o movimiento quitado)'
+            return `  - **${m.id}** ${m.nombre} (dueño: ${m.dueno || '_(sin asignar)_'}, cronograma real: ${ventana})`
+          }).join('\n')
           return `**${f.fase}** — ${f.razon_secuencia}\n${movs}`
         }).join('\n\n')
       : '_(sin movimientos secuenciados)_'
