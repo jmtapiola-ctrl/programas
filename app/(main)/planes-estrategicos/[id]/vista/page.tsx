@@ -15,6 +15,7 @@ import { VersionSelector } from '@/components/planes-estrategicos/VersionSelecto
 import { GlosarioVista } from '@/components/planes-estrategicos/GlosarioVista'
 import { DAGSecuenciacionReadOnly } from '@/components/planes-estrategicos/DAGSecuenciacionReadOnly'
 import { FasesCanvasReadOnly } from '@/components/planes-estrategicos/FasesCanvasReadOnly'
+import { PrintPlanButton } from '@/components/planes-estrategicos/PrintPlanButton'
 import './vista.css'
 
 const serif = Source_Serif_4({
@@ -181,7 +182,7 @@ export default async function VistaPlanPage({ params, searchParams }: {
               ← Volver al wizard
             </Link>
             <span className="back" style={{ fontSize: 11 }}>
-              Documento read-only · Cmd/Ctrl+P para guardar PDF
+              Documento read-only
             </span>
           </div>
           <h1>{plan.nombre || '(plan sin nombre)'}</h1>
@@ -196,7 +197,7 @@ export default async function VistaPlanPage({ params, searchParams }: {
           {/* Editor + historial de versiones (feature edición). Solo si el plan
               tiene una versión baseline registrada (= está cerrado). */}
           {plan.version_activa_label && (
-            <div style={{ marginTop: 12 }} className="flex items-center gap-3 flex-wrap">
+            <div style={{ marginTop: 12 }} className="pe-vista-actions flex items-center gap-3 flex-wrap">
               {esActual && (
                 <Link
                   href={`/planes-estrategicos/${id}/editar`}
@@ -213,6 +214,12 @@ export default async function VistaPlanPage({ params, searchParams }: {
                   viendo={versionViendo?.numero ?? plan.version_activa_label ?? ''}
                 />
               )}
+              <PrintPlanButton />
+            </div>
+          )}
+          {!plan.version_activa_label && (
+            <div style={{ marginTop: 12 }} className="pe-vista-actions">
+              <PrintPlanButton />
             </div>
           )}
           {versionViendo && !esActual && (

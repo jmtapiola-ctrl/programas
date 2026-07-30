@@ -410,12 +410,57 @@
 }
 
 @media print {
+  /*
+   * MainShell usa h-screen + un <main> con scroll propio para la aplicación.
+   * En impresión eso recorta el documento al alto visible del viewport. La
+   * vista de plan convierte temporalmente todo el shell en flujo normal para
+   * que el navegador pueda paginar el contenido completo.
+   */
+  html,
+  body {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+  .app-shell {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+  .app-shell > aside,
+  .app-shell-header {
+    display: none !important;
+  }
+  .app-shell-frame {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin-left: 0 !important;
+    overflow: visible !important;
+  }
+  .app-shell-main {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+  .app-shell-page {
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
   .pe-vista-toc {
     display: none;  /* ocultar el índice lateral al imprimir */
   }
   .pe-vista-root {
     background: #ffffff;
     color: #000000;
+    min-height: 0;
+    overflow: visible;
   }
   .pe-vista-container {
     max-width: 100%;
@@ -423,6 +468,9 @@
   }
   .pe-vista-header .top-bar {
     display: none;  /* ocultar el link "Volver al wizard" */
+  }
+  .pe-vista-actions {
+    display: none !important;
   }
   .pe-vista-header {
     border-bottom-color: #888;

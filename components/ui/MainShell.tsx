@@ -74,17 +74,17 @@ export function MainShell({
   const esEntrevista = pathname.includes('/entrevista')
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="app-shell flex h-screen bg-background">
       <Sidebar inboxCount={inboxCount} colapsado={colapsado} onToggle={handleToggle} />
       <div
-        className="flex-1 flex flex-col min-w-0 transition-[margin-left] duration-200"
+        className="app-shell-frame flex-1 flex flex-col min-w-0 transition-[margin-left] duration-200"
         style={{ marginLeft: colapsado ? 48 : 224 }}
       >
         {/* Header oculto en entrevista — la entrevista tiene su propio header
             del plan + botón Pausar. Mostrar el header global ahí come 48px más
             de altura que duele en notebooks 15". */}
         {!esEntrevista && (
-          <header className="h-12 border-b border-border flex items-center justify-end px-6 gap-4 bg-background sticky top-0 z-10 flex-shrink-0">
+          <header className="app-shell-header h-12 border-b border-border flex items-center justify-end px-6 gap-4 bg-background sticky top-0 z-10 flex-shrink-0">
             <Link href="/inbox" className="relative">
               <Bell
                 className="h-5 w-5 text-muted-foreground hover:text-foreground transition-colors"
@@ -102,10 +102,10 @@ export function MainShell({
             </span>
           </header>
         )}
-        <main className="flex-1 overflow-y-auto">
+        <main className="app-shell-main flex-1 overflow-y-auto">
           {esEntrevista
             ? children
-            : <div className="p-6 max-w-6xl mx-auto">{children}</div>
+            : <div className="app-shell-page p-6 max-w-6xl mx-auto">{children}</div>
           }
         </main>
       </div>
